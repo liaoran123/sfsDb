@@ -1,0 +1,10 @@
+package db
+
+//行,即所有列
+type Row struct {
+	Col map[string]*Column
+}
+
+func (r *Row) Text() {
+
+}
