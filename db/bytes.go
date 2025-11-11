@@ -9,9 +9,13 @@ import (
 
 type Bytes []byte
 
-func (b Bytes) Int() int {
+func (b Bytes) Bool() bool {
+	return b[0] == 1
+}
+
+func (b Bytes) Int() int64 {
 	bytesBuffer := bytes.NewBuffer(b)
-	var x int
+	var x int64
 	if IsLitEndian {
 		binary.Read(bytesBuffer, binary.LittleEndian, &x)
 	} else {
@@ -19,16 +23,8 @@ func (b Bytes) Int() int {
 	}
 	return x
 }
-func (b Bytes) Float32() float32 {
-	var bits uint32
-	if IsLitEndian {
-		bits = binary.LittleEndian.Uint32(b)
-	} else {
-		bits = binary.BigEndian.Uint32(b)
-	}
-	return math.Float32frombits(bits)
-}
-func (b Bytes) Float64() float64 {
+
+func (b Bytes) Float() float64 {
 	var bits uint64
 	if IsLitEndian {
 		bits = binary.LittleEndian.Uint64(b)
@@ -37,8 +33,17 @@ func (b Bytes) Float64() float64 {
 	}
 	return math.Float64frombits(bits)
 }
+
+// 需要进行反转义
 func (b Bytes) String() string {
-	return string(b)
+	r := []byte{}
+	for i := 0; i < len(b); i++ {
+		if b[i] == 2 {
+			if i+1 < len(b) {
+			}
+		}
+	}
+	return string(r)
 }
 
 // 如果时间格式错误，返回2006-01-02 15:04:05
@@ -50,11 +55,83 @@ func (b Bytes) Time() time.Time {
 	return t
 }
 
-// 合并多个
-func (b Bytes) Jion(split string, ib ...[]byte) {
-	for _, v := range ib {
-		b = bytes.Join([][]byte{b, v}, []byte(split))
+// 用左右括号包括数据
+// 数据格式：字段id(数据)。如：1(abcde)2(12345)
+func (b Bytes) Format(id byte) []byte {
+	//b = bytes.Join([][]byte{[]byte{id, '('}, b, []byte{')'}}, []byte{})
+	b = bytes.Join([][]byte{{id, LEFT_SPLIT[0]}, b, {RIGHT_SPLIT[0]}}, []byte{})
+	return b
+}
+
+// 去掉id和左右括号。1(abcde) => abcde
+func (b Bytes) UnFormat(id byte) []byte {
+	return b[2 : len(b)-2]
+}
+
+// 对数据进行转义，左右括号进行转义，遇到括号时，重复写入两次作为转义
+func (b Bytes) Escape() []byte {
+	blen := len(b)
+	buf := make([]byte, 0, blen)
+	left := LEFT_SPLIT[0]
+	right := RIGHT_SPLIT[0]
+	for i := 0; i < blen; i++ {
+		c := b[i]
+		switch c {
+		case left:
+			buf = append(buf, left, left) // 遇到分隔符时，重复写入两次
+		case right:
+			buf = append(buf, right, right) // 遇到分隔符时，重复写入两次
+		default:
+			buf = append(buf, c)
+		}
 	}
+	return buf
+}
+
+// 合并多个
+func (b Bytes) Jion(ib ...[]byte) []byte {
+	for _, v := range ib {
+		b = bytes.Join([][]byte{b, v}, []byte{})
+	}
+	return b //原本的 b值，并不能被改变，所有需要返回一个新的值
+}
+
+// 根据DEFAULT_SPLIT分隔进行反转义
+func (b Bytes) Split() [][]byte {
+	rs := [][]byte{}
+	s := []byte{}
+	leftSPLIT := LEFT_SPLIT[0]
+	rightSPLIT := RIGHT_SPLIT[0]
+	blen := len(b)
+	for i := 0; i < blen; i++ {
+		if i+1 < blen {
+			switch b[i] {
+			case rightSPLIT:
+				if b[i+1] == rightSPLIT { //连续2个分隔符，表示数据中有分隔符
+					s = append(s, rightSPLIT) //只需添加1个分隔符到数据中
+					i++                       //跳过下一个分隔符
+					continue
+				}
+			case leftSPLIT:
+				if b[i+1] == leftSPLIT { //连续2个分隔符，表示数据中有分隔符
+					s = append(s, leftSPLIT) //只需添加1个分隔符到数据中
+					i++                      //跳过下一个分隔符
+					continue
+				}
+			}
+		}
+		if b[i] == rightSPLIT {
+			rs = append(rs, s)
+			s = []byte{}
+			continue
+		} else {
+			s = append(s, b[i])
+		}
+	}
+	if len(s) > 0 {
+		rs = append(rs, s)
+	}
+	return rs
 }
 
 /*

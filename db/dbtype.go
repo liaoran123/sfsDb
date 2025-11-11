@@ -1,7 +1,6 @@
 package db
 
 import (
-	"bytes"
 	"encoding/binary"
 	"math"
 	"time"
@@ -13,8 +12,12 @@ type DbType interface {
 
 type String string
 
+// 处理分隔符DEFAULT_SPLIT=‘-’字符
+// 遇到分隔符时，重复写入两次作为转义。
+// DEFAULT_SPLIT不能是系统默认的分隔符/否则会导致无法区分是数据中的分隔符还是实际的分隔符
 func (s String) ToBytes() []byte {
-	return []byte(s)
+	return s.ToBytes()
+
 }
 
 type Time time.Time
@@ -35,21 +38,23 @@ func (b Bool) ToBytes() []byte {
 	}
 }
 
-type Int int
+// 整型统一用int64存储
+type Int int64
 
 func (i Int) ToBytes() []byte {
-	bytesBuffer := bytes.NewBuffer([]byte{})
+	bytesBuffer := make([]byte, 8)
 	if IsLitEndian {
-		binary.Write(bytesBuffer, binary.LittleEndian, i)
+		binary.LittleEndian.PutUint64(bytesBuffer, uint64(i))
 	} else {
-		binary.Write(bytesBuffer, binary.BigEndian, i)
+		binary.BigEndian.PutUint64(bytesBuffer, uint64(i))
 	}
-	return bytesBuffer.Bytes()
+	return bytesBuffer
 }
 
-type Float64 float64
+// 浮点型统一用float64存储
+type Float float64
 
-func (f Float64) ToBytes() []byte {
+func (f Float) ToBytes() []byte {
 	bits := math.Float64bits(float64(f))
 	bytes := make([]byte, 8)
 	if IsLitEndian {
@@ -60,24 +65,10 @@ func (f Float64) ToBytes() []byte {
 	return bytes
 }
 
-type Float32 float32
-
-func (f Float32) ToBytes() []byte {
-	bits := math.Float32bits(float32(f))
-	bytes := make([]byte, 4)
-	if IsLitEndian {
-		binary.LittleEndian.PutUint32(bytes, bits)
-	} else {
-		binary.BigEndian.PutUint32(bytes, bits)
-	}
-	return bytes
-}
-
 type DbTypes struct {
-	Bool    Bool
-	Int     Int
-	Float32 Float32
-	Float64 Float64
-	Time    Time
-	String  String
+	Bool   Bool
+	Int    Int
+	Float  Float
+	Time   Time
+	String String
 }
