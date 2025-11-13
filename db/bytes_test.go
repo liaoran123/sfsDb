@@ -67,13 +67,66 @@ func TestBytes(t *testing.T) {
 
 	str = "(abc(,)de(,)"
 	b1 = []byte(str)
-	eb := Bytes(b1).Format(10)
-	fmt.Printf("转义后: %v\n", []byte(eb))
+	fb := byte(45)
+	eb := Bytes(b1).Format(45)
+	fmt.Printf(" %v\n", []byte(eb))
 	beb := Bytes(eb).String()
-	fmt.Printf("beb: %v\n", beb)
-	ub := Bytes(eb).UnFormat()
-	fmt.Printf("反转义后: %v\n", []byte(ub))
+	fmt.Printf("转义后:beb: %v\n", beb)
+	i, ub := Bytes(eb).UnFormat()
+	fmt.Printf("id: %v\n", i)
+	assert.Equal(t, i, fb)
+	fmt.Printf("反转义后: %v\n", ub)
 	sub := Bytes(ub).String()
 	fmt.Printf("sub: %v\n", sub)
-	assert.Equal(t, b1, ub)
+	assert.Equal(t, str, sub)
+
+	//测试Split
+	dtbool := dt.Bool.ToBytes()
+	fbool := Bytes(dtbool).Format(1)
+	dtint := dt.Int.ToBytes()
+	fint := Bytes(dtint).Format(2)
+	dtfloat := dt.Float.ToBytes()
+	ffloat := Bytes(dtfloat).Format(3)
+	dttime := dt.Time.ToBytes()
+	ftime := Bytes(dttime).Format(4)
+	dtstring := dt.String.ToBytes()
+	fstring := Bytes(dtstring).Format(5)
+	merged := Bytes(fbool).Jion(fint, ffloat, ftime, fstring)
+	fmt.Printf("合并后: %v\n", []byte(merged))
+	splited := Bytes(merged).Split()
+	id, data := Bytes(splited[0]).UnFormat()
+	assert.Equal(t, byte(1), id)
+	assert.Equal(t, dt.Bool.ToBytes(), data)
+	id, data = Bytes(splited[1]).UnFormat()
+	assert.Equal(t, byte(2), id)
+	assert.Equal(t, dt.Int.ToBytes(), data)
+	id, data = Bytes(splited[2]).UnFormat()
+	assert.Equal(t, byte(3), id)
+	assert.Equal(t, dt.Float.ToBytes(), data)
+	id, data = Bytes(splited[3]).UnFormat()
+	assert.Equal(t, byte(4), id)
+	assert.Equal(t, dt.Time.ToBytes(), data)
+	id, data = Bytes(splited[4]).UnFormat()
+	assert.Equal(t, byte(5), id)
+	assert.Equal(t, dt.String.ToBytes(), data)
+
+	for _, v := range splited {
+		id, data := Bytes(v).UnFormat()
+		fmt.Printf("分割后 %d : %v:%s\n", id, data, string(data))
+	}
+}
+
+// 递归计算斐波那契数列
+func Fib(n int) int {
+	if n <= 1 {
+		return n
+	}
+	return Fib(n-1) + Fib(n-2)
+}
+
+// 基准测试函数，内存性能测试
+func BenchmarkFib(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Fib(30) // 测试计算第30个斐波那契数
+	}
 }
