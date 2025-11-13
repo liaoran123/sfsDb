@@ -100,15 +100,15 @@ func (b Bytes) Escape() []byte {
 	blen := len(b)
 
 	var buffer bytes.Buffer
-	leftSPLIT := LEFT_SPLIT[0]
-	rightSPLIT := RIGHT_SPLIT[0]
+	left := LEFT_SPLIT[0]
+	right := RIGHT_SPLIT[0]
 	for i := range blen {
 		c := b[i]
 		switch c {
-		case leftSPLIT:
-			buffer.Write([]byte{leftSPLIT, leftSPLIT}) // 遇到分隔符时，重复写入两次
-		case rightSPLIT:
-			buffer.Write([]byte{rightSPLIT, rightSPLIT}) // 遇到分隔符时，重复写入两次
+		case left:
+			buffer.Write([]byte{left, left}) // 遇到分隔符时，重复写入两次
+		case right:
+			buffer.Write([]byte{right, right}) // 遇到分隔符时，重复写入两次
 
 		default:
 			buffer.WriteByte(c)
@@ -129,40 +129,37 @@ func (b Bytes) Jion(ib ...[]byte) []byte {
 // 如： 1(ab1c)3(de)2(gh) => [ab1c de gh]
 func (b Bytes) Split() [][]byte {
 	rs := [][]byte{}
-	//s := []byte{}
-	var s bytes.Buffer
+	s := []byte{}
 	leftSPLIT := LEFT_SPLIT[0]
 	rightSPLIT := RIGHT_SPLIT[0]
 	blen := len(b)
 	for i := 0; i < blen; i++ {
-		c := b[i]
 		if i+1 < blen {
-			switch c {
+			switch b[i] {
 			case rightSPLIT:
 				if b[i+1] == rightSPLIT { //连续2个分隔符，表示数据中有分隔符
-					s.WriteByte(rightSPLIT) //只需添加1个分隔符到数据中
-					i++                     //跳过下一个分隔符
+					s = append(s, rightSPLIT) //只需添加1个分隔符到数据中
+					i++                       //跳过下一个分隔符
 					continue
 				}
 			case leftSPLIT:
 				if b[i+1] == leftSPLIT { //连续2个分隔符，表示数据中有分隔符
-					s.WriteByte(leftSPLIT) //只需添加1个分隔符到数据中
-					i++                    //跳过下一个分隔符
+					s = append(s, leftSPLIT) //只需添加1个分隔符到数据中
+					i++                      //跳过下一个分隔符
 					continue
 				}
 			}
 		}
-		if c == rightSPLIT {
-			rs = append(rs, s.Bytes())
-			s.Reset()
+		if b[i] == rightSPLIT {
+			rs = append(rs, s)
+			s = []byte{}
 			continue
 		} else {
-			s.WriteByte(c)
+			s = append(s, b[i])
 		}
 	}
-
-	if s.Len() > 0 {
-		rs = append(rs, s.Bytes())
+	if len(s) > 0 {
+		rs = append(rs, s)
 	}
 	return rs
 }

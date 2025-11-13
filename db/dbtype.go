@@ -16,7 +16,7 @@ type String string
 // 遇到分隔符时，重复写入两次作为转义。
 // DEFAULT_SPLIT不能是系统默认的分隔符/否则会导致无法区分是数据中的分隔符还是实际的分隔符
 func (s String) ToBytes() []byte {
-	return s.ToBytes()
+	return []byte(s)
 
 }
 

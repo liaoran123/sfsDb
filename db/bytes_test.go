@@ -65,13 +65,15 @@ func TestBytes(t *testing.T) {
 	bjJion := bj.Jion(b2, b3, b4, b5)
 	fmt.Printf("合并后: %v\n", []byte(bjJion))
 
-	//测试Split
-	bs := Bytes(bjJion)
-	splitBytes := bs.Split()
-	assert.Equal(t, 5, len(splitBytes))
-	assert.Equal(t, []byte("abc,de,"), splitBytes[0])
-	assert.Equal(t, b2, splitBytes[1])
-	assert.Equal(t, b3, splitBytes[2])
-	assert.Equal(t, b4, splitBytes[3])
-	assert.Equal(t, b5, splitBytes[4])
+	str = "(abc(,)de(,)"
+	b1 = []byte(str)
+	eb := Bytes(b1).Format(10)
+	fmt.Printf("转义后: %v\n", []byte(eb))
+	beb := Bytes(eb).String()
+	fmt.Printf("beb: %v\n", beb)
+	ub := Bytes(eb).UnFormat()
+	fmt.Printf("反转义后: %v\n", []byte(ub))
+	sub := Bytes(ub).String()
+	fmt.Printf("sub: %v\n", sub)
+	assert.Equal(t, b1, ub)
 }
