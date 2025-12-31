@@ -1,5 +1,17 @@
-/mod init.bat
-/tempcode
-/tmp
-/数据库英文名称.md
-/相关资料
+# 构建输出
+/bin/
+/pkg/
+/vendor/
+
+# IDE配置
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 测试输出
+/test.out
+
+# 数据库文件
+/resdb/db/
