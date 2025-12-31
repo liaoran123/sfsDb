@@ -37,6 +37,9 @@ type Store interface {
 	// Batch 创建批量操作对象
 	GetBatch() Batch
 
+	// WriteBatch 执行批量操作
+	WriteBatch(batch Batch) error
+
 	// Iterator 创建迭代器
 	Iterator(para ...[]byte) Iterator
 

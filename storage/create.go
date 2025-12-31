@@ -1,9 +1,8 @@
 package storage
 
 var (
-	// GlobalBatchPool 全局批量操作对象池
-	SfsDb, _ = NewStore(StoreConfig{
-		Path:   "./db",
+	KVDb, _ = NewStore(StoreConfig{
+		Path:   "./kvdb",
 		DBType: "leveldb",
 	})
 )
