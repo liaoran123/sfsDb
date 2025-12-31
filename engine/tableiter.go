@@ -1,9 +1,8 @@
-package table
+package engine
 
 import (
 	"sync"
 
-	"github.com/liaoran123/sfsDb/engine/query"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
@@ -207,7 +206,7 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r Records) {
 
 // 遍历迭代器返回解析后的记录
 // 复杂组合查询使用
-func (t *TableIter) ForMatchRecord(esc bool, page Page, match ...query.MatchKeyValue) (r Records) {
+func (t *TableIter) ForMatchRecord(esc bool, page Page, match ...MatchKeyValue) (r Records) {
 	//添加锁，防止并发访问
 	t.mu.Lock()
 	defer t.mu.Unlock()

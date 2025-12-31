@@ -1,6 +1,6 @@
 // 设计原则是当前最简单快捷开发，不考虑通用性和将来扩展要求。
 // 除了需要排序的主键和索引需要转换为[]byte外，其他所有字段值，皆转换为字符串存储
-package table
+package engine
 
 import (
 	"bytes"
