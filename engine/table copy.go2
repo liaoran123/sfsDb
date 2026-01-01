@@ -246,11 +246,8 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	}
 	record := t.FormatRecord(&fieldsBytes)
 	putBatchContainer := util.NewPutBatchContainer(batch)
-	putBatchContainer.SetValue(0, record)                                       //添加主键value=record
-	putBatchContainer.SetValue(1, t.indexs.GetPrimaryKey().GetID(&fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
-	//添加全文索引key=joinValue,value=nil
-
-	t.Operation(fieldsBytes, batch, putBatchContainer)
+	// 直接使用batch接口，不需要DataContainer
+	t.Operation(fieldsBytes, record, batch, putBatchContainer)
 	if len(batchs) == 0 {
 		// 提交批量操作
 		if err = t.kvStore.WriteBatch(batch); err != nil {
@@ -262,16 +259,24 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 
 // 添加/删除记录操作
 // 添加时，key值已经存在的field值，value中会过滤掉，不重复添加。
-func (t *Table) Operation(fieldsBytes map[string][]byte, batch storage.Batch, dataContainer util.DataContainer, existFields ...string) {
-
+func (t *Table) Operation(fieldsBytes map[string][]byte, record []byte, batch storage.Batch, dataContainer util.DataContainer, existFields ...string) {
+	_, isPut := dataContainer.(*util.PutBatchContainer)
+	if isPut { //仅当put操作时
+		dataContainer.SetValue(record)
+	}
+	//添加/删除主键记录key=pkValue,value=record
 	pkValue := t.indexs.GetPrimaryKey().JoinValue(&fieldsBytes, t.name)
-	dataContainer.Add(0, pkValue) //添加主键记录key=pkValue,value=record
+	dataContainer.Add(pkValue) //添加主键记录key=pkValue,value=record
 
 	//添加/删除普通索引key=indexValues,value=t.primaryKey.ID()
 	for _, Normal := range t.indexs.GetNormalIndexs() {
+		if isPut { //仅当put操作时
+			dataContainer.SetValue(t.indexs.GetPrimaryKey().GetID(&fieldsBytes, existFields...))
+		}
 		indexValue := Normal.JoinValue(&fieldsBytes, t.name, existFields...)
-		dataContainer.Add(1, append([]byte{}, indexValue...)) //添加普通索引key=indexValues,value=t.primaryKey.ID()
+		dataContainer.Add(append([]byte{}, indexValue...)) //添加普通索引key=indexValues,value=t.primaryKey.ID()
 	}
+
 	/*
 		//添加/删除全文索引key=joinValue,value=t.primaryKey.ID()
 		全文索引的特殊性，在正常情况下必须带上主键，否则后面的关键词都被覆盖，失去全文索引的意义。
@@ -279,10 +284,11 @@ func (t *Table) Operation(fieldsBytes map[string][]byte, batch storage.Batch, da
 		查询时，在key值里提取出主键值还原value值。
 	*/
 	for _, FullText := range t.indexs.GetFullTextIndexs() {
+		dataContainer.SetValue(nil)
 		joinValues := FullText.JoinFullValues(&fieldsBytes, t.name, existFields...)
 		defer util.PutBytesArray(joinValues)
 		for _, joinValue := range joinValues {
-			dataContainer.Add(2, append([]byte{}, joinValue...)) //添加全文索引key=joinValue,value=t.primaryKey.ID()
+			dataContainer.Add(append([]byte{}, joinValue...)) //添加全文索引key=joinValue,value=t.primaryKey.ID()
 		}
 	}
 }
@@ -365,7 +371,7 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	//反序列化记录，并且将字段值转换为对应的类型
 	fieldsBytes := t.ParseRecord(record)
 	deleteBatchContainer := util.NewDelteBatchContainer(batch)
-	t.Operation(fieldsBytes, batch, deleteBatchContainer)
+	t.Operation(fieldsBytes, record, batch, deleteBatchContainer)
 	if len(batchs) == 0 { //用户未手动控制事务，自动提交
 		t.kvStore.WriteBatch(batch)
 	}
@@ -422,7 +428,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	fieldsBytes := t.ParseRecord(record)
 	deleteBatchContainer := util.NewDelteBatchContainer(batch)
 	//删除
-	t.Operation(fieldsBytes, batch, deleteBatchContainer, updateFields...)
+	t.Operation(fieldsBytes, record, batch, deleteBatchContainer, updateFields...)
 	//更新字段值
 
 	for field, val := range *fields {
@@ -436,7 +442,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	}
 	//添加
 	putBatchContainer := util.NewPutBatchContainer(batch)
-	t.Operation(fieldsBytes, batch, putBatchContainer, updateFields...)
+	t.Operation(fieldsBytes, record, batch, putBatchContainer, updateFields...)
 	//提交事务
 	if len(batchs) == 0 { //用户未手动控制事务，自动提交
 		if err := t.kvStore.WriteBatch(batch); err != nil {

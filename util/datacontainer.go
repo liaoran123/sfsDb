@@ -10,8 +10,8 @@ import (
 特别是数据库这类存储系统，需要批量集中处理数据，特别是用户手动事务的情况。
 */
 type DataContainer interface {
-	Add(val []byte)
-	SetValue(val []byte)
+	Add(key uint8, val []byte)
+	SetValue(key uint8, val []byte)
 }
 type BytesContainer struct {
 	values [][]byte
@@ -40,8 +40,8 @@ func (c *BytesContainer) SetValue(val []byte) {
 //---------------------------------------
 
 type PutBatchContainer struct {
-	Value []byte
-	batch storage.Batch
+	Values map[uint8][]byte
+	batch  storage.Batch
 }
 
 func NewPutBatchContainer(batch storage.Batch) *PutBatchContainer {
@@ -49,20 +49,32 @@ func NewPutBatchContainer(batch storage.Batch) *PutBatchContainer {
 		batch = storage.KVDb.GetBatch()
 	}
 	return &PutBatchContainer{
+		//Values3个nil值，key分别为0,1,2
+		Values: map[uint8][]byte{
+			0: nil, //主键值
+			1: nil, //普通索引值
+			2: nil, //全文索引值
+		},
 		batch: batch,
 	}
 }
-func (c *PutBatchContainer) Add(val []byte) {
-	c.batch.Put(val, c.Value)
+func (c *PutBatchContainer) Add(key uint8, val []byte) {
+	c.batch.Put(val, c.Values[key])
 }
-func (c *PutBatchContainer) SetValue(val []byte) {
-	c.Value = val
+func (c *PutBatchContainer) SetValue(key uint8, val []byte) {
+	c.Values[key] = val
+}
+
+// get value by key
+func (c *PutBatchContainer) GetValue(key uint8) []byte {
+	return c.Values[key]
 }
 
 //---------------------------------------
 
 type DelteBatchContainer struct {
-	batch storage.Batch
+	Values map[uint8][]byte
+	batch  storage.Batch
 }
 
 func NewDelteBatchContainer(batch storage.Batch) *DelteBatchContainer {
@@ -70,12 +82,22 @@ func NewDelteBatchContainer(batch storage.Batch) *DelteBatchContainer {
 		batch = storage.KVDb.GetBatch()
 	}
 	return &DelteBatchContainer{
+		Values: map[uint8][]byte{
+			0: nil, //主键值
+			1: nil, //普通索引值
+			2: nil, //全文索引值
+		},
 		batch: batch,
 	}
 }
-func (c *DelteBatchContainer) Add(val []byte) {
+func (c *DelteBatchContainer) Add(key uint8, val []byte) {
 	c.batch.Delete(val)
 }
-func (c *DelteBatchContainer) SetValue(val []byte) {
+func (c *DelteBatchContainer) SetValue(key uint8, val []byte) {
 	//c.Value = val
+}
+
+// get value by key
+func (c *DelteBatchContainer) GetValue(key uint8) []byte {
+	return c.Values[key]
 }
