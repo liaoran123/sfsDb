@@ -34,9 +34,11 @@ type Table struct {
 		这是为了提取主键中的某个字段值作为匹配索引。
 		所以在用索引的主键值回表记录时，需要对索引值进行反转义。
 	*/
-	indexs  *Indexs // 索引集合
-	counter AutoInt // 自动增值计数器，使用自定义的AutoInt
-	kvStore storage.Store
+	primaryKey    PrimaryKey
+	normalIndex   []NormalIndex
+	fullTextIndex []FullTextIndex
+	counter       AutoInt // 自动增值计数器，使用自定义的AutoInt
+	kvStore       storage.Store
 }
 
 // 新建一个表
@@ -53,19 +55,84 @@ func TableNew(name string) (*Table, error) {
 		fmt.Printf("表名 '%s' 是系统保留名，不能使用\n", name)
 		return nil, fmt.Errorf("表名 '%s' 是系统保留名，不能使用", name)
 	}
-	tb := &Table{
+	return &Table{
 		name:    name,
 		fields:  make(map[string]any),
 		kvStore: storage.KVDb,
-	}
-	tb.indexs = NewIndexs(&tb.fields)
-	return tb, nil
+	}, nil
 }
-func (t *Table) CreateIndex(index Index) error {
-	err := t.indexs.CreateIndex(index)
-	if err != nil {
-		return err
+func (t *Table) SetPrimaryKey(primaryKey PrimaryKey) error {
+	if primaryKey == nil {
+		return fmt.Errorf("主键不能为空")
 	}
+	// 检查主键是否为空
+	pfs := primaryKey.GetFields()
+	if len(pfs) == 0 {
+		return fmt.Errorf("主键字段不能为空")
+	}
+	// 检查主键字段是否存在
+	for _, field := range pfs {
+		if _, ok := t.fields[field]; !ok {
+			return fmt.Errorf("主键字段 '%s' 不存在于表 '%s'", field, t.name)
+		}
+	}
+	t.primaryKey = primaryKey
+	return nil
+}
+func (t *Table) SetNormalIndex(index []NormalIndex) error {
+	// 检查索引是否为空
+	if len(index) == 0 {
+		return fmt.Errorf("索引字段不能为空")
+	}
+	// 检查索引字段是否存在
+	for _, idx := range index {
+		ifs := idx.GetFields()
+		if len(ifs) == 0 {
+			return fmt.Errorf("索引字段不能为空")
+		}
+		for _, field := range ifs {
+			if _, ok := t.fields[field]; !ok {
+				return fmt.Errorf("索引字段 '%s' 不存在于表 '%s'", field, t.name)
+			}
+		}
+	}
+	//检查索引名称是否重复
+	indexNames := make(map[string]bool)
+	for _, idx := range index {
+		if _, ok := indexNames[idx.Name()]; ok {
+			return fmt.Errorf("索引名称 '%s' 重复", idx.Name())
+		}
+		indexNames[idx.Name()] = true
+	}
+	t.normalIndex = index
+	return nil
+}
+func (t *Table) SetFullTextIndex(index []FullTextIndex) error {
+	// 检查索引是否为空
+	if len(index) == 0 {
+		return fmt.Errorf("索引字段不能为空")
+	}
+	// 检查索引字段是否存在
+	for _, idx := range index {
+		ifs := idx.GetFields()
+		if len(ifs) == 0 {
+			return fmt.Errorf("索引字段不能为空")
+		}
+		for _, field := range ifs {
+			if _, ok := t.fields[field]; !ok {
+				return fmt.Errorf("索引字段 '%s' 不存在于表 '%s'", field, t.name)
+			}
+		}
+	}
+	//检查索引名称是否重复
+	indexNames := make(map[string]bool)
+	for _, idx := range index {
+		if _, ok := indexNames[idx.Name()]; ok {
+			return fmt.Errorf("索引名称 '%s' 重复", idx.Name())
+		}
+		indexNames[idx.Name()] = true
+	}
+	t.fullTextIndex = index
 	return nil
 }
 
@@ -96,13 +163,13 @@ func (t *Table) MaxAutoValue() int {
 		return 0
 	}
 	key := tableIter.Key() //取最后一个key值
-	rkey := key[len(t.indexs.GetPrimaryKey().Prefix(t.name))+1:]
+	rkey := key[len(t.primaryKey.Prefix(t.name))+1:]
 	var target any
 	// 如果主键字段为空，默认使用"id"
-	if len(t.indexs.GetPrimaryKey().GetFields()) == 0 || t.indexs.GetPrimaryKey().GetFields()[0] == "" {
+	if len(t.primaryKey.GetFields()) == 0 || t.primaryKey.GetFields()[0] == "" {
 		target = 0
 	} else {
-		target = t.fields[t.indexs.GetPrimaryKey().GetFields()[0]]
+		target = t.fields[t.primaryKey.GetFields()[0]]
 	}
 	r := util.Bytes(rkey).ToAny(target)
 	// 使用 reflect 包进行类型转换，更灵活地处理各种数值类型
@@ -139,8 +206,8 @@ func (t *Table) GetName() string {
 
 // GetPrimary 获取主键字段名
 func (t *Table) GetPrimary() []string {
-	primaryFields := make([]string, len(t.indexs.GetPrimaryKey().GetFields()))
-	for _, field := range t.indexs.GetPrimaryKey().GetFields() {
+	primaryFields := make([]string, len(t.primaryKey.GetFields()))
+	for _, field := range t.primaryKey.GetFields() {
 		primaryFields = append(primaryFields, field)
 	}
 	return primaryFields
@@ -211,8 +278,8 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	//当前自动增值的值
 	currentID = -1
 	//是否支持默认自动增值主键，单主键并且主键字段名为"id"
-	pklen := len(t.indexs.GetPrimaryKey().GetFields())
-	pkfield := t.indexs.GetPrimaryKey().GetFields()[0]
+	pklen := len(t.primaryKey.GetFields())
+	pkfield := t.primaryKey.GetFields()[0]
 	supportDefault := pklen == 1 && pkfield == "id"
 	if supportDefault {
 		// 检查是否提供了主键字段
@@ -238,8 +305,8 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	fieldsBytes := t.FieldsToBytes(fields)
 	var batch storage.Batch
 	//是否用户手动控制事务
-	//useBatch := len(batchs) > 0
-	if len(batchs) > 0 { //用户手动控制事务
+	useBatch := len(batchs) > 0
+	if useBatch { //用户手动控制事务
 		batch = batchs[0]
 	} else {
 		batch = t.kvStore.GetBatch()
@@ -248,12 +315,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	putBatchContainer := util.NewPutBatchContainer(batch)
 	// 直接使用batch接口，不需要DataContainer
 	t.Operation(fieldsBytes, record, batch, putBatchContainer)
-	if len(batchs) == 0 {
-		// 提交批量操作
-		if err = t.kvStore.WriteBatch(batch); err != nil {
-			return 0, err
-		}
-	}
+
 	return currentID, nil
 }
 
@@ -265,13 +327,13 @@ func (t *Table) Operation(fieldsBytes map[string][]byte, record []byte, batch st
 		dataContainer.SetValue(record)
 	}
 	//添加/删除主键记录key=pkValue,value=record
-	pkValue := t.indexs.GetPrimaryKey().JoinValue(&fieldsBytes, t.name)
+	pkValue := t.primaryKey.JoinValue(&fieldsBytes, t.name)
 	dataContainer.Add(pkValue) //添加主键记录key=pkValue,value=record
 
 	//添加/删除普通索引key=indexValues,value=t.primaryKey.ID()
-	for _, Normal := range t.indexs.GetNormalIndexs() {
+	for _, Normal := range t.normalIndex {
 		if isPut { //仅当put操作时
-			dataContainer.SetValue(t.indexs.GetPrimaryKey().GetID(&fieldsBytes, existFields...))
+			dataContainer.SetValue(t.primaryKey.GetID(&fieldsBytes, existFields...))
 		}
 		indexValue := Normal.JoinValue(&fieldsBytes, t.name, existFields...)
 		dataContainer.Add(append([]byte{}, indexValue...)) //添加普通索引key=indexValues,value=t.primaryKey.ID()
@@ -283,7 +345,7 @@ func (t *Table) Operation(fieldsBytes map[string][]byte, record []byte, batch st
 		故而系统为了减少大量的字段值重复储存，全文索引的 value值设置 为 nil 。
 		查询时，在key值里提取出主键值还原value值。
 	*/
-	for _, FullText := range t.indexs.GetFullTextIndexs() {
+	for _, FullText := range t.fullTextIndex {
 		dataContainer.SetValue(nil)
 		joinValues := FullText.JoinFullValues(&fieldsBytes, t.name, existFields...)
 		defer util.PutBytesArray(joinValues)
@@ -381,13 +443,13 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 // 从按主键数据库读取记录
 func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 	//检查是否提供了所有主键字段
-	for _, field := range t.indexs.GetPrimaryKey().GetFields() {
+	for _, field := range t.primaryKey.GetFields() {
 		if _, ok := (*fields)[field]; !ok {
 			return nil, fmt.Errorf("删除操作必须提供主键字段 '%s'", field)
 		}
 	}
 	fieldsBytes := t.FieldsToBytes(fields)
-	key := t.indexs.GetPrimaryKey().JoinValue(&fieldsBytes, t.name)
+	key := t.primaryKey.JoinValue(&fieldsBytes, t.name)
 	return t.ReadByBytes(key), nil
 }
 
@@ -415,7 +477,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	var updateFields []string
 	for field := range *fields {
 		//排除主键字段
-		if t.indexs.GetPrimaryKey().MatchFields(field) {
+		if t.primaryKey.MatchFields(field) {
 			continue
 		}
 		updateFields = append(updateFields, field)
@@ -433,7 +495,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 
 	for field, val := range *fields {
 		//排除主键字段
-		if t.indexs.GetPrimaryKey().MatchFields(field) {
+		if t.primaryKey.MatchFields(field) {
 			continue
 		}
 		if _, ok := t.fields[field]; ok {
@@ -454,7 +516,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 
 // 从按主键数据库读取记录
 func (t *Table) ReadByBytes(key []byte) []byte {
-	pfx := t.indexs.GetPrimaryKey().Prefix(t.name)
+	pfx := t.primaryKey.Prefix(t.name)
 	key = bytes.Join([][]byte{pfx, key}, []byte(SPLIT))
 	v, err := t.kvStore.Get(key)
 	if err != nil {
@@ -475,13 +537,26 @@ func (t *Table) For() storage.Iterator {
 
 // 遍历表所有数据
 func (t *Table) ForData() storage.Iterator {
-	pfx := t.indexs.GetPrimaryKey().Prefix(t.name)
+	pfx := t.name + SPLIT + t.primaryKey.Name()
 	return t.kvStore.Iterator([]byte(pfx))
 }
 
 // 匹配索引
 func (t *Table) MatchIndex(fields ...string) Index {
-	return t.indexs.MatchIndex(fields...)
+	if t.primaryKey.MatchFields(fields...) {
+		return t.primaryKey
+	}
+	for _, ftidx := range t.fullTextIndex {
+		if ftidx.MatchFields(fields...) {
+			return ftidx
+		}
+	}
+	for _, nidx := range t.normalIndex {
+		if nidx.MatchFields(fields...) {
+			return nidx
+		}
+	}
+	return nil
 }
 
 // 将数据转换为字节数组，该合适搜索时用。搜索时nil值不能更改,否则导致结果错误
@@ -509,8 +584,13 @@ func (t *Table) Search(fields *map[string]any) (*TableIter, error) {
 		key = idx.JoinValue(&fieldsBytes, t.name)
 	} else {
 		//没有索引，则设置为全表主键扫描迭代器
-		idx = t.indexs.GetPrimaryKey()
-		key = t.indexs.GetPrimaryKey().Prefix(t.name)
+		idx = t.primaryKey
+		key = t.primaryKey.Prefix(t.name)
+
+		/*
+			由于数据库定位全文索引，故不支持无索引的搜索
+
+		return nil, fmt.Errorf("表 '%s'没有匹配的'%s'索引", field[0], t.name)*/
 	}
 	iter := t.kvStore.Iterator(key)
 	return TableIterNew(t, iter, idx), nil

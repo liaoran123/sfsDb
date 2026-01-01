@@ -38,6 +38,7 @@ func NewLevelDBStore(config StoreConfig) (Store, error) {
 		WriteBuffer:            64 * 1024 * 1024, // 64MB write buffer
 		OpenFilesCacheCapacity: 100,              // 打开文件缓存
 	}
+
 	ldb, err := leveldb.OpenFile(config.Path, opts)
 	if err != nil {
 		panic("leveldb open file failed")
@@ -151,7 +152,60 @@ func (s *LevelDBStore) Iterator(para ...[]byte) Iterator {
 	default: //默认取前两个范围扫描
 		slice = &util.Range{Start: para[0], Limit: para[1]}
 	}
-	return s.ldb.NewIterator(slice, nil)
+
+	return &LevelDBIterator{
+		iter: s.ldb.NewIterator(slice, nil),
+	}
+}
+
+// LevelDBIterator LevelDB迭代器实现
+type LevelDBIterator struct {
+	iter iterator.Iterator
+}
+
+// First 移动到第一个元素
+func (i *LevelDBIterator) First() bool {
+	return i.iter.First()
+}
+
+// Last 移动到最后一个元素
+func (i *LevelDBIterator) Last() bool {
+	return i.iter.Last()
+}
+
+// Seek 移动到大于等于指定key的位置
+func (i *LevelDBIterator) Seek(key []byte) bool {
+	return i.iter.Seek(key)
+}
+
+// Next 移动到下一个元素
+func (i *LevelDBIterator) Next() bool {
+	return i.iter.Next()
+}
+
+// Prev 移动到前一个元素
+func (i *LevelDBIterator) Prev() bool {
+	return i.iter.Prev()
+}
+
+// Key 获取当前元素的key
+func (i *LevelDBIterator) Key() []byte {
+	return i.iter.Key()
+}
+
+// Value 获取当前元素的value
+func (i *LevelDBIterator) Value() []byte {
+	return i.iter.Value()
+}
+
+// Valid 检查迭代器是否有效
+func (i *LevelDBIterator) Valid() bool {
+	return i.iter.Valid()
+}
+
+// Release 释放迭代器资源
+func (i *LevelDBIterator) Release() {
+	i.iter.Release()
 }
 
 // Snapshot 创建快照

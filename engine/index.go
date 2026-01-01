@@ -19,7 +19,8 @@ type Index interface {
 	Len() int
 	// 获取索引前缀
 	Name() string
-	SetName(name string) error
+
+	//SetName(name string) error
 	//拼接前缀
 	Prefix(tbname string) []byte
 	// 拼接索引前缀+索引值
@@ -46,6 +47,9 @@ type BaseIndex struct {
 
 // 基础索引的通用方法
 func (bi *BaseIndex) SetName(name string) error {
+	if name == "" {
+		return errors.New("name can not be empty")
+	}
 	//不能包含SPLIT
 	if strings.Contains(name, SPLIT) {
 		return errors.New("name can not contain SPLIT")
@@ -111,12 +115,17 @@ func Join(fieldsBytes *map[string][]byte, fields []string, existFields ...string
 	var Value bytes.Buffer
 	for _, fit := range fields {
 		if v, ok := (*fieldsBytes)[fit]; ok {
+			if v == nil {
+				continue
+			}
 			Value.Write(v)
 			Value.Write([]byte(SPLIT))
 		}
 	}
 	//删除最后一个分隔符
-	Value.Truncate(Value.Len() - 1)
+	if Value.Len() > 0 {
+		Value.Truncate(Value.Len() - 1)
+	}
 	return Value.Bytes()
 }
 
@@ -134,7 +143,7 @@ func (bi *BaseIndex) JoinValue(fieldsBytes *map[string][]byte, tbname string, ex
 	return Value.Bytes()
 }
 
-func Match(fields []string, existFields ...string) bool {
+func MatchFields(fields []string, existFields ...string) bool {
 	count := 0
 	for _, fit := range fields {
 		//判断是否存在切片中
@@ -145,7 +154,7 @@ func Match(fields []string, existFields ...string) bool {
 	return count == len(existFields) //兼容匹配，主键字段可以少于索引字段
 }
 func (bi *BaseIndex) MatchFields(fields ...string) bool {
-	return Match(bi.fields, fields...)
+	return MatchFields(bi.fields, fields...)
 }
 
 // ------------------------------------------
@@ -162,12 +171,16 @@ type DefaultPrimaryKey struct {
 	BaseIndex // 嵌入基础索引
 }
 
-func DefaultPrimaryKeyNew(name string) *DefaultPrimaryKey {
-	return &DefaultPrimaryKey{
+func DefaultPrimaryKeyNew(name string) (*DefaultPrimaryKey, error) {
+	dpk := &DefaultPrimaryKey{
 		BaseIndex: BaseIndex{
 			name: name,
 		},
 	}
+	if err := dpk.SetName(name); err != nil {
+		return nil, err
+	}
+	return dpk, nil
 }
 
 // 過濾存在的字段
@@ -201,12 +214,16 @@ type DefaultNormalIndex struct {
 	BaseIndex // 嵌入基础索引
 }
 
-func DefaultNormalIndexNew(name string) *DefaultNormalIndex {
-	return &DefaultNormalIndex{
+func DefaultNormalIndexNew(name string) (*DefaultNormalIndex, error) {
+	dni := &DefaultNormalIndex{
 		BaseIndex: BaseIndex{
 			name: name,
 		},
 	}
+	if err := dni.SetName(name); err != nil {
+		return nil, err
+	}
+	return dni, nil
 }
 
 // ------------------------------------------
@@ -235,12 +252,16 @@ type DefaultFullTextIndex struct {
 	ftfields  []FullTextIndexField // 全文索引字段列表
 }
 
-func DefaultFullTextIndexNew() *DefaultFullTextIndex {
-	return &DefaultFullTextIndex{
+func DefaultFullTextIndexNew(name string) (*DefaultFullTextIndex, error) {
+	dfi := &DefaultFullTextIndex{
 		BaseIndex: BaseIndex{
-			name: "ft",
+			name: name,
 		},
 	}
+	if err := dfi.SetName(name); err != nil {
+		return nil, err
+	}
+	return dfi, nil
 }
 func (dfi *DefaultFullTextIndex) GetFtlen(fields ...string) int {
 	for _, ftfit := range dfi.ftfields {

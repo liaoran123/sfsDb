@@ -1,7 +1,7 @@
 package engine
 
 // 根据TableIter回传的key,value所有能得到的field的值，进行所需匹配
-type MatchKeyValue interface {
+type Match interface {
 	Match(KVs *map[string]any) bool
 }
 

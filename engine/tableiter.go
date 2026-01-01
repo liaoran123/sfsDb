@@ -3,6 +3,7 @@ package engine
 import (
 	"sync"
 
+	"github.com/liaoran123/sfsDb/engine/record"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
@@ -26,7 +27,7 @@ type TableIter struct {
 }
 
 // 解析函数
-type Parser func(k, v []byte) Record
+type Parser func(k, v []byte) record.Record
 
 // 导出函数
 type Export func(k, v []byte) bool
@@ -64,7 +65,7 @@ func (t *TableIter) PrimaryToStr(k []byte) string {
 	rstr := ""
 	for _, p := range t.index.GetFields() {
 		key = util.Bytes(k).ToAny(t.table.fields[p])
-		rstr += string(util.AnyToBytes(key)) + util.SPLIT
+		rstr += string(util.AnyToBytes(key)) + SPLIT
 	}
 	return rstr[:len(rstr)-1]
 }
@@ -113,9 +114,9 @@ func PageNew(No ...int) Page {
 // 组合主键时，所有索引对应的主键值都是经过转义的。
 // 这是为了提取主键中的某个字段值作为匹配索引，必须转义才能正确根据转义符分割提取。
 // 所以在用索引的主键值回表记录时，需要对索引值进行反转义。
-func (t *TableIter) ByIndexGetRecord(v []byte) Record {
+func (t *TableIter) ByIndexGetRecord(v []byte) record.Record {
 	value := v
-	if len(t.table.primaryKey.GetFields()) > 1 { //只有组合主键才需要转义
+	if len(t.table.indexs.GetPrimaryKey().GetFields()) > 1 { //只有组合主键才需要转义
 		value = util.Bytes(v).UnEscape()
 	}
 	// 读取完整记录
@@ -124,14 +125,14 @@ func (t *TableIter) ByIndexGetRecord(v []byte) Record {
 		return nil
 	}
 	// 解析记录并提取指定字段
-	rd := Record(t.table.ParseRecordValue(byrecord))
+	rd := record.Record(t.table.ParseRecordValue(byrecord))
 	return rd
 }
 
 // 通过主键获取记录
 // ByPrimaryGet=ByPrimary.Get 两种方式都可
-func (t *TableIter) ByPrimaryGetRecord(v []byte) Record {
-	rd := Record(t.table.ParseRecordValue(v))
+func (t *TableIter) ByPrimaryGetRecord(v []byte) record.Record {
+	rd := record.Record(t.table.ParseRecordValue(v))
 	return rd
 }
 
@@ -139,12 +140,12 @@ func (t *TableIter) ByPrimaryGetRecord(v []byte) Record {
 // 全文索引设计索引时，规定必须在末尾将主键全量追加到key的键值中。为了避免重复储存字段值，设置value键值为空。
 func (t *TableIter) RestoreValByIndex(k []byte) (Value []byte) {
 	ks := util.Bytes(t.iter.Key()).Split() //分解并反转义
-	fieldlen := len(t.table.primaryKey.GetFields())
+	fieldlen := len(t.table.indexs.GetPrimaryKey().GetFields())
 	ks = ks[len(ks)-fieldlen:]
 	if len(ks) > 1 { //组合主键,分解反转义后再重新拼接
 		for _, k := range ks { //重新拼接
 			Value = append(Value, k...)
-			Value = append(Value, []byte(util.SPLIT)...)
+			Value = append(Value, []byte(SPLIT)...)
 		}
 		Value = Value[:len(Value)-1]
 	} else { //单主键
@@ -156,7 +157,7 @@ func (t *TableIter) RestoreValByIndex(k []byte) (Value []byte) {
 // 遍历迭代器返回解析后的记录
 // 单个简单查询直接使用
 // handler可以对value进行各种处理
-func (t *TableIter) GerRecords(esc bool, limit ...int) (r Records) {
+func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
 	//添加锁，防止并发访问
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -164,12 +165,12 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r Records) {
 	if !t.top[esc]() {
 		return nil
 	}
-	var rd Record
+	var rd record.Record
 
 	page := PageNew(limit...)
 
 	if page.Count > 0 {
-		r = make(Records, 0, page.Count)
+		r = make(record.Records, 0, page.Count)
 	}
 
 	var Value []byte
@@ -206,16 +207,16 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r Records) {
 
 // 遍历迭代器返回解析后的记录
 // 复杂组合查询使用
-func (t *TableIter) ForMatchRecord(esc bool, page Page, match ...MatchKeyValue) (r Records) {
+func (t *TableIter) ForMatchRecord(esc bool, page Page, match ...Match) (r record.Records) {
 	//添加锁，防止并发访问
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if !t.top[esc]() {
 		return nil
 	}
-	var rd Record
+	var rd record.Record
 	if page.Count > 0 {
-		r = make(Records, 0, page.Count)
+		r = make(record.Records, 0, page.Count)
 	}
 	loop := 0
 	// 处理当前位置的元素
@@ -224,7 +225,7 @@ func (t *TableIter) ForMatchRecord(esc bool, page Page, match ...MatchKeyValue) 
 			loop++
 		} else {
 			for _, m := range match {
-				// 当前的key,value所有能得到的field的值组织成map[string]any，传入MatchKeyValue进行所需匹配
+				// 当前的key,value所有能得到的field的值组织成map[string]any，传入Match进行所需匹配
 				if m.Match(nil) {
 					r = append(r, rd)
 					if page.Count > 0 && len(r) >= page.Count {
@@ -264,7 +265,7 @@ func (t *TableIter) ForExport(esc bool, export Export) {
 // field用于对组合主键提取其中的部分值
 func (t *TableIter) GetPrimaryKeys(field ...string) (r any) {
 	//是否组合主键
-	isComposite := len(t.table.primaryKey.GetFields()) > 1
+	isComposite := len(t.table.indexs.GetPrimaryKey().GetFields()) > 1
 	switch isComposite {
 	case true:
 		// 组合主键，返回字符串
@@ -272,9 +273,9 @@ func (t *TableIter) GetPrimaryKeys(field ...string) (r any) {
 		if len(field) > 0 {
 			newkeys := ""
 			for _, f := range field {
-				for i, p := range t.table.primaryKey.GetFields() {
+				for i, p := range t.table.indexs.GetPrimaryKey().GetFields() {
 					if f == p {
-						newkeys += string(keys[i]) + util.SPLIT
+						newkeys += string(keys[i]) + SPLIT
 					}
 				}
 			}
@@ -282,7 +283,7 @@ func (t *TableIter) GetPrimaryKeys(field ...string) (r any) {
 		}
 	default:
 		// 单主键，返回转换的值
-		r = util.Bytes(t.iter.Value()).ToAny(t.table.fields[t.table.primaryKey.GetFields()[0]])
+		r = util.Bytes(t.iter.Value()).ToAny(t.table.fields[t.table.indexs.GetPrimaryKey().GetFields()[0]])
 	}
 	return r
 }

@@ -1,4 +1,4 @@
-package engine
+package record
 
 type Record map[string]any
 
