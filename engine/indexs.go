@@ -95,6 +95,20 @@ func (i *Indexs) GetNormalIndexs() []NormalIndex {
 	//普通索引是基类，全部匹配，所以需要判断不是PrimaryKey和FullTextIndex才符合普通索引
 	for _, index := range i.indexs {
 		if _, ok := index.(NormalIndex); ok {
+			normalIndexs = append(normalIndexs, index.(NormalIndex))
+		}
+	}
+	return normalIndexs
+}
+
+/*
+
+// 返回普通索引
+func (i *Indexs) GetNormalIndexs() []NormalIndex {
+	normalIndexs := make([]NormalIndex, 0)
+	//普通索引是基类，全部匹配，所以需要判断不是PrimaryKey和FullTextIndex才符合普通索引
+	for _, index := range i.indexs {
+		if _, ok := index.(NormalIndex); ok {
 			if _, ok := index.(PrimaryKey); !ok {
 				if _, ok := index.(FullTextIndex); !ok {
 					normalIndexs = append(normalIndexs, index.(NormalIndex))
@@ -104,6 +118,7 @@ func (i *Indexs) GetNormalIndexs() []NormalIndex {
 	}
 	return normalIndexs
 }
+*/
 
 // 返回全文索引
 func (i *Indexs) GetFullTextIndexs() []FullTextIndex {

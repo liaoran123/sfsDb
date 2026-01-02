@@ -3,6 +3,7 @@ package engine
 
 import (
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/liaoran123/sfsDb/util"
@@ -889,4 +890,306 @@ func TestTableSearch(t *testing.T) {
 			fmt.Printf("item %d: %v\n", i, item)
 		}
 	})
+}
+
+// 测试添加Table.Insert，删除Table.Delete，修改Table.Update，添加一条记录，通过主键进行修改和删除
+func TestTableCRUD(t *testing.T) {
+	/*
+		// 创建表
+		table, err := TableNew("test_table")
+		if err != nil {
+			t.Fatalf("Failed to create table: %v", err)
+		}
+
+		// 定义表字段
+		fields := map[string]any{
+			"id":   0,
+			"name": "",
+			"age":  0,
+		}
+
+		// 设置表字段 - 逐个字段复制
+		maps.Copy(table.fields, fields)
+
+		// 测试1: 添加单条记录
+		t.Log("测试1: 添加单条记录")
+		record := map[string]any{
+			"id":   1,
+			"name": "张三",
+			"age":  25,
+		}
+
+		_, err = table.Insert(&record)
+		if err != nil {
+			t.Fatalf("Failed to add record: %v", err)
+		}
+
+		// 验证记录存在
+		searchFields := map[string]any{"id": 1}
+		dataIter, err := table.Search(&searchFields)
+		if err != nil {
+			t.Fatalf("Failed to search record: %v", err)
+		}
+
+		records := dataIter.GerRecords(true)
+		if len(records) == 0 {
+			t.Error("Record not found after adding")
+		} else {
+			if records[0]["name"] != "张三" || records[0]["age"] != 25 {
+				t.Errorf("Record data mismatch: got %v, expected name=张三, age=25", records[0])
+			} else {
+				t.Logf("添加记录成功: %v", records[0])
+			}
+		}
+
+		// 测试2: 修改记录
+		t.Log("测试2: 修改记录")
+		updateRecord := map[string]any{
+			"id":   1,
+			"name": "张三修改",
+			"age":  26,
+		}
+
+		err = table.Update(&updateRecord)
+		if err != nil {
+			t.Fatalf("Failed to update record: %v", err)
+		}
+
+		// 验证修改成功
+		searchFields = map[string]any{"id": 1}
+		dataIter, err = table.Search(&searchFields)
+		if err != nil {
+			t.Fatalf("Failed to search updated record: %v", err)
+		}
+
+		updatedRecords := dataIter.GerRecords(true)
+		if len(updatedRecords) == 0 {
+			t.Error("Updated record not found")
+		} else {
+			if updatedRecords[0]["name"] != "张三修改" || updatedRecords[0]["age"] != 26 {
+				t.Errorf("Record update failed: got %v, expected name=张三修改, age=26", updatedRecords[0])
+			} else {
+				t.Logf("修改记录成功: %v", updatedRecords[0])
+			}
+		}
+
+		// 测试3: 删除记录
+		t.Log("测试3: 删除记录")
+		deleteFields := map[string]any{"id": 1}
+		err = table.Delete(&deleteFields)
+		if err != nil {
+			t.Fatalf("Failed to delete record: %v", err)
+		}
+
+		// 验证记录已删除
+		searchFields = map[string]any{"id": 1}
+		dataIter, err = table.Search(&searchFields)
+		if err != nil {
+			t.Fatalf("Failed to search deleted record: %v", err)
+		}
+
+		deletedRecords := dataIter.GerRecords(true)
+		if len(deletedRecords) != 0 {
+			t.Errorf("Record deletion failed: found %v, expected none", deletedRecords)
+		} else {
+			t.Log("删除记录成功")
+		}
+
+		t.Log("所有CRUD测试通过")
+
+
+	*/
+	// 测试4: 带有索引和全文索引的表CRUD操作
+	t.Log("\n测试4: 带有索引和全文索引的表CRUD操作")
+
+	// 创建带索引的表
+	tableWithIndex, err := TableNew("test_table_with_index")
+	if err != nil {
+		t.Fatalf("Failed to create table with index: %v", err)
+	}
+
+	// 定义带索引的表字段
+	indexFields := map[string]any{
+		"id":      0,
+		"title":   "",
+		"content": "",
+		"author":  "",
+		"views":   0,
+	}
+
+	// 设置表字段
+	maps.Copy(tableWithIndex.fields, indexFields)
+
+	// 创建普通索引
+	// 创建标题索引
+	titleIndex, err := DefaultNormalIndexNew("title_index")
+	if err != nil {
+		t.Fatalf("Failed to create title index instance: %v", err)
+	}
+	titleIndex.AddFields("title")
+	err = tableWithIndex.indexs.CreateIndex(titleIndex)
+	if err != nil {
+		t.Fatalf("Failed to create title index: %v", err)
+	}
+
+	// 创建复合索引（作者-浏览量）
+	authorViewsIndex, err := DefaultNormalIndexNew("author_views_index")
+	if err != nil {
+		t.Fatalf("Failed to create author_views index instance: %v", err)
+	}
+	authorViewsIndex.AddFields("author", "views")
+	err = tableWithIndex.indexs.CreateIndex(authorViewsIndex)
+	if err != nil {
+		t.Fatalf("Failed to create author_views index: %v", err)
+	}
+
+	// 创建全文索引
+	contentFulltextIndex, err := DefaultFullTextIndexNew("content_fulltext")
+	if err != nil {
+		t.Fatalf("Failed to create content fulltext index instance: %v", err)
+	}
+	//全文索引正常情况下必须带上主键，否则后面的关键词都被覆盖，失去全文索引的意义。
+	contentFulltextIndex.AddFields("content", "id")
+	//指定description为全文索引字段，长度为5
+	//如果没有指定，则等同一般索引
+	err = contentFulltextIndex.SetFullField("content", 5)
+	if err != nil {
+		t.Fatalf("Failed to set fulltext index field: %v", err)
+	}
+
+	err = tableWithIndex.indexs.CreateIndex(contentFulltextIndex)
+	if err != nil {
+		t.Fatalf("Failed to create content fulltext index: %v", err)
+	}
+
+	// 添加多条记录
+	indexRecords := []map[string]any{
+		{
+			"id":      1,
+			"title":   "Go语言入门",
+			"content": "Go语言是一种开源的编程语言，它具有高效、简洁、并发等特点。",
+			"author":  "张三",
+			"views":   100,
+		},
+		{
+			"id":      2,
+			"title":   "Go语言进阶",
+			"content": "Go语言的并发模型是其一大特色，使用goroutine和channel可以轻松实现高效的并发编程。",
+			"author":  "李四",
+			"views":   200,
+		},
+		{
+			"id":      3,
+			"title":   "Go语言实战",
+			"content": "通过实际项目学习Go语言，可以更好地掌握其特性和最佳实践。",
+			"author":  "张三",
+			"views":   150,
+		},
+	}
+
+	for _, record := range indexRecords {
+		_, err = tableWithIndex.Insert(&record)
+		if err != nil {
+			t.Fatalf("Failed to add record to indexed table: %v", err)
+		}
+	}
+
+	// 测试通过普通索引查询
+	t.Log("测试通过普通索引查询")
+	searchByTitle := map[string]any{"title": "Go语言入门"}
+	dataIter, err := tableWithIndex.Search(&searchByTitle)
+	if err != nil {
+		t.Fatalf("Failed to search by title index: %v", err)
+	}
+
+	titleRecords := dataIter.GerRecords(true)
+	if len(titleRecords) != 1 {
+		t.Errorf("Expected 1 record for title 'Go语言入门', got %d", len(titleRecords))
+	} else {
+		t.Logf("通过标题索引查询成功: %v", titleRecords[0])
+	}
+
+	// 测试通过复合索引查询
+	t.Log("测试通过复合索引查询")
+	searchByAuthor := map[string]any{"author": "张三"}
+	dataIter, err = tableWithIndex.Search(&searchByAuthor)
+	if err != nil {
+		t.Fatalf("Failed to search by author index: %v", err)
+	}
+
+	authorRecords := dataIter.GerRecords(true)
+	if len(authorRecords) != 2 {
+		t.Errorf("Expected 2 records for author '张三', got %d", len(authorRecords))
+	} else {
+		t.Logf("通过作者索引查询成功，找到 %d 条记录", len(authorRecords))
+	}
+
+	// 测试修改记录
+	t.Log("测试修改带索引的记录")
+	updateRecord := map[string]any{
+		"id":    1,
+		"title": "Go语言入门教程",
+		"views": 120,
+	}
+
+	err = tableWithIndex.Update(&updateRecord)
+	if err != nil {
+		t.Fatalf("Failed to update indexed record: %v", err)
+	}
+
+	// 验证修改成功
+	searchUpdated := map[string]any{"id": 1}
+	dataIter, err = tableWithIndex.Search(&searchUpdated)
+	if err != nil {
+		t.Fatalf("Failed to search updated record: %v", err)
+	}
+
+	updatedRecords := dataIter.GerRecords(true)
+	if len(updatedRecords) == 0 {
+		t.Error("Updated record not found")
+	} else {
+		if updatedRecords[0]["title"] != "Go语言入门教程" || updatedRecords[0]["views"] != 120 {
+			t.Errorf("Record update failed: got %v, expected title=Go语言入门教程, views=120", updatedRecords[0])
+		} else {
+			t.Logf("修改带索引记录成功: %v", updatedRecords[0])
+		}
+	}
+
+	// 测试删除记录
+	t.Log("测试删除带索引的记录")
+	deleteFields := map[string]any{"id": 3}
+	err = tableWithIndex.Delete(&deleteFields)
+	if err != nil {
+		t.Fatalf("Failed to delete indexed record: %v", err)
+	}
+
+	// 验证记录已删除
+	searchDeleted := map[string]any{"id": 3}
+	dataIter, err = tableWithIndex.Search(&searchDeleted)
+	if err != nil {
+		t.Fatalf("Failed to search deleted record: %v", err)
+	}
+
+	deletedRecords := dataIter.GerRecords(true)
+	if len(deletedRecords) != 0 {
+		t.Errorf("Record deletion failed: found %v, expected none", deletedRecords)
+	} else {
+		t.Log("删除带索引记录成功")
+	}
+
+	// 验证索引仍然有效
+	searchByAuthorAfterDelete := map[string]any{"author": "张三"}
+	dataIter, err = tableWithIndex.Search(&searchByAuthorAfterDelete)
+	if err != nil {
+		t.Fatalf("Failed to search by author after delete: %v", err)
+	}
+
+	authorRecordsAfterDelete := dataIter.GerRecords(true)
+	if len(authorRecordsAfterDelete) != 1 {
+		t.Errorf("Expected 1 record for author '张三' after delete, got %d", len(authorRecordsAfterDelete))
+	} else {
+		t.Logf("删除后通过作者索引查询成功，找到 %d 条记录", len(authorRecordsAfterDelete))
+	}
+
+	t.Log("所有带索引的CRUD测试通过")
 }

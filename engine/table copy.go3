@@ -245,12 +245,12 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 		batch = t.kvStore.GetBatch()
 	}
 	record := t.FormatRecord(&fieldsBytes)
-	BatchContainer := NewBatchContainer(batch, t.indexs, t.name)
-	BatchContainer.SetValue(0, record)                                       //添加主键value=record
-	BatchContainer.SetValue(1, t.indexs.GetPrimaryKey().GetID(&fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
+	putBatchContainer := util.NewPutBatchContainer(batch)
+	putBatchContainer.SetValue(0, record)                                       //添加主键value=record
+	putBatchContainer.SetValue(1, t.indexs.GetPrimaryKey().GetID(&fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
 	//添加全文索引key=joinValue,value=nil
-	BatchContainer.Operation(fieldsBytes)
-	//t.Operation(fieldsBytes, batch, BatchContainer)
+
+	t.Operation(fieldsBytes, batch, putBatchContainer)
 	if len(batchs) == 0 {
 		// 提交批量操作
 		if err = t.kvStore.WriteBatch(batch); err != nil {
@@ -260,34 +260,33 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	return currentID, nil
 }
 
-/*
 // 添加/删除记录操作
 // 添加时，key值已经存在的field值，value中会过滤掉，不重复添加。
-func (t *Table) Operation(fieldsBytes map[string][]byte, batch storage.Batch, BatchContainer *util.BatchContainer, existFields ...string) {
+func (t *Table) Operation(fieldsBytes map[string][]byte, batch storage.Batch, dataContainer util.DataContainer, existFields ...string) {
 
 	pkValue := t.indexs.GetPrimaryKey().JoinValue(&fieldsBytes, t.name)
-	BatchContainer.Add(pkValue, 0) //添加主键记录key=pkValue,value=record
+	dataContainer.Add(0, pkValue) //添加主键记录key=pkValue,value=record
 
 	//添加/删除普通索引key=indexValues,value=t.primaryKey.ID()
 	for _, Normal := range t.indexs.GetNormalIndexs() {
 		indexValue := Normal.JoinValue(&fieldsBytes, t.name, existFields...)
-		BatchContainer.Add(append([]byte{}, indexValue...), 1) //添加普通索引key=indexValues,value=t.primaryKey.ID()
+		dataContainer.Add(1, append([]byte{}, indexValue...)) //添加普通索引key=indexValues,value=t.primaryKey.ID()
 	}
 	/*
 		//添加/删除全文索引key=joinValue,value=t.primaryKey.ID()
 		全文索引的特殊性，在正常情况下必须带上主键，否则后面的关键词都被覆盖，失去全文索引的意义。
 		故而系统为了减少大量的字段值重复储存，全文索引的 value值设置 为 nil 。
 		查询时，在key值里提取出主键值还原value值。
-
+	*/
 	for _, FullText := range t.indexs.GetFullTextIndexs() {
 		joinValues := FullText.JoinFullValues(&fieldsBytes, t.name, existFields...)
 		defer util.PutBytesArray(joinValues)
 		for _, joinValue := range joinValues {
-			BatchContainer.Add(append([]byte{}, joinValue...), 2) //添加全文索引key=joinValue,value=t.primaryKey.ID()
+			dataContainer.Add(2, append([]byte{}, joinValue...)) //添加全文索引key=joinValue,value=t.primaryKey.ID()
 		}
 	}
 }
-*/
+
 // 格式化记录
 // 過濾存在的字段
 func (t *Table) FormatRecord(fieldsBytes *map[string][]byte, FilterFields ...string) (r []byte) {
@@ -365,8 +364,8 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	}
 	//反序列化记录，并且将字段值转换为对应的类型
 	fieldsBytes := t.ParseRecord(record)
-	BatchContainer := NewBatchContainer(batch, t.indexs, t.name)
-	BatchContainer.Operation(fieldsBytes)
+	deleteBatchContainer := util.NewDelteBatchContainer(batch)
+	t.Operation(fieldsBytes, batch, deleteBatchContainer)
 	if len(batchs) == 0 { //用户未手动控制事务，自动提交
 		t.kvStore.WriteBatch(batch)
 	}
@@ -421,9 +420,9 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	}
 	//反序列化记录，并且将字段值转换为对应的类型
 	fieldsBytes := t.ParseRecord(record)
-	BatchContainer := NewBatchContainer(batch, t.indexs, t.name)
+	deleteBatchContainer := util.NewDelteBatchContainer(batch)
 	//删除
-	BatchContainer.Operation(fieldsBytes, updateFields...)
+	t.Operation(fieldsBytes, batch, deleteBatchContainer, updateFields...)
 	//更新字段值
 
 	for field, val := range *fields {
@@ -435,12 +434,9 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 			fieldsBytes[field] = util.AnyToBytes(val)
 		}
 	}
-	//设置新值添加
-	record = t.FormatRecord(&fieldsBytes)
-	BatchContainer.SetValue(0, record)                                       //添加主键value=record
-	BatchContainer.SetValue(1, t.indexs.GetPrimaryKey().GetID(&fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
-	//添加全文索引key=joinValue,value=nil
-	BatchContainer.Operation(fieldsBytes)
+	//添加
+	putBatchContainer := util.NewPutBatchContainer(batch)
+	t.Operation(fieldsBytes, batch, putBatchContainer, updateFields...)
 	//提交事务
 	if len(batchs) == 0 { //用户未手动控制事务，自动提交
 		if err := t.kvStore.WriteBatch(batch); err != nil {
@@ -452,8 +448,8 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 
 // 从按主键数据库读取记录
 func (t *Table) ReadByBytes(key []byte) []byte {
-	//pfx := t.indexs.GetPrimaryKey().Prefix(t.name)
-	//key = bytes.Join([][]byte{pfx, key}, []byte(SPLIT))
+	pfx := t.indexs.GetPrimaryKey().Prefix(t.name)
+	key = bytes.Join([][]byte{pfx, key}, []byte(SPLIT))
 	v, err := t.kvStore.Get(key)
 	if err != nil {
 		// ErrNotFound 是正常的未找到错误，不需要打印

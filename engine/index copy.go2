@@ -338,81 +338,6 @@ func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, 
 	if !exist(dfi.fields, existFields...) {
 		return nil
 	}
-	fieldlen := len(dfi.fields)
-	indexfieldsBytes := make([][][]byte, fieldlen+1)
-
-	ftpxf := JoinAndToBytes(tbname, dfi.name)
-	indexfieldsBytes[0] = [][]byte{ftpxf} //首先载装前缀
-	loop := 1
-	/*
-		####拼接策略####
-		//将所有需要拼接的值，全部储存进入indexfieldsBytes([][][]byte)，再循环拼接。
-		// 普通索引的结果值是[]byte，全文索引的结果值是[][]byte，兼容载装则需要[][][]byte
-	*/
-	var val []byte
-	var ok bool
-	//将所有需要拼接的值，全部储存进入indexfieldsBytes([][][]byte)
-	for _, f := range dfi.fields {
-		if val, ok = (*fieldsBytes)[f]; !ok || val == nil {
-			continue // 跳过不存在的字段
-		}
-		if f == dfi.ftsplit { //全文索引切分字段
-			tokens := dfi.Tokenize(string(val), dfi.ftlen)
-			defer util.PutStringSlice(tokens)
-			for _, token := range tokens {
-				if token == "" {
-					continue
-				}
-				indexfieldsBytes[loop] = append(indexfieldsBytes[loop], []byte(token))
-			}
-		} else {
-			indexfieldsBytes[loop] = [][]byte{val}
-		}
-		loop++
-	}
-	//拼接indexfieldsBytes成为全文索引值
-	return util.CombineBytes(indexfieldsBytes, []byte(SPLIT))
-}
-
-/*
-// 全文索引算法
-// CombineBytes 接收多个字节数组，使用指定分隔符返回第一个数组与其他数组的所有可能拼接组合
-func CombineBytes(arrays [][][]byte, sep []byte) [][]byte {
-	if len(arrays) == 0 {
-		return [][]byte{}
-	}
-	// 从第一个数组开始，复制元素以避免修改原始数据
-	result := GetBytesArray() //全文索引数据量大，所以使用对象池，避免频繁分配内存。使用后需要put到对象池
-	for _, b := range arrays[0] {
-		result = append(result, append([]byte{}, b...)) // 复制数组，避免共享底层数组
-	}
-	// 处理剩余数组，生成所有可能的拼接组合
-	for _, array := range arrays[1:] {
-		newResult := make([][]byte, 0, len(result)*len(array))
-		for _, existing := range result {
-			for _, nextBytes := range array {
-				// 创建新的组合：existing + sep + nextBytes
-				combined := make([]byte, 0, len(existing)+len(sep)+len(nextBytes))
-				combined = append(combined, existing...)
-				combined = append(combined, sep...)
-				combined = append(combined, nextBytes...)
-				newResult = append(newResult, combined)
-			}
-		}
-		result = newResult
-	}
-
-		for _, b := range result {
-			fmt.Printf("b: %v\n", string(b))
-		}
-	return result
-}
-
-
-func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, tbname string, existFields ...string) [][]byte {
-	if !exist(dfi.fields, existFields...) {
-		return nil
-	}
 	//全文索引数据量大，所以使用对象池，避免频繁分配内存
 	r := util.GetBytesArray() //[][]byte
 	var fieldValue []byte
@@ -472,4 +397,3 @@ func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, 
 	}
 	return r
 }
-*/

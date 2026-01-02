@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"sync"
 
 	"github.com/liaoran123/sfsDb/engine/record"
@@ -119,8 +120,11 @@ func (t *TableIter) ByIndexGetRecord(v []byte) record.Record {
 	if len(t.table.indexs.GetPrimaryKey().GetFields()) > 1 { //只有组合主键才需要转义
 		value = util.Bytes(v).UnEscape()
 	}
+	//获取并且拼接前缀得到key值
+	pfx := t.table.indexs.GetPrimaryKey().Prefix(t.table.name)
+	key := bytes.Join([][]byte{pfx, value}, []byte(SPLIT))
 	// 读取完整记录
-	byrecord := t.table.ReadByBytes(value)
+	byrecord := t.table.ReadByBytes(key)
 	if byrecord == nil {
 		return nil
 	}

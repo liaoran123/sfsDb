@@ -452,8 +452,8 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 
 // 从按主键数据库读取记录
 func (t *Table) ReadByBytes(key []byte) []byte {
-	//pfx := t.indexs.GetPrimaryKey().Prefix(t.name)
-	//key = bytes.Join([][]byte{pfx, key}, []byte(SPLIT))
+	pfx := t.indexs.GetPrimaryKey().Prefix(t.name)
+	key = bytes.Join([][]byte{pfx, key}, []byte(SPLIT))
 	v, err := t.kvStore.Get(key)
 	if err != nil {
 		// ErrNotFound 是正常的未找到错误，不需要打印

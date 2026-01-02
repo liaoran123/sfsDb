@@ -1,0 +1,71 @@
+package pool
+
+import (
+	"fmt"
+	"researchCms/pool"
+	"runtime"
+	"sync"
+	"time"
+)
+
+func main() {
+	fmt.Printf("CPU核心数: %d\n\n", runtime.NumCPU())
+
+	// 测试1: 默认Pool（CPU密集型）
+	fmt.Println("=== 测试1: 默认Pool（CPU密集型） ===")
+	p1 := pool.NewPool()
+	fmt.Printf("默认Pool大小: %d\n", p1.Size())
+	p1.Stop()
+
+	// 测试2: IO密集型Pool
+	fmt.Println("\n=== 测试2: IO密集型Pool ===")
+	p2 := pool.NewPoolForIO()
+	fmt.Printf("IO Pool大小: %d\n", p2.Size())
+	p2.Stop()
+
+	// 测试3: 网络IO密集型Pool
+	fmt.Println("\n=== 测试3: 网络IO密集型Pool ===")
+	p3 := pool.NewPoolForNetwork()
+	fmt.Printf("网络IO Pool大小: %d\n", p3.Size())
+	p3.Stop()
+
+	// 测试4: 自定义大小Pool
+	fmt.Println("\n=== 测试4: 自定义大小Pool ===")
+	p4 := pool.NewPoolWithSize(5)
+	fmt.Printf("自定义Pool大小: %d\n", p4.Size())
+	p4.Stop()
+
+	// 测试5: 任务执行测试
+	fmt.Println("\n=== 测试5: 任务执行测试 ===")
+	p5 := pool.NewPoolForIO()
+	defer p5.Stop()
+
+	var taskCount int = 20
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	completed := 0
+
+	fmt.Printf("开始执行 %d 个任务...\n", taskCount)
+	startTime := time.Now()
+
+	for i := 0; i < taskCount; i++ {
+		wg.Add(1)
+		index := i
+		p5.Submit(func() {
+			defer wg.Done()
+			// 模拟IO操作（睡眠100ms）
+			time.Sleep(100 * time.Millisecond)
+			mu.Lock()
+			completed++
+			mu.Unlock()
+			fmt.Printf("任务 %d 完成\n", index+1)
+		})
+	}
+
+	// 等待所有任务完成
+	wg.Wait()
+	duration := time.Since(startTime)
+
+	fmt.Printf("\n所有 %d 个任务完成，耗时: %v\n", completed, duration)
+	fmt.Printf("平均每个任务耗时: %v\n", duration/time.Duration(taskCount))
+}

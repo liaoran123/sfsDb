@@ -238,7 +238,7 @@ func (dni *DefaultNormalIndex) Tag() bool {
 type FullTextIndex interface {
 	Index
 	SetFullField(field string, len int) error
-	//GetFtlen() int
+	GetFtlen(fields ...string) int
 	// 拼接全文索引值
 	JoinFullValues(fieldsBytes *map[string][]byte, tbname string, existFields ...string) [][]byte
 	// 分词方法
@@ -246,7 +246,6 @@ type FullTextIndex interface {
 }
 
 // ------------------------------------------
-/*
 // 全文索引字段类型
 type FullTextIndexField struct {
 	Fields string // 全文索引字段名
@@ -258,16 +257,6 @@ type FullTextIndexField struct {
 type DefaultFullTextIndex struct {
 	BaseIndex                      // 嵌入基础索引
 	ftfields  []FullTextIndexField // 全文索引字段列表
-}
-*/
-// 默认全文索引
-type DefaultFullTextIndex struct {
-	BaseIndex // 嵌入基础索引
-	//全文索引切分字段
-	ftsplit string
-	//切分长度
-	ftlen int
-	//ftfields  []FullTextIndexField // 全文索引字段列表
 }
 
 func DefaultFullTextIndexNew(name string) (*DefaultFullTextIndex, error) {
@@ -281,37 +270,51 @@ func DefaultFullTextIndexNew(name string) (*DefaultFullTextIndex, error) {
 	}
 	return dfi, nil
 }
-
-/*
-func (dfi *DefaultFullTextIndex) GetFtlen() int {
-	return dfi.ftlen
+func (dfi *DefaultFullTextIndex) GetFtlen(fields ...string) int {
+	for _, ftfit := range dfi.ftfields {
+		if slices.Contains(fields, ftfit.Fields) {
+			return ftfit.Len
+		}
+	}
+	return 5
 }
-*/
+
 // 指定那个字段是全文索引字段，以及索引长度
 func (dfi *DefaultFullTextIndex) SetFullField(field string, len int) error {
 	//len限制为3-11个字符
 	if len < 3 || len > 11 {
 		return errors.New("SetFullField len must be between 3 and 11")
 	}
-	//判断field是否在fields中
-	if !exist(dfi.fields, field) {
-		return errors.New("SetFullField field not in fields")
-	}
-	dfi.ftlen = len
-	dfi.ftsplit = field
+	dfi.ftfields = append(dfi.ftfields, FullTextIndexField{
+		Fields: field,
+		Len:    len,
+	})
 	return nil
 }
 
 // 调用基类JoinValue
-// 拼接全文索引前缀
 func (dfi *DefaultFullTextIndex) JoinValue(fieldsBytes *map[string][]byte, tbname string, existFields ...string) []byte {
-	if v, ok := (*fieldsBytes)[dfi.ftsplit]; ok {
-		//将转换为string中文，如果长度大于ftlen个字符，则截取前ftlen个字符
-		if len([]rune(string(v))) > int(dfi.ftlen) {
-			(*fieldsBytes)[dfi.ftsplit] = []byte(string([]rune(string(v))[:dfi.ftlen]))
+	if !exist(dfi.fields, existFields...) {
+		return nil
+	}
+	for _, ftfit := range dfi.ftfields {
+		if v, ok := (*fieldsBytes)[ftfit.Fields]; ok {
+			//将转换为string中文，如果长度大于ftlen个字符，则截取前ftlen个字符
+			if len([]rune(string(v))) > int(ftfit.Len) {
+				(*fieldsBytes)[ftfit.Fields] = []byte(string([]rune(string(v))[:ftfit.Len]))
+			}
 		}
 	}
-	return dfi.BaseIndex.JoinValue(fieldsBytes, tbname, existFields...)
+	var Value bytes.Buffer
+	bpxf := JoinAndToBytes(tbname, dfi.name) //通常就是表明和索引名拼接
+	if bpxf != nil {
+		Value.Write(util.Bytes(bpxf))
+		Value.Write([]byte(SPLIT))
+	}
+	Value.Write(Join(fieldsBytes, dfi.fields))
+	//rvalue := Value.Bytes()
+	//rvalue = rvalue[:len(rvalue)-1] //全文索引是like不能与其他索引一样，后面的SPLIT要去掉
+	return Value.Bytes()
 }
 func (dfi *DefaultFullTextIndex) Tokenize(nr string, ftlen int) (tokens []string) {
 	tokens = util.GetStringSlice()
@@ -338,81 +341,6 @@ func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, 
 	if !exist(dfi.fields, existFields...) {
 		return nil
 	}
-	fieldlen := len(dfi.fields)
-	indexfieldsBytes := make([][][]byte, fieldlen+1)
-
-	ftpxf := JoinAndToBytes(tbname, dfi.name)
-	indexfieldsBytes[0] = [][]byte{ftpxf} //首先载装前缀
-	loop := 1
-	/*
-		####拼接策略####
-		//将所有需要拼接的值，全部储存进入indexfieldsBytes([][][]byte)，再循环拼接。
-		// 普通索引的结果值是[]byte，全文索引的结果值是[][]byte，兼容载装则需要[][][]byte
-	*/
-	var val []byte
-	var ok bool
-	//将所有需要拼接的值，全部储存进入indexfieldsBytes([][][]byte)
-	for _, f := range dfi.fields {
-		if val, ok = (*fieldsBytes)[f]; !ok || val == nil {
-			continue // 跳过不存在的字段
-		}
-		if f == dfi.ftsplit { //全文索引切分字段
-			tokens := dfi.Tokenize(string(val), dfi.ftlen)
-			defer util.PutStringSlice(tokens)
-			for _, token := range tokens {
-				if token == "" {
-					continue
-				}
-				indexfieldsBytes[loop] = append(indexfieldsBytes[loop], []byte(token))
-			}
-		} else {
-			indexfieldsBytes[loop] = [][]byte{val}
-		}
-		loop++
-	}
-	//拼接indexfieldsBytes成为全文索引值
-	return util.CombineBytes(indexfieldsBytes, []byte(SPLIT))
-}
-
-/*
-// 全文索引算法
-// CombineBytes 接收多个字节数组，使用指定分隔符返回第一个数组与其他数组的所有可能拼接组合
-func CombineBytes(arrays [][][]byte, sep []byte) [][]byte {
-	if len(arrays) == 0 {
-		return [][]byte{}
-	}
-	// 从第一个数组开始，复制元素以避免修改原始数据
-	result := GetBytesArray() //全文索引数据量大，所以使用对象池，避免频繁分配内存。使用后需要put到对象池
-	for _, b := range arrays[0] {
-		result = append(result, append([]byte{}, b...)) // 复制数组，避免共享底层数组
-	}
-	// 处理剩余数组，生成所有可能的拼接组合
-	for _, array := range arrays[1:] {
-		newResult := make([][]byte, 0, len(result)*len(array))
-		for _, existing := range result {
-			for _, nextBytes := range array {
-				// 创建新的组合：existing + sep + nextBytes
-				combined := make([]byte, 0, len(existing)+len(sep)+len(nextBytes))
-				combined = append(combined, existing...)
-				combined = append(combined, sep...)
-				combined = append(combined, nextBytes...)
-				newResult = append(newResult, combined)
-			}
-		}
-		result = newResult
-	}
-
-		for _, b := range result {
-			fmt.Printf("b: %v\n", string(b))
-		}
-	return result
-}
-
-
-func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, tbname string, existFields ...string) [][]byte {
-	if !exist(dfi.fields, existFields...) {
-		return nil
-	}
 	//全文索引数据量大，所以使用对象池，避免频繁分配内存
 	r := util.GetBytesArray() //[][]byte
 	var fieldValue []byte
@@ -426,15 +354,26 @@ func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, 
 		if !exists {
 			continue // 跳过不存在的字段
 		}
-		//判断字段是否是全文索引字段
-		isFullTextField := fit == dfi.ftsplit
+		var isFullTextField bool
+		var ftlen int
 
+		//组合全文索引时，全文索引字段和普通索引字段组合，需要判断那个字段是全文索引字段
+		for _, ftfit := range dfi.ftfields {
+			if fit == ftfit.Fields {
+				isFullTextField = true
+				ftlen = ftfit.Len
+				if ftlen == 0 {
+					ftlen = 5
+				}
+				break
+			}
+		}
 		switch isFullTextField {
 		case true: // 全文索引字段
 			// 将字段值转换为字符串，全文索引只支持字符串
 			fieldStr := string(fieldValue)
 			// 对字段值进行分词
-			tokens := dfi.Tokenize(fieldStr, dfi.ftlen)
+			tokens := dfi.Tokenize(fieldStr, ftlen)
 			defer util.PutStringSlice(tokens)
 			var btoken []byte
 			for _, token := range tokens {
@@ -472,4 +411,3 @@ func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, 
 	}
 	return r
 }
-*/
