@@ -3,7 +3,6 @@ package util
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"strconv"
 	"time"
 )
@@ -201,13 +200,8 @@ func (b Bytes) ToAny(i any) any {
 	case complex128:
 		c, _ := strconv.ParseComplex(sv, 128)
 		return c
-	default: //默认使用json解析
-		var v2 any
-		err := json.Unmarshal(b, &v2)
-		if err != nil {
-			return sv
-		}
-		return v2
+	default:
+		return sv
 	}
 }
 

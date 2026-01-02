@@ -303,13 +303,14 @@ func (dfi *DefaultFullTextIndex) SetFullField(field string, len int) error {
 }
 
 // 调用基类JoinValue
-// 对应全文索引，该函数仅作搜索前缀用。
-// 拼接全文索引前缀,所有全文索引值都会进行转义。
+// 拼接全文索引前缀
 func (dfi *DefaultFullTextIndex) JoinValue(fieldsBytes *map[string][]byte, tbname string, existFields ...string) []byte {
 	if v, ok := (*fieldsBytes)[dfi.ftsplit]; ok {
 		//将转换为string中文，如果长度大于ftlen个字符，则截取前ftlen个字符
 		if len([]rune(string(v))) > int(dfi.ftlen) {
 			tval := []byte(string([]rune(string(v))[:dfi.ftlen]))
+			//(*fieldsBytes)[dfi.ftsplit] = []byte(string([]rune(string(v))[:dfi.ftlen]))
+			//tval = (*fieldsBytes)[dfi.ftsplit]
 			tval = util.Bytes(tval).Escape() //CombineBytes生成全文索引kv的时候进行了转义，这里也需要转义才能匹配
 			(*fieldsBytes)[dfi.ftsplit] = tval
 		}
@@ -343,6 +344,8 @@ func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, 
 	}
 	fieldlen := len(dfi.fields)
 	indexfieldsBytes := make([][][]byte, fieldlen)
+
+	//indexfieldsBytes[0] = [][]byte{ftpxf} //首先载装前缀
 	loop := 0
 	/*
 		####拼接策略####

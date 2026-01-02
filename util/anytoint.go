@@ -8,7 +8,7 @@ import (
 // anyToInt 使用 reflect 包将任意数值类型转换为 int，处理所有数值类型
 func AnyToInt(v any) int {
 	if v == nil {
-		return int(1)
+		return int(0)
 	}
 
 	// 使用 reflect 包获取值的类型和值
@@ -33,6 +33,6 @@ func AnyToInt(v any) int {
 		}
 		return int(floatVal)
 	default:
-		return int(1)
+		return int(0)
 	}
 }

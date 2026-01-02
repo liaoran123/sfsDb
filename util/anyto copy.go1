@@ -1,7 +1,6 @@
 package util
 
 import (
-	"encoding/json"
 	"strconv"
 	"time"
 )
@@ -45,12 +44,8 @@ func AnyToStr(i any) string {
 		return strconv.FormatComplex(v, 'f', 6, 128)
 	case string:
 		return v
-	default: //默认使用序列化json
-		bytes, err := json.Marshal(v)
-		if err != nil {
-			return err.Error()
-		}
-		return string(bytes)
+	default:
+		return i.(string)
 	}
 }
 func StrToAny(i string, t any) any {
@@ -106,12 +101,8 @@ func StrToAny(i string, t any) any {
 		return v
 	case string:
 		return i
-	default: //默认使用反序列化json
-		err := json.Unmarshal([]byte(i), t)
-		if err != nil {
-			return i
-		}
-		return t
+	default:
+		return i
 	}
 }
 
@@ -155,11 +146,6 @@ func AnyToBytes(v any) []byte {
 	case time.Time:
 		return []byte(val.Format(time.DateTime))
 	default:
-		//默认使用序列化json
-		bytes, err := json.Marshal(v)
-		if err != nil {
-			return []byte(err.Error())
-		}
-		return bytes
+		return []byte(v.(string))
 	}
 }

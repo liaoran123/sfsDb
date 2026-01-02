@@ -228,6 +228,7 @@ func (t *TableIter) ForMatchRecord(esc bool, page Page, match ...Match) (r recor
 		if loop < page.Start {
 			loop++
 		} else {
+			//获取所有能得到的值,todo........
 			for _, m := range match {
 				// 当前的key,value所有能得到的field的值组织成map[string]any，传入Match进行所需匹配
 				if m.Match(nil) {

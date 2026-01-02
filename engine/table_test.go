@@ -9,516 +9,6 @@ import (
 	"github.com/liaoran123/sfsDb/util"
 )
 
-/*
-// TestTableNew 测试表的创建
-func TestTableNew(t *testing.T) {
-	// 测试创建正常表名
-	table, err := TableNew("test_table")
-	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
-	}
-	if table == nil {
-		t.Fatal("TableNew 失败，返回 nil")
-	}
-	if table.name != "test_table" {
-		t.Errorf("表名错误，期望: test_table, 实际: %s", table.name)
-	}
-	if table.ftlen != 5 {
-		t.Errorf("默认全文索引长度错误，期望: 5, 实际: %d", table.ftlen)
-	}
-	if table.fields == nil {
-		t.Error("fields 未初始化")
-	}
-
-	// 测试包含分隔符的表名
-	invalidTable, err := TableNew("test-table")
-	if err == nil {
-		t.Error("TableNew 应该拒绝包含分隔符的表名")
-	}
-	if invalidTable != nil {
-		t.Error("TableNew 应该拒绝包含分隔符的表名")
-	}
-}
-
-// TestIndexFunctions 测试索引相关功能
-func TestIndexFunctions(t *testing.T) {
-	table, err := TableNew("test_index")
-	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
-	}
-	if table == nil {
-		t.Fatal("TableNew 失败")
-	}
-
-	// 测试设置索引字段
-	indexes := [][]string{{"name"}, {"age", "city"}}
-	table.SetIndex(indexes)
-	if len(table.index) != 2 {
-		t.Errorf("设置索引数量错误，期望: 2, 实际: %d", len(table.index))
-	}
-
-	// 测试添加单个索引
-	table.AddIndex([]string{"email"})
-	if len(table.index) != 3 {
-		t.Errorf("添加索引数量错误，期望: 3, 实际: %d", len(table.index))
-	}
-
-	// 测试获取索引前缀
-	prefix := table.GetIndexPrefix()
-	expectedPrefix := "test_index-idx"
-	if prefix != expectedPrefix {
-		t.Errorf("索引前缀错误，期望: %s, 实际: %s", expectedPrefix, prefix)
-	}
-}
-
-// TestFullTextFunctions 测试全文索引相关功能
-func TestFullTextFunctions(t *testing.T) {
-	table, err := TableNew("test_fulltext")
-	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
-	}
-	if table == nil {
-		t.Fatal("TableNew 失败")
-	}
-
-	// 测试设置全文索引字段
-	fields := []string{"content", "description"}
-	table.SetFullText(fields)
-	if len(table.fullText) != 1 {
-		t.Errorf("设置全文索引字段数量错误，期望: 1, 实际: %d", len(table.fullText))
-	}
-
-	// 测试添加单个全文索引字段
-	table.SetFullTextField("title")
-	if len(table.fullText) != 2 {
-		t.Errorf("添加全文索引字段数量错误，期望: 2, 实际: %d", len(table.fullText))
-	}
-
-	// 测试设置全文索引分词长度
-	table.SetFullTextLen(7)
-	if table.ftlen != 7 {
-		t.Errorf("设置全文索引分词长度错误，期望: 7, 实际: %d", table.ftlen)
-	}
-
-	// 测试边界值检查
-	table.SetFullTextLen(2) // 小于最小值3，应该保持不变
-	if table.ftlen != 7 {
-		t.Errorf("最小全文索引分词长度检查失败，期望: 7, 实际: %d", table.ftlen)
-	}
-
-	table.SetFullTextLen(12) // 大于最大值11，应该保持不变
-	if table.ftlen != 7 {
-		t.Errorf("最大全文索引分词长度检查失败，期望: 7, 实际: %d", table.ftlen)
-	}
-
-	// 测试获取全文索引前缀
-	prefix := table.GetFullTextPrefix()
-	expectedPrefix := "test_fulltext-ft"
-	if prefix != expectedPrefix {
-		t.Errorf("全文索引前缀错误，期望: %s, 实际: %s", expectedPrefix, prefix)
-	}
-}
-
-// TestFullTextToken 测试全文索引分词功能
-func TestFullTextToken(t *testing.T) {
-	table, err := TableNew("test_token")
-	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
-	}
-	if table == nil {
-		t.Fatal("TableNew 失败")
-	}
-
-	// 测试默认分词长度(5)
-	tokens := table.GetFullTextToken("abcdefghij", 5)
-	expectedTokens := []string{"abcde", "bcdef", "cdefg", "defgh", "efghi", "fghij", "ghij", "hij", "ij", "j"}
-	if !compareStringSlices(tokens, expectedTokens) {
-		t.Errorf("默认分词长度测试失败，期望: %v, 实际: %v", expectedTokens, tokens)
-	}
-
-	// 测试自定义分词长度(3)
-	tokens = table.GetFullTextToken("abcdef", 3)
-	expectedTokens = []string{"abc", "bcd", "cde", "def", "ef", "f"}
-	if !compareStringSlices(tokens, expectedTokens) {
-		t.Errorf("自定义分词长度测试失败，期望: %v, 实际: %v", expectedTokens, tokens)
-	}
-
-	// 测试短文本分词
-	tokens = table.GetFullTextToken("abc", 5)
-	expectedTokens = []string{"abc", "bc", "c"}
-	if !compareStringSlices(tokens, expectedTokens) {
-		t.Errorf("短文本分词测试失败，期望: %v, 实际: %v", expectedTokens, tokens)
-	}
-
-	// 测试中文分词
-	tokens = table.GetFullTextToken("测试中文分词", 2)
-	expectedTokens = []string{"测试", "试中", "中文", "文分", "分词", "词"}
-	if !compareStringSlices(tokens, expectedTokens) {
-		t.Errorf("中文分词测试失败，期望: %v, 实际: %v", expectedTokens, tokens)
-	}
-}
-
-// TestAutoIncrement 测试自动增值功能
-func TestAutoIncrement(t *testing.T) {
-	table, err := TableNew("test_autoinc")
-	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
-	}
-	if table == nil {
-		t.Fatal("TableNew 失败")
-	}
-
-	// 设置主键为自动增值
-	fields := table.GetAllFields()
-	fields["id"] = nil // 表示自动增值
-
-	// 初始化自动增值计数器
-	table.InitAuto()
-
-	// 测试自动生成主键值
-	// 直接使用AutoValue方法生成主键
-	id1 := table.AutoValue()
-	if id1 == 0 {
-		t.Error("自动增值应该生成主键值")
-		return
-	}
-
-	// 再次调用应该生成下一个值
-	table2, err := TableNew("test_autoinc")
-	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
-	}
-	if table2 == nil {
-		t.Fatal("TableNew 失败")
-	}
-	table2.SetPrimary([]string{"id"})
-	fields2 := table2.GetAllFields()
-	fields2["id"] = nil
-	table2.InitAuto()
-
-	id2Val, ok := fields2["id"]
-	if !ok {
-		t.Error("获取id字段失败")
-		return
-	}
-	id2, ok := id2Val.(int64)
-	if !ok {
-		t.Error("主键值应该是 int64 类型")
-		return
-	}
-
-	// 注意：由于测试环境中没有实际的数据库存储，两次调用可能生成相同的值
-	// 这里我们主要测试功能是否正常执行，而不是实际的递增效果
-	fmt.Printf("自动增值测试: id1=%d, id2=%d\n", id1, id2)
-}
-
-// TestGetFullTextValue 测试全文索引值生成功能
-func TestGetFullTextValue(t *testing.T) {
-	table, err := TableNew("test_fulltext_value")
-	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
-	}
-	if table == nil {
-		t.Fatal("TableNew 失败")
-	}
-
-	// 设置全文索引字段和主键
-	table.SetPrimary([]string{"id"})
-	table.SetFullText([]string{"content"})
-	table.SetFullTextLen(2) // 设置较短的分词长度便于测试
-
-	// 设置字段值
-	fields := table.GetAllFields()
-	fields["id"] = 1
-	fields["content"] = "测试全文索引"
-
-	// 获取全文索引值
-
-	fieldsBytes := table.FieldsToBytes(&fields)
-	fullTextValues := table.GetKeys(&fieldsBytes)
-	if len(fullTextValues) == 0 {
-		t.Error("GetFullTextsPrefix 应该返回全文索引值")
-		return
-	}
-
-	// 验证生成的全文索引键是否包含预期的分词
-	expectedTokens := []string{"测试", "试全", "全文", "文索", "索引", "引"}
-
-	// 打印生成的键值对，便于调试
-	fmt.Println("生成的全文索引键值对:")
-	for _, key := range fullTextValues {
-		// 验证键的格式：表名-ft-分词
-		if !bytes.HasPrefix(key, []byte("test_fulltext_value-ft-")) {
-			t.Errorf("全文索引键格式错误，期望以'test_fulltext_value-ft-'开头，实际: %s", string(key))
-		}
-		fmt.Printf("键: %s\n", string(key))
-	}
-
-	// 验证生成的键数量与预期一致
-	expectedKeyCount := len(expectedTokens)
-	if len(fullTextValues) != expectedKeyCount {
-		t.Errorf("全文索引键数量错误，期望: %d, 实际: %d", expectedKeyCount, len(fullTextValues))
-	}
-
-	fmt.Printf("全文索引测试: 生成了 %d 个键\n", len(fullTextValues))
-
-}
-
-// TestGetIndexValue 测试索引值生成功能
-func TestGetIndexValue(t *testing.T) {
-	table, err := TableNew("test_get_index_value")
-	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
-	}
-	if table == nil {
-		t.Fatal("TableNew 失败")
-	}
-
-	// 设置索引字段
-	indexes := [][]string{{"name"}, {"age", "city"}}
-	table.SetIndex(indexes)
-
-	// 设置字段值
-	fields := table.GetAllFields()
-	fields["name"] = "John Doe"
-	fields["age"] = 30
-	fields["city"] = "New York"
-
-	// 获取索引值
-	fieldsBytes := table.FieldsToBytes(&fields)
-	indexValues := table.GetKeys(&fieldsBytes)
-
-	// 验证索引值数量
-	if len(indexValues) != 2 {
-		t.Errorf("索引值数量错误，期望: 2, 实际: %d", len(indexValues))
-	}
-
-	// 验证索引值格式
-	expectedIndex1 := []byte("test_get_index_value-idx-John Doe")
-	expectedIndex2 := bytes.Join([][]byte{[]byte("test_get_index_value-idx"), fieldsBytes["age"], []byte("New York")}, []byte(SPLIT))
-
-	if !bytes.Equal(indexValues[0], expectedIndex1) && !bytes.Equal(indexValues[0], expectedIndex2) {
-		t.Errorf("索引值1错误，期望: %s 或 %s, 实际: %s", expectedIndex1, expectedIndex2, indexValues[0])
-	}
-
-	if !bytes.Equal(indexValues[1], expectedIndex1) && !bytes.Equal(indexValues[1], expectedIndex2) {
-		t.Errorf("索引值2错误，期望: %s 或 %s, 实际: %s", expectedIndex1, expectedIndex2, indexValues[1])
-	}
-
-	// 打印索引值用于调试
-	fmt.Println("生成的索引键值对:")
-	for i, value := range indexValues {
-		fmt.Printf("键 %d: %s\n", i+1, string(value))
-	}
-}
-
-// TestTableRead 测试Read方法的功能
-func TestTableRead(t *testing.T) {
-	// 创建测试表
-	table, err := TableNew("test_read")
-	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
-	}
-	if table == nil {
-		t.Fatal("TableNew 失败")
-	}
-	// 预设表字段和数据类型
-	fields := map[string]any{}
-	fields["id"] = 1
-	fields["name"] = "John Doe"
-	fields["age"] = 30
-	fields["city"] = "New York"
-	table.SetFields(fields)
-
-	// 设置主键
-	table.SetPrimary([]string{"id"})
-
-	// 插入测试数据
-	currentID, err := table.Insert(&fields)
-	if err != nil {
-		t.Fatalf("插入测试数据失败: %v", err)
-	}
-	if currentID != 1 {
-		t.Errorf("插入测试数据后，当前ID应为1，实际: %d", currentID)
-	}
-
-	// 测试1: 正常读取已存在的记录
-	record := table.Read(1)
-	if record == nil {
-		t.Fatal("读取失败，无法读取已存在的记录")
-	}
-	// 打印实际存储的数据
-
-	insertedFields := table.ParseValue(record)
-	if insertedFields == nil {
-		t.Fatal("解析失败，无法解析记录")
-	}
-
-	if insertedFields["name"] != "John Doe" {
-		t.Errorf("读取的姓名错误，期望: John Doe, 实际: %v", insertedFields["name"])
-	}
-
-	// 注意：ParseValue返回的字段值类型是根据t.fields[file]的类型决定的
-	// 由于我们没有在table实例上设置fields字段的类型，所以返回的是字符串类型
-	ageStr, ok := insertedFields["age"].(string)
-	if !ok {
-		t.Logf("age字段的类型不是字符串，而是: %T, 值: %v", insertedFields["age"], insertedFields["age"])
-		// 我们需要更灵活地处理age字段的值
-		// 这里只检查age字段是否存在，不检查具体值
-		if _, exists := insertedFields["age"]; !exists {
-			t.Error("age字段不存在")
-		}
-	} else {
-		t.Logf("age字段的值是字符串: %s", ageStr)
-		// 如果是字符串类型，我们可以尝试将其转换为整数
-		// 这里只检查age字段是否存在，不检查具体值
-		if ageStr == "" {
-			t.Error("age字段值为空字符串")
-		}
-	}
-
-	// 测试2: 读取不存在的记录
-	notExistFields := table.Read(999)
-	if notExistFields != nil {
-		t.Errorf("读取不存在的记录应该返回nil，实际: %v", notExistFields)
-	}
-
-	// 测试3: 使用字符串主键
-	table2, err := TableNew("test_read_string_pk")
-	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
-	}
-	if table2 == nil {
-		t.Fatal("TableNew 失败")
-	}
-	fields["user_id"] = "user123"
-	fields["name"] = "Jane Smith"
-	fields["age"] = 25
-	fields["city"] = "Los Angeles"
-
-	// 设置字符串主键
-	table2.SetPrimary([]string{"user_id"})
-
-	// 插入测试数据
-	_, err = table2.Insert(&fields)
-	if err != nil {
-		t.Fatalf("插入字符串主键测试数据失败: %v", err)
-	}
-
-	// 读取字符串主键的记录
-	record = table2.Read("user123")
-	stringPkFields := table2.ParseValue(record)
-	if stringPkFields == nil {
-		t.Fatal("读取字符串主键记录失败")
-	}
-
-	if stringPkFields["name"] != "Jane Smith" {
-		t.Errorf("读取的姓名错误，期望: Jane Smith, 实际: %v", stringPkFields["name"])
-	}
-}
-
-func TestCRUDOperations(t *testing.T) {
-	// 创建测试表
-	table, err := TableNew("test_crud")
-	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
-	}
-	if table == nil {
-		t.Fatal("TableNew 失败")
-	}
-
-	// 设置主键
-	table.SetPrimary([]string{"id"})
-	//// 必须先为表预设字段和类型
-	// 必须先为表预设字段和数据类型
-	fields := map[string]any{"id": 0, "name": "", "age": uint8(0), "description": ""}
-	table.SetFields(fields)
-
-	// 测试插入操作
-	fields = table.GetAllFields()
-	fields["id"] = 1
-	fields["name"] = "John Doe"
-	fields["age"] = uint8(30)
-	fields["city"] = "New York"
-	_, err = table.Insert(&fields)
-	if err != nil {
-		t.Fatalf("Insert 失败: %v", err)
-	}
-
-	// 验证插入是否成功
-	record := table.Read(1)
-	insertedFields := table.ParseValue(record)
-	if insertedFields == nil {
-		t.Fatal("插入失败，无法读取记录")
-	}
-
-	if insertedFields["name"] != "John Doe" {
-		t.Errorf("插入的姓名错误，期望: John Doe, 实际: %v", insertedFields["name"])
-	}
-
-	if insertedFields["age"] != uint8(30) {
-		t.Errorf("插入的年龄错误，期望: 30, 实际: %v", insertedFields["age"])
-	}
-
-	// 测试更新操作
-	updateFields := map[string]any{
-		"id":   1,
-		"age":  uint8(31),
-		"city": "Los Angeles",
-	}
-
-	err = table.Update(&updateFields)
-	if err != nil {
-		t.Fatalf("Update 失败: %v", err)
-	}
-
-	// 验证更新是否成功
-	record = table.Read(1)
-	updatedFields := table.ParseValue(record)
-	if updatedFields == nil {
-		t.Fatal("更新失败，无法读取记录")
-	}
-
-	if updatedFields["age"] != uint8(31) {
-		t.Errorf("更新的年龄错误，期望: 31, 实际: %v", updatedFields["age"])
-	}
-
-	if updatedFields["city"] != "Los Angeles" {
-		t.Errorf("更新的城市错误，期望: Los Angeles, 实际: %v", updatedFields["city"])
-	}
-
-	// 测试删除操作
-
-	deleteFields := map[string]any{
-		"id": 1,
-	}
-
-	err = table.Delete(&deleteFields)
-	if err != nil {
-		t.Fatalf("Delete 失败: %v", err)
-	}
-
-	// 验证删除是否成功
-	record = table.Read(1)
-	deletedFields := table.ParseValue(record)
-	if deletedFields != nil {
-		t.Error("删除失败，记录仍然存在")
-	}
-}
-
-func compareStringSlices(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-*/
 // 测试组合主键搜索
 func TestCompositePrimaryKeySearch(t *testing.T) {
 	table, err := TableNew("art")
@@ -614,20 +104,7 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 	for i, item := range records {
 		fmt.Printf("结果集 %d: %v\n", i, item)
 	}
-	/*
-		fields2 := map[string]any{
-			"content": "文章内容22",
-		}
-		dataIter, err := table.Search(&fields2)
-		if dataIter.iter == nil {
-			t.Fatalf("Search 失败: %v", err)
-		}
-		defer dataIter.Release()
-		records1 := dataIter.GerRecords(true)
-		for i, item := range records1 {
-			fmt.Printf("全文索引结果集 %d: %v\n", i, item)
-		}
-	*/
+
 }
 
 // TestTableSearch 测试表遍历数据和Search方法的功能
@@ -894,111 +371,109 @@ func TestTableSearch(t *testing.T) {
 
 // 测试添加Table.Insert，删除Table.Delete，修改Table.Update，添加一条记录，通过主键进行修改和删除
 func TestTableCRUD(t *testing.T) {
-	/*
-		// 创建表
-		table, err := TableNew("test_table")
-		if err != nil {
-			t.Fatalf("Failed to create table: %v", err)
-		}
 
-		// 定义表字段
-		fields := map[string]any{
-			"id":   0,
-			"name": "",
-			"age":  0,
-		}
+	// 创建表
+	table, err := TableNew("test_table")
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
 
-		// 设置表字段 - 逐个字段复制
-		maps.Copy(table.fields, fields)
+	// 定义表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"age":  0,
+	}
 
-		// 测试1: 添加单条记录
-		t.Log("测试1: 添加单条记录")
-		record := map[string]any{
-			"id":   1,
-			"name": "张三",
-			"age":  25,
-		}
+	// 设置表字段 - 逐个字段复制
+	maps.Copy(table.fields, fields)
 
-		_, err = table.Insert(&record)
-		if err != nil {
-			t.Fatalf("Failed to add record: %v", err)
-		}
+	// 测试1: 添加单条记录
+	t.Log("测试1: 添加单条记录")
+	record := map[string]any{
+		"id":   1,
+		"name": "张三",
+		"age":  25,
+	}
 
-		// 验证记录存在
-		searchFields := map[string]any{"id": 1}
-		dataIter, err := table.Search(&searchFields)
-		if err != nil {
-			t.Fatalf("Failed to search record: %v", err)
-		}
+	_, err = table.Insert(&record)
+	if err != nil {
+		t.Fatalf("Failed to add record: %v", err)
+	}
 
-		records := dataIter.GerRecords(true)
-		if len(records) == 0 {
-			t.Error("Record not found after adding")
+	// 验证记录存在
+	searchFields := map[string]any{"id": 1}
+	dataIter, err := table.Search(&searchFields)
+	if err != nil {
+		t.Fatalf("Failed to search record: %v", err)
+	}
+
+	records := dataIter.GerRecords(true)
+	if len(records) == 0 {
+		t.Error("Record not found after adding")
+	} else {
+		if records[0]["name"] != "张三" || records[0]["age"] != 25 {
+			t.Errorf("Record data mismatch: got %v, expected name=张三, age=25", records[0])
 		} else {
-			if records[0]["name"] != "张三" || records[0]["age"] != 25 {
-				t.Errorf("Record data mismatch: got %v, expected name=张三, age=25", records[0])
-			} else {
-				t.Logf("添加记录成功: %v", records[0])
-			}
+			t.Logf("添加记录成功: %v", records[0])
 		}
+	}
 
-		// 测试2: 修改记录
-		t.Log("测试2: 修改记录")
-		updateRecord := map[string]any{
-			"id":   1,
-			"name": "张三修改",
-			"age":  26,
-		}
+	// 测试2: 修改记录
+	t.Log("测试2: 修改记录")
+	updateRecord := map[string]any{
+		"id":   1,
+		"name": "张三修改",
+		"age":  26,
+	}
 
-		err = table.Update(&updateRecord)
-		if err != nil {
-			t.Fatalf("Failed to update record: %v", err)
-		}
+	err = table.Update(&updateRecord)
+	if err != nil {
+		t.Fatalf("Failed to update record: %v", err)
+	}
 
-		// 验证修改成功
-		searchFields = map[string]any{"id": 1}
-		dataIter, err = table.Search(&searchFields)
-		if err != nil {
-			t.Fatalf("Failed to search updated record: %v", err)
-		}
+	// 验证修改成功
+	searchFields = map[string]any{"id": 1}
+	dataIter, err = table.Search(&searchFields)
+	if err != nil {
+		t.Fatalf("Failed to search updated record: %v", err)
+	}
 
-		updatedRecords := dataIter.GerRecords(true)
-		if len(updatedRecords) == 0 {
-			t.Error("Updated record not found")
+	updatedRecords := dataIter.GerRecords(true)
+	if len(updatedRecords) == 0 {
+		t.Error("Updated record not found")
+	} else {
+		if updatedRecords[0]["name"] != "张三修改" || updatedRecords[0]["age"] != 26 {
+			t.Errorf("Record update failed: got %v, expected name=张三修改, age=26", updatedRecords[0])
 		} else {
-			if updatedRecords[0]["name"] != "张三修改" || updatedRecords[0]["age"] != 26 {
-				t.Errorf("Record update failed: got %v, expected name=张三修改, age=26", updatedRecords[0])
-			} else {
-				t.Logf("修改记录成功: %v", updatedRecords[0])
-			}
+			t.Logf("修改记录成功: %v", updatedRecords[0])
 		}
+	}
 
-		// 测试3: 删除记录
-		t.Log("测试3: 删除记录")
-		deleteFields := map[string]any{"id": 1}
-		err = table.Delete(&deleteFields)
-		if err != nil {
-			t.Fatalf("Failed to delete record: %v", err)
-		}
+	// 测试3: 删除记录
+	t.Log("测试3: 删除记录")
+	deleteFields := map[string]any{"id": 1}
+	err = table.Delete(&deleteFields)
+	if err != nil {
+		t.Fatalf("Failed to delete record: %v", err)
+	}
 
-		// 验证记录已删除
-		searchFields = map[string]any{"id": 1}
-		dataIter, err = table.Search(&searchFields)
-		if err != nil {
-			t.Fatalf("Failed to search deleted record: %v", err)
-		}
+	// 验证记录已删除
+	searchFields = map[string]any{"id": 1}
+	dataIter, err = table.Search(&searchFields)
+	if err != nil {
+		t.Fatalf("Failed to search deleted record: %v", err)
+	}
 
-		deletedRecords := dataIter.GerRecords(true)
-		if len(deletedRecords) != 0 {
-			t.Errorf("Record deletion failed: found %v, expected none", deletedRecords)
-		} else {
-			t.Log("删除记录成功")
-		}
+	deletedRecords := dataIter.GerRecords(true)
+	if len(deletedRecords) != 0 {
+		t.Errorf("Record deletion failed: found %v, expected none", deletedRecords)
+	} else {
+		t.Log("删除记录成功")
+	}
 
-		t.Log("所有CRUD测试通过")
+	t.Log("所有CRUD测试通过")
 
-
-	*/
 	// 测试4: 带有索引和全文索引的表CRUD操作
 	t.Log("\n测试4: 带有索引和全文索引的表CRUD操作")
 
@@ -1097,7 +572,7 @@ func TestTableCRUD(t *testing.T) {
 	// 测试通过普通索引查询
 	t.Log("测试通过普通索引查询")
 	searchByTitle := map[string]any{"title": "Go语言入门"}
-	dataIter, err := tableWithIndex.Search(&searchByTitle)
+	dataIter, err = tableWithIndex.Search(&searchByTitle)
 	if err != nil {
 		t.Fatalf("Failed to search by title index: %v", err)
 	}
@@ -1126,7 +601,7 @@ func TestTableCRUD(t *testing.T) {
 
 	// 测试修改记录
 	t.Log("测试修改带索引的记录")
-	updateRecord := map[string]any{
+	updateRecord = map[string]any{
 		"id":    1,
 		"title": "Go语言入门教程",
 		"views": 120,
@@ -1144,7 +619,7 @@ func TestTableCRUD(t *testing.T) {
 		t.Fatalf("Failed to search updated record: %v", err)
 	}
 
-	updatedRecords := dataIter.GerRecords(true)
+	updatedRecords = dataIter.GerRecords(true)
 	if len(updatedRecords) == 0 {
 		t.Error("Updated record not found")
 	} else {
@@ -1157,7 +632,7 @@ func TestTableCRUD(t *testing.T) {
 
 	// 测试删除记录
 	t.Log("测试删除带索引的记录")
-	deleteFields := map[string]any{"id": 3}
+	deleteFields = map[string]any{"id": 3}
 	err = tableWithIndex.Delete(&deleteFields)
 	if err != nil {
 		t.Fatalf("Failed to delete indexed record: %v", err)
@@ -1170,7 +645,7 @@ func TestTableCRUD(t *testing.T) {
 		t.Fatalf("Failed to search deleted record: %v", err)
 	}
 
-	deletedRecords := dataIter.GerRecords(true)
+	deletedRecords = dataIter.GerRecords(true)
 	if len(deletedRecords) != 0 {
 		t.Errorf("Record deletion failed: found %v, expected none", deletedRecords)
 	} else {
@@ -1192,4 +667,202 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	t.Log("所有带索引的CRUD测试通过")
+}
+
+// 检查修改普通索引和全文索引的变化情况
+func TestTableIndexChange(t *testing.T) {
+	// 测试4: 带有索引和全文索引的表CRUD操作
+	//t.Log("\n测试4: 带有索引和全文索引的表CRUD操作")
+
+	// 创建带索引的表
+	tableWithIndex, err := TableNew("test_table_with_index")
+	if err != nil {
+		t.Fatalf("Failed to create table with index: %v", err)
+	}
+
+	// 定义带索引的表字段
+	indexFields := map[string]any{
+		"id":      0,
+		"title":   "",
+		"content": "",
+		"author":  "",
+		"views":   0,
+	}
+
+	// 设置表字段
+	maps.Copy(tableWithIndex.fields, indexFields)
+
+	// 创建普通索引
+	// 创建标题索引
+	titleIndex, err := DefaultNormalIndexNew("title_index")
+	if err != nil {
+		t.Fatalf("Failed to create title index instance: %v", err)
+	}
+	titleIndex.AddFields("title")
+	err = tableWithIndex.indexs.CreateIndex(titleIndex)
+	if err != nil {
+		t.Fatalf("Failed to create title index: %v", err)
+	}
+
+	// 创建复合索引（作者-浏览量）
+	authorViewsIndex, err := DefaultNormalIndexNew("author_views_index")
+	if err != nil {
+		t.Fatalf("Failed to create author_views index instance: %v", err)
+	}
+	authorViewsIndex.AddFields("author", "views")
+	err = tableWithIndex.indexs.CreateIndex(authorViewsIndex)
+	if err != nil {
+		t.Fatalf("Failed to create author_views index: %v", err)
+	}
+
+	// 创建全文索引
+	contentFulltextIndex, err := DefaultFullTextIndexNew("content_fulltext")
+	if err != nil {
+		t.Fatalf("Failed to create content fulltext index instance: %v", err)
+	}
+	//全文索引正常情况下必须带上主键，否则后面的关键词都被覆盖，失去全文索引的意义。
+	contentFulltextIndex.AddFields("content", "id")
+	//指定description为全文索引字段，长度为5
+	//如果没有指定，则等同一般索引
+	err = contentFulltextIndex.SetFullField("content", 5)
+	if err != nil {
+		t.Fatalf("Failed to set fulltext index field: %v", err)
+	}
+
+	err = tableWithIndex.indexs.CreateIndex(contentFulltextIndex)
+	if err != nil {
+		t.Fatalf("Failed to create content fulltext index: %v", err)
+	}
+
+	// 添加多条记录
+	indexRecords := []map[string]any{
+		{
+			"id":      1,
+			"title":   "Go语言入门",
+			"content": "qqqqq",
+			"author":  "张三",
+			"views":   100,
+		},
+		{
+			"id":      2,
+			"title":   "Go语言进阶",
+			"content": "abcdef",
+			"author":  "李四",
+			"views":   200,
+		},
+		{
+			"id":      3,
+			"title":   "Go语言实战",
+			"content": "67890",
+			"author":  "张三",
+			"views":   150,
+		},
+	}
+
+	for _, record := range indexRecords {
+		_, err = tableWithIndex.Insert(&record)
+		if err != nil {
+			t.Fatalf("Failed to add record to indexed table: %v", err)
+		}
+	}
+
+	// 测试通过普通索引查询
+	t.Log("测试通过普通索引查询")
+	searchByTitle := map[string]any{"title": "Go语言入门"}
+	dataIter, err := tableWithIndex.Search(&searchByTitle)
+	if err != nil {
+		t.Fatalf("Failed to search by title index: %v", err)
+	}
+
+	titleRecords := dataIter.GerRecords(true)
+	if len(titleRecords) != 1 {
+		t.Errorf("Expected 1 record for title 'Go语言入门', got %d", len(titleRecords))
+	} else {
+		t.Logf("通过标题索引查询成功: %v", titleRecords[0])
+	}
+
+	// 测试通过复合索引查询
+	t.Log("测试通过复合索引查询")
+	searchByAuthor := map[string]any{"author": "张三"}
+	dataIter, err = tableWithIndex.Search(&searchByAuthor)
+	if err != nil {
+		t.Fatalf("Failed to search by author index: %v", err)
+	}
+
+	authorRecords := dataIter.GerRecords(true)
+	if len(authorRecords) != 2 {
+		t.Errorf("Expected 2 records for author '张三', got %d", len(authorRecords))
+	} else {
+		t.Logf("通过作者索引查询成功，找到 %d 条记录", len(authorRecords))
+	}
+	//author_views_index
+	idxkey := tableWithIndex.name + SPLIT + "author_views_index" + SPLIT
+	iter := tableWithIndex.kvStore.Iterator([]byte(idxkey))
+	for iter.Next() {
+		key := iter.Key()
+		fmt.Println("author_views_index: ", string(key))
+	}
+	iter.Release()
+	// 测试修改普通索引记录
+	t.Log("测试修改带索引的记录")
+	updateRecord := map[string]any{
+		"id":    1,
+		"title": "Go语言入门教程",
+		"views": 120,
+	}
+
+	err = tableWithIndex.Update(&updateRecord)
+	if err != nil {
+		t.Fatalf("Failed to update indexed record: %v", err)
+	}
+
+	// 验证修改成功
+	iter = tableWithIndex.kvStore.Iterator([]byte(idxkey))
+	for iter.Next() {
+		key := iter.Key()
+		fmt.Println("author_views_index: ", string(key))
+	}
+	iter.Release()
+
+	searchUpdated := map[string]any{"id": 1}
+	dataIter, err = tableWithIndex.Search(&searchUpdated)
+	if err != nil {
+		t.Fatalf("Failed to search updated record: %v", err)
+	}
+
+	updatedRecords := dataIter.GerRecords(true)
+	if len(updatedRecords) == 0 {
+		t.Error("Updated record not found")
+	} else {
+		if updatedRecords[0]["title"] != "Go语言入门教程" || updatedRecords[0]["views"] != 120 {
+			t.Errorf("Record update failed: got %v, expected title=Go语言入门教程, views=120", updatedRecords[0])
+		} else {
+			t.Logf("修改带索引记录成功: %v", updatedRecords[0])
+		}
+	}
+
+	// 检查修改全文索引记录
+	idxkey = tableWithIndex.name + SPLIT + "content_fulltext" + SPLIT
+	iter = tableWithIndex.kvStore.Iterator([]byte(idxkey))
+	for iter.Next() {
+		key := iter.Key()
+		fmt.Println("content_fulltext: ", string(key))
+	}
+	t.Log("测试修改全文索引记录")
+	updateRecord = map[string]any{
+		"id":      1,
+		"content": "oooooo",
+	}
+	err = tableWithIndex.Update(&updateRecord)
+	if err != nil {
+		t.Fatalf("Failed to update indexed record: %v", err)
+	}
+	// 验证修改成功
+	iter = tableWithIndex.kvStore.Iterator([]byte(idxkey))
+	for iter.Next() {
+		key := iter.Key()
+		fmt.Println("content_fulltext: ", string(key))
+	}
+	iter.Release()
+
 }

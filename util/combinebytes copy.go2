@@ -14,7 +14,7 @@ func CombineBytes(arrays [][][]byte, sep []byte, prefix []byte) [][]byte {
 
 	// 初始化第一个数组，转义所有元素
 	for _, b := range arrays[0] {
-		b = Bytes(b).Escape()
+		b = Bytes(b).Escape() // 前缀不能转义
 		b = append(prefix, b...)
 		result = append(result, append([]byte{}, b...)) // 复制数组，避免共享底层数组
 	}
@@ -55,7 +55,7 @@ func CombineStrings(arrays [][]string, sep string) []string {
 	}
 
 	// 调用 CombineBytes，获取对象池中的结果
-	byteResult := CombineBytes(byteArrays, []byte(sep), []byte{})
+	byteResult := CombineBytes(byteArrays, []byte(sep))
 	// 转换回字符串数组前，需要先复制结果，因为 byteResult 会被归还到对象池
 	defer PutBytesArray(byteResult) // 确保 byteResult 被归还到对象池
 
