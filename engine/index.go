@@ -24,20 +24,14 @@ type Index interface {
 	//拼接前缀
 	Prefix(tbname string) []byte
 	// 拼接索引前缀+索引值
-	// 系统对kv数据库优化设计，将已经存在key值索引数据，从value中略去。使用时再重新分解拼接。
-	// 所以，所有拼接数据组合主键或索引都需要进行转义。否则分解可能存在转义问题。
 	JoinValue(fieldsBytes *map[string][]byte, tbname string, existFields ...string) []byte
 	// 匹配索引字段
 	MatchFields(fields ...string) bool
-	GetPrimaryBytes(primaryfields []string, indexPrimaryIDvalue []byte) *map[string][]byte
-}
+	// 解析kv的value值，返回字段值map
+	Parse(fields []string, value []byte) *map[string][]byte
+	// 获取主键字段值map
 
-/* 都是简单函数，没有提供多态的必要性。
-type AddFields func(field ...string)
-type GetFields func() []string
-type JoinValue func(fieldsBytes *map[string][]byte, pfx string, existFields ...string) []byte
-type MatchFields func(fields ...string) bool
-*/
+}
 
 // ------------------------------------------
 // 基础索引结构体，包含所有索引类型共有的字段和方法
@@ -159,17 +153,17 @@ func (bi *BaseIndex) MatchFields(fields ...string) bool {
 }
 
 // 将索引的value转换为主键map值
-// primaryfields []string, indexPrimaryIDvalue对应的顺序必须相同
-func (bi *BaseIndex) GetPrimaryBytes(primaryfields []string, indexPrimaryIDvalue []byte) *map[string][]byte {
+// fields []string, value []byte, 顺序必须相同
+func (bi *BaseIndex) Parse(primaryFields []string, value []byte) *map[string][]byte {
 	fieldsBytes := map[string][]byte{}
 	// 解析索引值
-	indexValues := util.Bytes(indexPrimaryIDvalue).Split()
-	//判断indexValues是否与primaryfields长度相同
-	if len(indexValues) != len(primaryfields) {
+	indexValues := util.Bytes(value).Split()
+	//判断indexValues是否与fields长度相同
+	if len(indexValues) != len(primaryFields) {
 		return nil
 	}
 	for i, fit := range indexValues {
-		fieldsBytes[primaryfields[i]] = fit
+		fieldsBytes[primaryFields[i]] = fit
 	}
 	return &fieldsBytes
 }
@@ -180,7 +174,6 @@ type PrimaryKey interface {
 	Index
 	// 设置主键ID
 	GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte
-	//GetPrimaryBytes(primaryfields []string, indexPrimaryIDvalue []byte) *map[string][]byte
 }
 
 // ------------------------------------------
@@ -224,12 +217,37 @@ func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields 
 	return Value.Bytes()
 }
 
+// 解析函数，将索引的value转换为主键map值
+// 与func (t *Table) FormatRecord(fieldsBytes *map[string][]byte, FilterFields ...string) (r []byte)相对应
+func (dpk *DefaultPrimaryKey) Parse(fields []string, value []byte) *map[string][]byte {
+	bs := util.Bytes(value).Split()
+	fieldsBytes := make(map[string][]byte, len(bs))
+	field := ""
+	for _, b := range bs {
+		//以第一个':'为分隔符，将值分为两部分
+		before, _, ok := bytes.Cut(b, []byte{':'})
+		if ok {
+			field = string(before)
+			fieldsBytes[field] = b[len(field)+1:] //util.Bytes(b[len(field)+1:])
+		}
+	}
+	//这里的fields作用是提取所需字段。不需要的字段删除.
+	if fields != nil || len(fields) > 0 {
+		for _, fit := range fields {
+			if _, ok := fieldsBytes[fit]; !ok {
+				delete(fieldsBytes, fit)
+			}
+		}
+	}
+	return &fieldsBytes
+}
+
 // ------------------------------------------
 // 普通索引接口，嵌入基础索引接口
 type NormalIndex interface {
 	Index
 	// 将索引的value转换为主键map值
-	//GetPrimaryBytes(primaryfields []string, indexPrimaryIDvalue []byte) *map[string][]byte
+
 	// 由于NormalIndex完全匹配index接口，所以需要一个Tag方法来区别是否是二级索引。
 	Tag() bool
 }
@@ -309,13 +327,13 @@ GetPrimaryBytes函数是提取
 content-mid-secNo = content-1-2 ==> mid = 1, secNo = 2
 description-id = description-1 ==> id = 1
 */
-func (dfi *DefaultFullTextIndex) GetPrimaryBytes(primaryfields []string, FullTextKey []byte) *map[string][]byte {
-	ks := util.Bytes(FullTextKey).Split() //分解并反转义
-	fieldlen := len(primaryfields)
-	ks = ks[len(ks)-fieldlen:]
+func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, value []byte) *map[string][]byte {
+	ks := util.Bytes(value).Split() //分解并反转义
+	fieldlen := len(primaryFields)
+	ks = ks[len(ks)-fieldlen:] //与其他索引不同的地方就是要key值提取。其他索引的值就是value，不用提取。
 	fieldsBytes := make(map[string][]byte, fieldlen)
 	for i, k := range ks { //重新拼接
-		fieldsBytes[primaryfields[i]] = k
+		fieldsBytes[primaryFields[i]] = k
 	}
 	return &fieldsBytes
 }

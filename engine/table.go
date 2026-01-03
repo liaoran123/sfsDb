@@ -186,6 +186,8 @@ func (t *Table) CheckType(fields *map[string]any) error {
 }
 
 // 将数据转换为字节数组，该合适添加时用。搜索时nil值不能更改
+// *map[string]any ==> *map[string][]byte
+// 与RecordByteToAny相反
 func (t *Table) FieldsToBytes(fields *map[string]any) *map[string][]byte {
 	result := make(map[string][]byte, len(*fields))
 	for k, v := range *fields {
@@ -260,34 +262,6 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	return currentID, nil
 }
 
-/*
-// 添加/删除记录操作
-// 添加时，key值已经存在的field值，value中会过滤掉，不重复添加。
-func (t *Table) Operation(fieldsBytes map[string][]byte, batch storage.Batch, BatchContainer *util.BatchContainer, existFields ...string) {
-
-	pkValue := t.indexs.GetPrimaryKey().JoinValue(&fieldsBytes, t.name)
-	BatchContainer.Add(pkValue, 0) //添加主键记录key=pkValue,value=record
-
-	//添加/删除普通索引key=indexValues,value=t.primaryKey.ID()
-	for _, Normal := range t.indexs.GetNormalIndexs() {
-		indexValue := Normal.JoinValue(&fieldsBytes, t.name, existFields...)
-		BatchContainer.Add(append([]byte{}, indexValue...), 1) //添加普通索引key=indexValues,value=t.primaryKey.ID()
-	}
-	/*
-		//添加/删除全文索引key=joinValue,value=t.primaryKey.ID()
-		全文索引的特殊性，在正常情况下必须带上主键，否则后面的关键词都被覆盖，失去全文索引的意义。
-		故而系统为了减少大量的字段值重复储存，全文索引的 value值设置 为 nil 。
-		查询时，在key值里提取出主键值还原value值。
-
-	for _, FullText := range t.indexs.GetFullTextIndexs() {
-		joinValues := FullText.JoinFullValues(&fieldsBytes, t.name, existFields...)
-		defer util.PutBytesArray(joinValues)
-		for _, joinValue := range joinValues {
-			BatchContainer.Add(append([]byte{}, joinValue...), 2) //添加全文索引key=joinValue,value=t.primaryKey.ID()
-		}
-	}
-}
-*/
 // 格式化记录
 // 過濾存在的字段
 func (t *Table) FormatRecord(fieldsBytes *map[string][]byte, FilterFields ...string) (r []byte) {
@@ -328,6 +302,9 @@ func (t *Table) ParseRecord(record []byte) *map[string][]byte {
 	}
 	return &fields
 }
+
+// *map[string][]byte ==> *map[string]any
+// 与FieldsToBytes相反
 func (t *Table) RecordByteToAny(value *map[string][]byte) *map[string]any {
 	fields := make(map[string]any, len(*value))
 	for field, val := range *value {
@@ -364,7 +341,8 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 		return fmt.Errorf("主键值 '%v' 的记录不存在", fields)
 	}
 	//反序列化记录，并且将字段值转换为对应的类型
-	fieldsBytes := t.ParseRecord(record)
+	//fieldsBytes := t.ParseRecord(record)
+	fieldsBytes := t.indexs.GetPrimaryKey().Parse(nil, record)
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.name)
 	BatchContainer.Operation(fieldsBytes)
 	if len(batchs) == 0 { //用户未手动控制事务，自动提交
@@ -420,7 +398,8 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 		return nil
 	}
 	//反序列化记录，并且将字段值转换为对应的类型
-	fieldsBytes := t.ParseRecord(record)
+	//fieldsBytes := t.ParseRecord(record)
+	fieldsBytes := t.indexs.GetPrimaryKey().Parse(nil, record)
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.name)
 	//删除
 	BatchContainer.Operation(fieldsBytes, updateFields...)

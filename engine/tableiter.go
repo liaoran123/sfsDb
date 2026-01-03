@@ -115,50 +115,24 @@ func (t *TableIter) ByPrimaryGetRecord(v []byte) record.Record {
 // 全文索引设计索引时，规定必须在末尾将主键全量追加到key的键值中。为了避免重复储存字段值，设置value键值为空。
 func (t *TableIter) RestoreValByIndex(k, v []byte) (Value []byte) {
 	//从key中提取主键
-	fieldsBytes := t.GetPrimaryBytes(k, v)
+	fieldsBytes := t.ParseBytes(k, v)
 	Value = t.table.indexs.GetPrimaryKey().GetID(fieldsBytes)
 	return Value
 }
-func (t *TableIter) GetPrimaryBytes(k, v []byte) *map[string][]byte {
+func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	var fieldsBytes *map[string][]byte
 	switch t.index.(type) {
 	case FullTextIndex:
 		//全文索引时，value值为空，需要从key中提取主键
-		fieldsBytes = t.index.GetPrimaryBytes(t.table.indexs.GetPrimaryKey().GetFields(), k)
+		fieldsBytes = t.index.Parse(t.table.indexs.GetPrimaryKey().GetFields(), k)
+	case PrimaryKey:
+		fieldsBytes = t.index.Parse(nil, v)
 	default:
-		fieldsBytes = t.index.GetPrimaryBytes(t.table.indexs.GetPrimaryKey().GetFields(), v)
+		fieldsBytes = t.index.Parse(t.table.indexs.GetPrimaryKey().GetFields(), v)
 	}
 	return fieldsBytes
 }
 
-/*
-func (t *TableIter) GetFullTextFieldValues(k []byte) *map[string][]byte {
-	ks := util.Bytes(k).Split() //分解并反转义
-	pkfields := t.table.indexs.GetPrimaryKey().GetFields()
-	fieldlen := len(pkfields)
-	ks = ks[len(ks)-fieldlen:]
-	fieldsBytes := make(map[string][]byte, fieldlen)
-	for i, k := range ks { //重新拼接
-		fieldsBytes[pkfields[i]] = k
-	}
-	return &fieldsBytes
-}
-
-// 通过当前迭代器获取所能得到的所有字段值
-// 主键得到所有的记录字段值，其他索引得到主键值
-func (t *TableIter) GetFieldByte(k, v []byte) (fieldsBytes *map[string][]byte) {
-	//判断索引类型
-	switch t.index.(type) {
-	case FullTextIndex:
-		//全文索引时，value值为空，需要从key中提取主键
-		fieldsBytes = t.index.GetPrimaryBytes(t.table.indexs.GetPrimaryKey().GetFields(), k)
-	default:
-		fieldsBytes = t.index.GetPrimaryBytes(t.table.indexs.GetPrimaryKey().GetFields(), v)
-	}
-
-	return fieldsBytes
-}
-*/
 // 遍历迭代器返回解析后的记录
 // 单个简单查询直接使用
 func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
@@ -229,7 +203,7 @@ func (t *TableIter) GerMultiRecords(esc bool, page Page, match ...Match) (r reco
 			loop++
 		} else {
 			for _, m := range match {
-				fieldsBytes := t.GetPrimaryBytes(t.iter.Key(), t.iter.Value())
+				fieldsBytes := t.ParseBytes(t.iter.Key(), t.iter.Value())
 				idxrd := t.table.RecordByteToAny(fieldsBytes)
 				if m.Match(idxrd) {
 					r = append(r, rd)
@@ -269,7 +243,7 @@ func (t *TableIter) ForExport(esc bool, export Export) {
 // if len(fields) == 0 ，默认是提取主键值，主键也可以是组合主键
 // 单主键则返回原始值，组合主键则返回拼接的字符串
 func (t *TableIter) GetPrimaryKeys(k, v []byte, fields ...string) (r any) {
-	fbs := t.GetPrimaryBytes(k, v)
+	fbs := t.ParseBytes(k, v)
 	if len(fields) == 0 {
 		fields = t.table.indexs.GetPrimaryKey().GetFields()
 	}
@@ -294,6 +268,7 @@ func (t *TableIter) GetPrimaryKeys(k, v []byte, fields ...string) (r any) {
 
 // 将某字段的所有值转换为map[any]bool
 // if len(fields) == 0 ，默认是提取主键值，否则提取指定字段值
+// 用于与其他迭代器进行匹配。
 func (t *TableIter) Map(fields ...string) (data map[any]bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
