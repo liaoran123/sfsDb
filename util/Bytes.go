@@ -262,7 +262,7 @@ func (b Bytes) Jion(ib ...[]byte) []byte {
 	return b //原本的 b值，并不能被改变，所有需要返回一个新的值
 }
 
-// 根据分隔符SPLIT进行分割
+// 根据分隔符SPLIT进行分割，同时反转义
 func (b Bytes) Split(sp ...byte) [][]byte {
 	rs := [][]byte{}
 	s := []byte{}

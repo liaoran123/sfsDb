@@ -29,7 +29,6 @@ type Index interface {
 	JoinValue(fieldsBytes *map[string][]byte, tbname string, existFields ...string) []byte
 	// 匹配索引字段
 	MatchFields(fields ...string) bool
-	GetPrimaryBytes(primaryfields []string, indexPrimaryIDvalue []byte) *map[string][]byte
 }
 
 /* 都是简单函数，没有提供多态的必要性。
@@ -158,29 +157,12 @@ func (bi *BaseIndex) MatchFields(fields ...string) bool {
 	return MatchFields(bi.fields, fields...)
 }
 
-// 将索引的value转换为主键map值
-// primaryfields []string, indexPrimaryIDvalue对应的顺序必须相同
-func (bi *BaseIndex) GetPrimaryBytes(primaryfields []string, indexPrimaryIDvalue []byte) *map[string][]byte {
-	fieldsBytes := map[string][]byte{}
-	// 解析索引值
-	indexValues := util.Bytes(indexPrimaryIDvalue).Split()
-	//判断indexValues是否与primaryfields长度相同
-	if len(indexValues) != len(primaryfields) {
-		return nil
-	}
-	for i, fit := range indexValues {
-		fieldsBytes[primaryfields[i]] = fit
-	}
-	return &fieldsBytes
-}
-
 // ------------------------------------------
 // 主键接口，嵌入基础索引接口
 type PrimaryKey interface {
 	Index
 	// 设置主键ID
 	GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte
-	//GetPrimaryBytes(primaryfields []string, indexPrimaryIDvalue []byte) *map[string][]byte
 }
 
 // ------------------------------------------
@@ -228,8 +210,6 @@ func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields 
 // 普通索引接口，嵌入基础索引接口
 type NormalIndex interface {
 	Index
-	// 将索引的value转换为主键map值
-	//GetPrimaryBytes(primaryfields []string, indexPrimaryIDvalue []byte) *map[string][]byte
 	// 由于NormalIndex完全匹配index接口，所以需要一个Tag方法来区别是否是二级索引。
 	Tag() bool
 }
@@ -267,7 +247,6 @@ type FullTextIndex interface {
 	JoinFullValues(fieldsBytes *map[string][]byte, tbname string, existFields ...string) [][]byte
 	// 分词方法
 	Tokenize(nr string, ftlen int) (tokens []string)
-	//GetPrimaryBytes(primaryfields []string, FullTextKey []byte) *map[string][]byte
 }
 
 // ------------------------------------------
@@ -294,32 +273,10 @@ func DefaultFullTextIndexNew(name string) (*DefaultFullTextIndex, error) {
 }
 
 /*
-// 将索引的value转换为主键map值
-//全文索引正常情况下必须带上主键，否则后面的关键词都被覆盖，失去全文索引的意义。
-创建组合全文索示例：
-
-	fullText.AddFields("content", "mid", "secNo") //"mid", "secNo" 为组合主键
-	fullText.AddFields("description", "id") //"id" 为单主键
-
-通过JoinFullValues拼接后大概如下：
-content-mid-secNo = content-1-2
-description-id = description-1
-
-GetPrimaryBytes函数是提取
-content-mid-secNo = content-1-2 ==> mid = 1, secNo = 2
-description-id = description-1 ==> id = 1
-*/
-func (dfi *DefaultFullTextIndex) GetPrimaryBytes(primaryfields []string, FullTextKey []byte) *map[string][]byte {
-	ks := util.Bytes(FullTextKey).Split() //分解并反转义
-	fieldlen := len(primaryfields)
-	ks = ks[len(ks)-fieldlen:]
-	fieldsBytes := make(map[string][]byte, fieldlen)
-	for i, k := range ks { //重新拼接
-		fieldsBytes[primaryfields[i]] = k
-	}
-	return &fieldsBytes
+func (dfi *DefaultFullTextIndex) GetFtlen() int {
+	return dfi.ftlen
 }
-
+*/
 // 指定那个字段是全文索引字段，以及索引长度
 func (dfi *DefaultFullTextIndex) SetFullField(field string, len int) error {
 	//len限制为3-11个字符

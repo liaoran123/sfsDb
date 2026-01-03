@@ -9,17 +9,6 @@ import (
 	"github.com/liaoran123/sfsDb/util"
 )
 
-/*
-// 基础迭代器结构体，提取公共字段和方法
-type baseIter struct {
-	table      *Table
-	showfields []string
-	index      Index //搜索时使用的索引
-	move       map[bool]func() bool
-	top        map[bool]func() bool
-	mu         sync.Mutex
-}
-*/
 // 实现sql语句中的select f0,f1,... from table 要返回的字段
 // 如果keys为空，则返回所有字段
 // 在最底层转换，最大化减少内存占用
@@ -60,20 +49,6 @@ func TableIterNew(table *Table, iter storage.Iterator, index Index, selectFields
 func (t *TableIter) Release() {
 	t.iter.Release()
 }
-
-/*
-// 将主键转为字符串 ，主要是用于组合主键需要进行map比较时使用
-func (t *TableIter) PrimaryToStr(k []byte) string {
-
-	var key any
-	rstr := ""
-	for _, p := range t.index.GetFields() {
-		key = util.Bytes(k).ToAny(t.table.fields[p])
-		rstr += string(util.AnyToBytes(key)) + SPLIT
-	}
-	return rstr[:len(rstr)-1]
-}
-*/
 
 // 分页变量
 type Page struct {
@@ -138,12 +113,25 @@ func (t *TableIter) ByPrimaryGetRecord(v []byte) record.Record {
 
 // 还原全文索引的value原始值，专用于全文索引。
 // 全文索引设计索引时，规定必须在末尾将主键全量追加到key的键值中。为了避免重复储存字段值，设置value键值为空。
-func (t *TableIter) RestoreValByFullTextIndex(k []byte) (Value []byte) {
-	fieldsBytes := t.GetFullTextFieldValues(k)
+func (t *TableIter) RestoreValByIndex(k, v []byte) (Value []byte) {
+	//从key中提取主键
+	fieldsBytes := t.GetPrimaryBytes(k, v)
 	Value = t.table.indexs.GetPrimaryKey().GetID(fieldsBytes)
-	return
+	return Value
+}
+func (t *TableIter) GetPrimaryBytes(k, v []byte) *map[string][]byte {
+	var fieldsBytes *map[string][]byte
+	switch t.index.(type) {
+	case FullTextIndex:
+		//全文索引时，value值为空，需要从key中提取主键
+		fieldsBytes = t.index.GetPrimaryBytes(t.table.indexs.GetPrimaryKey().GetFields(), k)
+	default:
+		fieldsBytes = t.index.GetPrimaryBytes(t.table.indexs.GetPrimaryKey().GetFields(), v)
+	}
+	return fieldsBytes
 }
 
+/*
 func (t *TableIter) GetFullTextFieldValues(k []byte) *map[string][]byte {
 	ks := util.Bytes(k).Split() //分解并反转义
 	pkfields := t.table.indexs.GetPrimaryKey().GetFields()
@@ -162,22 +150,15 @@ func (t *TableIter) GetFieldByte(k, v []byte) (fieldsBytes *map[string][]byte) {
 	//判断索引类型
 	switch t.index.(type) {
 	case FullTextIndex:
-		//全文索引时，value值为空，需要从key中提取主键，末尾就是对应主键的值
-		fieldsBytes = t.GetFullTextFieldValues(k)
-	case PrimaryKey: //主键得到所有的记录字段值，其他索引得到主键值
-		fieldsBytes = t.table.ParseRecord(v)
-	case NormalIndex:
-		ks := util.Bytes(v).Split() //分解并反转义
-		pkfields := t.table.indexs.GetPrimaryKey().GetFields()
-		//该段代码与GetFullTextFieldValues不同处，GetFullTextFieldValues是从key中提取主键，而NormalIndex是从value中提取主键。
-		fieldsBytes = &map[string][]byte{}
-		for i, k := range ks { //重新拼接
-			(*fieldsBytes)[pkfields[i]] = k
-		}
+		//全文索引时，value值为空，需要从key中提取主键
+		fieldsBytes = t.index.GetPrimaryBytes(t.table.indexs.GetPrimaryKey().GetFields(), k)
+	default:
+		fieldsBytes = t.index.GetPrimaryBytes(t.table.indexs.GetPrimaryKey().GetFields(), v)
 	}
+
 	return fieldsBytes
 }
-
+*/
 // 遍历迭代器返回解析后的记录
 // 单个简单查询直接使用
 func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
@@ -204,7 +185,7 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
 			loop++
 		} else {
 			if len(t.iter.Value()) == 0 { //这种情况是全文索引，value值为空，需要从key中提取主键，末尾就是对应主键的值
-				Value = t.RestoreValByFullTextIndex(t.iter.Key())
+				Value = t.RestoreValByIndex(t.iter.Key(), t.iter.Value())
 			} else {
 				Value = t.iter.Value()
 			}
@@ -248,7 +229,7 @@ func (t *TableIter) GerMultiRecords(esc bool, page Page, match ...Match) (r reco
 			loop++
 		} else {
 			for _, m := range match {
-				fieldsBytes := t.GetFieldByte(t.iter.Key(), t.iter.Value())
+				fieldsBytes := t.GetPrimaryBytes(t.iter.Key(), t.iter.Value())
 				idxrd := t.table.RecordByteToAny(fieldsBytes)
 				if m.Match(idxrd) {
 					r = append(r, rd)
@@ -288,7 +269,7 @@ func (t *TableIter) ForExport(esc bool, export Export) {
 // if len(fields) == 0 ，默认是提取主键值，主键也可以是组合主键
 // 单主键则返回原始值，组合主键则返回拼接的字符串
 func (t *TableIter) GetPrimaryKeys(k, v []byte, fields ...string) (r any) {
-	fbs := t.GetFieldByte(k, v)
+	fbs := t.GetPrimaryBytes(k, v)
 	if len(fields) == 0 {
 		fields = t.table.indexs.GetPrimaryKey().GetFields()
 	}
