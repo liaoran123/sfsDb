@@ -795,7 +795,8 @@ func TestTableIndexChange(t *testing.T) {
 	} else {
 		t.Logf("通过作者索引查询成功，找到 %d 条记录", len(authorRecords))
 	}
-	//author_views_index
+	//检测索引author_views_index的所有键值对
+	t.Log("检测索引author_views_index的所有键值对")
 	idxkey := tableWithIndex.name + SPLIT + "author_views_index" + SPLIT
 	iter := tableWithIndex.kvStore.Iterator([]byte(idxkey))
 	for iter.Next() {
@@ -842,6 +843,8 @@ func TestTableIndexChange(t *testing.T) {
 	}
 
 	// 检查修改全文索引记录
+	//检测索引content_fulltext的所有键值对
+	t.Log("检测索引content_fulltext的所有键值对")
 	idxkey = tableWithIndex.name + SPLIT + "content_fulltext" + SPLIT
 	iter = tableWithIndex.kvStore.Iterator([]byte(idxkey))
 	for iter.Next() {

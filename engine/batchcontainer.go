@@ -48,14 +48,14 @@ func (c *BatchContainer) GetValue(key uint8) []byte {
 
 // 添加/删除记录操作
 // 添加时，key值已经存在的field值，value中会过滤掉，不重复添加。
-func (c *BatchContainer) Operation(fieldsBytes map[string][]byte, existFields ...string) {
+func (c *BatchContainer) Operation(fieldsBytes *map[string][]byte, existFields ...string) {
 
-	pkValue := c.indexs.GetPrimaryKey().JoinValue(&fieldsBytes, c.tbname)
+	pkValue := c.indexs.GetPrimaryKey().JoinValue(fieldsBytes, c.tbname)
 	c.Add(pkValue, 0) //添加主键记录key=pkValue,value=record
 
 	//添加/删除普通索引key=indexValues,value=pkValue
 	for _, Normal := range c.indexs.GetNormalIndexs() {
-		indexValue := Normal.JoinValue(&fieldsBytes, c.tbname, existFields...)
+		indexValue := Normal.JoinValue(fieldsBytes, c.tbname, existFields...)
 		c.Add(append([]byte{}, indexValue...), 1) //添加普通索引key=indexValues,value=pkValue
 	}
 	/*
@@ -65,7 +65,7 @@ func (c *BatchContainer) Operation(fieldsBytes map[string][]byte, existFields ..
 		查询时，在key值里提取出主键值还原value值。
 	*/
 	for _, FullText := range c.indexs.GetFullTextIndexs() {
-		joinValues := FullText.JoinFullValues(&fieldsBytes, c.tbname, existFields...)
+		joinValues := FullText.JoinFullValues(fieldsBytes, c.tbname, existFields...)
 		defer util.PutBytesArray(joinValues)
 		for _, joinValue := range joinValues {
 			c.Add(append([]byte{}, joinValue...), 2) //添加全文索引key=joinValue,value=t.primaryKey.ID()

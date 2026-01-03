@@ -11,7 +11,7 @@ func TestCombineBytes(t *testing.T) {
 		{[]byte("1"), []byte("2")}, // 第二个数组
 		{[]byte("x"), []byte("y")}, // 第三个数组
 	}
-	prefix := []byte("ftpxf")
+	//prefix := []byte("ftpxf")
 
 	// Expected: a1x, a1y, a2x, a2y, b1x, b1y, b2x, b2y
 	expected := [][]byte{
@@ -19,7 +19,7 @@ func TestCombineBytes(t *testing.T) {
 		[]byte("ftpxfb1x"), []byte("ftpxfb1y"), []byte("ftpxfb2x"), []byte("ftpxfb2y"),
 	}
 
-	result := CombineBytes(arrays, []byte(""), prefix)
+	result := CombineBytes(arrays, []byte(""))
 	if len(result) != len(expected) {
 		t.Errorf("Expected %d results, got %d", len(expected), len(result))
 		return
@@ -40,7 +40,7 @@ func TestCombineBytes(t *testing.T) {
 	}
 
 	// Test case 2: With separator
-	sepResult := CombineBytes(arrays, []byte(","), prefix)
+	sepResult := CombineBytes(arrays, []byte(","))
 	sepExpected := [][]byte{
 		[]byte("ftpxfa,1,x"), []byte("ftpxfa,1,y"), []byte("ftpxfa,2,x"), []byte("ftpxfa,2,y"),
 		[]byte("ftpxfb,1,x"), []byte("ftpxfb,1,y"), []byte("ftpxfb,2,x"), []byte("ftpxfb,2,y"),
@@ -53,7 +53,7 @@ func TestCombineBytes(t *testing.T) {
 
 	// Test case 3: Only one array
 	singleArray := [][][]byte{{[]byte("x"), []byte("y"), []byte("z")}}
-	singleResult := CombineBytes(singleArray, []byte(","), prefix)
+	singleResult := CombineBytes(singleArray, []byte(","))
 	expectedSingle := [][]byte{[]byte("ftpxfx"), []byte("ftpxfy"), []byte("ftpxfz")}
 	if len(singleResult) != len(expectedSingle) {
 		t.Errorf("Expected %d results for single array, got %d", len(expectedSingle), len(singleResult))
@@ -69,7 +69,7 @@ func TestCombineBytes(t *testing.T) {
 
 	// Test case 4: Empty input
 	emptyArray := [][][]byte{}
-	emptyResult := CombineBytes(emptyArray, []byte(","), prefix)
+	emptyResult := CombineBytes(emptyArray, []byte(","))
 	if len(emptyResult) != 0 {
 		t.Errorf("Expected 0 results for empty input, got %d", len(emptyResult))
 	}

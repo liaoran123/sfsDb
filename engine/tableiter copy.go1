@@ -25,13 +25,13 @@ type baseIter struct {
 // 在最底层转换，最大化减少内存占用
 type TableIter struct {
 	//baseIter
-	iter         storage.Iterator
-	table        *Table
-	selectFields []string
-	index        Index //搜索时使用的索引
-	move         map[bool]func() bool
-	top          map[bool]func() bool
-	mu           sync.Mutex
+	iter       storage.Iterator
+	table      *Table
+	showfields []string
+	index      Index //搜索时使用的索引
+	move       map[bool]func() bool
+	top        map[bool]func() bool
+	mu         sync.Mutex
 }
 
 // 解析函数
@@ -40,11 +40,11 @@ type Parser func(k, v []byte) record.Record
 // 导出函数
 type Export func(k, v []byte) bool
 
-func TableIterNew(table *Table, iter storage.Iterator, index Index, selectFields ...string) *TableIter {
+func TableIterNew(table *Table, iter storage.Iterator, index Index, showfields ...string) *TableIter {
 	return &TableIter{
-		table:        table,
-		selectFields: selectFields,
-		index:        index,
+		table:      table,
+		showfields: showfields,
+		index:      index,
 		move: map[bool]func() bool{
 			true:  iter.Next,
 			false: iter.Prev,
@@ -132,45 +132,19 @@ func (t *TableIter) ByIndexGetRecord(v []byte) record.Record {
 		return nil
 	}
 	// 解析记录并提取指定字段
-	fields := t.table.ParseRecordValue(byrecord)
-	if fields == nil {
-		return nil
-	}
-	rd := record.Record(*fields)
+	rd := record.Record(t.table.ParseRecordValue(byrecord))
 	return rd
 }
 
 // 通过主键获取记录
 // ByPrimaryGet=ByPrimary.Get 两种方式都可
 func (t *TableIter) ByPrimaryGetRecord(v []byte) record.Record {
-	fields := t.table.ParseRecordValue(v)
-	if fields == nil {
-		return nil
-	}
-	rd := record.Record(*fields)
+	rd := record.Record(t.table.ParseRecordValue(v))
 	return rd
 }
 
 // 还原全文索引的value原始值，专用于全文索引。
 // 全文索引设计索引时，规定必须在末尾将主键全量追加到key的键值中。为了避免重复储存字段值，设置value键值为空。
-func (t *TableIter) RestoreValByIndex(k []byte) (Value []byte) {
-	fieldsBytes := t.GetFullTextFieldValues(k)
-	Value = t.table.indexs.GetPrimaryKey().GetID(fieldsBytes)
-	return
-}
-func (t *TableIter) GetFullTextFieldValues(k []byte) *map[string][]byte {
-	ks := util.Bytes(k).Split() //分解并反转义
-	pkfields := t.table.indexs.GetPrimaryKey().GetFields()
-	fieldlen := len(pkfields)
-	ks = ks[len(ks)-fieldlen:]
-	fieldsBytes := make(map[string][]byte, fieldlen)
-	for i, k := range ks { //重新拼接
-		fieldsBytes[pkfields[i]] = k
-	}
-	return &fieldsBytes
-}
-
-/*
 func (t *TableIter) RestoreValByIndex(k []byte) (Value []byte) {
 	ks := util.Bytes(t.iter.Key()).Split() //分解并反转义
 	fieldlen := len(t.table.indexs.GetPrimaryKey().GetFields())
@@ -186,17 +160,17 @@ func (t *TableIter) RestoreValByIndex(k []byte) (Value []byte) {
 	}
 	return
 }
-*/
+
 // 通过当前迭代器获取所能得到的所有字段值
-func (t *TableIter) GetFieldByte(k, v []byte) (fieldsBytes *map[string][]byte) {
+func (t *TableIter) GetFields(k, v []byte) (fieldsBytes map[string][]byte) {
 	//判断索引类型
 	switch t.index.(type) {
-	case FullTextIndex:
-		//全文索引时，value值为空，需要从key中提取主键，末尾就是对应主键的值
-		fieldsBytes = t.GetFullTextFieldValues(k)
-
+	case PrimaryKey:
+		fieldsBytes = t.GetFields(k, v)
+	case Index:
+		fieldsBytes = t.GetFields(k, v)
 	default:
-		fieldsBytes = t.table.ParseRecord(v)
+		fieldsBytes = t.GetFields(k, v)
 	}
 	return fieldsBytes
 }
@@ -237,7 +211,7 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
 			default:
 				rd = t.ByIndexGetRecord(Value)
 			}
-			rd = rd.GetKeys(t.selectFields...)
+			rd = rd.GetKeys(t.showfields...)
 			r = append(r, rd)
 			if page.Count > 0 && len(r) >= page.Count {
 				break
@@ -270,10 +244,10 @@ func (t *TableIter) GerMultiRecords(esc bool, page Page, match ...Match) (r reco
 		if loop < page.Start {
 			loop++
 		} else {
+			//获取所有能得到的值,todo........
 			for _, m := range match {
-				fieldsBytes := t.GetFieldByte(t.iter.Key(), t.iter.Value())
-				idxrd := t.table.RecordByteToAny(fieldsBytes)
-				if m.Match(idxrd) {
+				// 当前的key,value所有能得到的field的值组织成map[string]any，传入Match进行所需匹配
+				if m.Match(nil) {
 					r = append(r, rd)
 					if page.Count > 0 && len(r) >= page.Count {
 						break

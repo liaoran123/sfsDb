@@ -246,20 +246,6 @@ type FullTextIndex interface {
 }
 
 // ------------------------------------------
-/*
-// 全文索引字段类型
-type FullTextIndexField struct {
-	Fields string // 全文索引字段名
-	Len    int    // 全文索引字段长度
-}
-
-// ------------------------------------------
-// 默认全文索引
-type DefaultFullTextIndex struct {
-	BaseIndex                      // 嵌入基础索引
-	ftfields  []FullTextIndexField // 全文索引字段列表
-}
-*/
 // 默认全文索引
 type DefaultFullTextIndex struct {
 	BaseIndex // 嵌入基础索引
@@ -373,105 +359,83 @@ func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, 
 	ftpxf := JoinAndToBytes(tbname, dfi.name)
 	ftpxf = append(ftpxf, []byte(SPLIT)...)
 	//拼接indexfieldsBytes成为全文索引值
-	return util.CombineBytes(indexfieldsBytes, []byte(SPLIT), ftpxf)
-}
-
-/*
-// 全文索引算法
-// CombineBytes 接收多个字节数组，使用指定分隔符返回第一个数组与其他数组的所有可能拼接组合
-func CombineBytes(arrays [][][]byte, sep []byte) [][]byte {
-	if len(arrays) == 0 {
+	//return CombineBytes(indexfieldsBytes, []byte(SPLIT), ftpxf)
+	if len(indexfieldsBytes) == 0 {
 		return [][]byte{}
 	}
+	// 转义分隔符
+	escapedSep := []byte(SPLIT)
 	// 从第一个数组开始，复制元素以避免修改原始数据
-	result := GetBytesArray() //全文索引数据量大，所以使用对象池，避免频繁分配内存。使用后需要put到对象池
-	for _, b := range arrays[0] {
+	result := util.GetBytesArray() //全文索引数据量大，所以使用对象池，避免频繁分配内存
+
+	// 初始化第一个数组，转义所有元素
+	for _, b := range indexfieldsBytes[0] {
+		b = util.Bytes(b).Escape()
+		b = append(ftpxf, b...)
 		result = append(result, append([]byte{}, b...)) // 复制数组，避免共享底层数组
 	}
+	// 全文索引算法，多个字节数组，使用指定分隔符返回第一个数组与其他数组的所有可能拼接组合
 	// 处理剩余数组，生成所有可能的拼接组合
-	for _, array := range arrays[1:] {
-		newResult := make([][]byte, 0, len(result)*len(array))
+	for _, array := range indexfieldsBytes[1:] {
+		newResult := util.GetBytesArray() // 使用对象池获取新的切片
 		for _, existing := range result {
+			// existing 已经是转义过的结果，不需要再次转义
 			for _, nextBytes := range array {
-				// 创建新的组合：existing + sep + nextBytes
-				combined := make([]byte, 0, len(existing)+len(sep)+len(nextBytes))
+				nextBytes = util.Bytes(nextBytes).Escape() // 转义新的数组元素
+				// 创建新的组合：existing + escapedSep + nextBytes
+				combined := make([]byte, 0, len(existing)+len(escapedSep)+len(nextBytes))
 				combined = append(combined, existing...)
-				combined = append(combined, sep...)
+				combined = append(combined, escapedSep...)
 				combined = append(combined, nextBytes...)
 				newResult = append(newResult, combined)
 			}
 		}
+		// 旧的result将被覆盖，外部调用者不会使用，所以可以安全释放
+		util.PutBytesArray(result) // 归还旧的result到对象池
 		result = newResult
 	}
-
-		for _, b := range result {
-			fmt.Printf("b: %v\n", string(b))
-		}
+	// 直接返回result，外部调用者使用后需要归还到对象池
 	return result
 }
 
-
-func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, tbname string, existFields ...string) [][]byte {
-	if !exist(dfi.fields, existFields...) {
-		return nil
+// 全文索引算法
+// CombineBytes 接收多个字节数组，使用指定分隔符返回第一个数组与其他数组的所有可能拼接组合
+// 返回的结果是从对象池获取的，外部调用者使用后需要通过 PutBytesArray 归还到对象池
+func CombineBytes(arrays [][][]byte, sep []byte, prefix []byte) [][]byte {
+	if len(arrays) == 0 {
+		return [][]byte{}
 	}
-	//全文索引数据量大，所以使用对象池，避免频繁分配内存
-	r := util.GetBytesArray() //[][]byte
-	var fieldValue []byte
-	var exists bool
-	curpfx := util.GetBytesArray()
-	ftpxf := JoinAndToBytes(tbname, dfi.name)
-	var isnil bool
-	for _, fit := range dfi.fields {
-		// 获取字段的实际值
-		fieldValue, exists = (*fieldsBytes)[fit]
-		if !exists {
-			continue // 跳过不存在的字段
-		}
-		//判断字段是否是全文索引字段
-		isFullTextField := fit == dfi.ftsplit
+	// 转义分隔符
+	escapedSep := util.Bytes(sep).Escape()
+	// 从第一个数组开始，复制元素以避免修改原始数据
+	result := util.GetBytesArray() //全文索引数据量大，所以使用对象池，避免频繁分配内存
 
-		switch isFullTextField {
-		case true: // 全文索引字段
-			// 将字段值转换为字符串，全文索引只支持字符串
-			fieldStr := string(fieldValue)
-			// 对字段值进行分词
-			tokens := dfi.Tokenize(fieldStr, dfi.ftlen)
-			defer util.PutStringSlice(tokens)
-			var btoken []byte
-			for _, token := range tokens {
-				if token == "" {
-					continue
-				}
-				btoken = []byte(token)
-				btoken = util.Bytes(btoken).Escape()
-				curpfx = append(curpfx, bytes.Join([][]byte{ftpxf, append([]byte{}, btoken...)}, []byte(SPLIT)))
-			}
-		case false: // 普通索引字段
-			fieldValue = util.Bytes(fieldValue).Escape()
-			curpfx = append(curpfx, bytes.Join([][]byte{ftpxf, append([]byte{}, fieldValue...)}, []byte(SPLIT)))
-		}
-		//返回结果是否为空
-		isnil = len(r) == 0
-		switch isnil {
-		case true:
-			r = append(r, append([][]byte{}, curpfx...)...)
-			curpfx = curpfx[:0]
-		case false: // 拼接当前索引前缀到结果中,一对多和多对一关系，多对多等。多对多可能并无意义，但是系统只是支持。
-			for i, idx := range r {
-				for _, pfx := range curpfx {
-					var tidx []byte
-					tidx = append(tidx, append([]byte{}, idx...)...)
-					var tpfx []byte
-					tpfx = append(tpfx, append([]byte{}, pfx...)...)
-					tidx = bytes.Join([][]byte{tidx, append([]byte{}, tpfx...)}, []byte{})
-					r[i] = append([]byte{}, tidx...)
-				}
+	// 初始化第一个数组，转义所有元素
+	for _, b := range arrays[0] {
+		b = util.Bytes(b).Escape()
+		b = append(prefix, b...)
+		result = append(result, append([]byte{}, b...)) // 复制数组，避免共享底层数组
+	}
+
+	// 处理剩余数组，生成所有可能的拼接组合
+	for _, array := range arrays[1:] {
+		newResult := util.GetBytesArray() // 使用对象池获取新的切片
+		for _, existing := range result {
+			// existing 已经是转义过的结果，不需要再次转义
+			for _, nextBytes := range array {
+				nextBytes = util.Bytes(nextBytes).Escape() // 转义新的数组元素
+				// 创建新的组合：existing + escapedSep + nextBytes
+				combined := make([]byte, 0, len(existing)+len(escapedSep)+len(nextBytes))
+				combined = append(combined, existing...)
+				combined = append(combined, escapedSep...)
+				combined = append(combined, nextBytes...)
+				newResult = append(newResult, combined)
 			}
 		}
-		util.PutBytesArray(curpfx)
-		ftpxf = ftpxf[:0]
+		// 旧的result将被覆盖，外部调用者不会使用，所以可以安全释放
+		util.PutBytesArray(result) // 归还旧的result到对象池
+		result = newResult
 	}
-	return r
+	// 直接返回result，外部调用者使用后需要归还到对象池
+	return result
 }
-*/

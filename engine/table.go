@@ -186,7 +186,7 @@ func (t *Table) CheckType(fields *map[string]any) error {
 }
 
 // 将数据转换为字节数组，该合适添加时用。搜索时nil值不能更改
-func (t *Table) FieldsToBytes(fields *map[string]any) map[string][]byte {
+func (t *Table) FieldsToBytes(fields *map[string]any) *map[string][]byte {
 	result := make(map[string][]byte, len(*fields))
 	for k, v := range *fields {
 		//value为nil时，使用默认值
@@ -200,7 +200,7 @@ func (t *Table) FieldsToBytes(fields *map[string]any) map[string][]byte {
 		}
 		result[k] = util.AnyToBytes(v)
 	}
-	return result
+	return &result
 }
 
 // 插入记录
@@ -244,10 +244,10 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	} else {
 		batch = t.kvStore.GetBatch()
 	}
-	record := t.FormatRecord(&fieldsBytes)
+	record := t.FormatRecord(fieldsBytes)
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.name)
-	BatchContainer.SetValue(0, record)                                       //添加主键value=record
-	BatchContainer.SetValue(1, t.indexs.GetPrimaryKey().GetID(&fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
+	BatchContainer.SetValue(0, record)                                      //添加主键value=record
+	BatchContainer.SetValue(1, t.indexs.GetPrimaryKey().GetID(fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
 	//添加全文索引key=joinValue,value=nil
 	BatchContainer.Operation(fieldsBytes)
 	//t.Operation(fieldsBytes, batch, BatchContainer)
@@ -311,7 +311,7 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte, FilterFields ...str
 }
 
 // 反序列化记录
-func (t *Table) ParseRecord(record []byte) map[string][]byte {
+func (t *Table) ParseRecord(record []byte) *map[string][]byte {
 	if record == nil || t.fields == nil {
 		return nil
 	}
@@ -326,18 +326,18 @@ func (t *Table) ParseRecord(record []byte) map[string][]byte {
 			fields[field] = b[len(field)+1:] //util.Bytes(b[len(field)+1:])
 		}
 	}
-	return fields
+	return &fields
 }
-func (t *Table) RecordByteToAny(value map[string][]byte) map[string]any {
-	fields := make(map[string]any, len(value))
-	for field, val := range value {
+func (t *Table) RecordByteToAny(value *map[string][]byte) *map[string]any {
+	fields := make(map[string]any, len(*value))
+	for field, val := range *value {
 		fields[field] = util.Bytes(val).ToAny(t.fields[field])
 	}
-	return fields
+	return &fields
 }
 
 // 反序列化记录，并且将字段值转换为对应的类型
-func (t *Table) ParseRecordValue(record []byte) map[string]any {
+func (t *Table) ParseRecordValue(record []byte) *map[string]any {
 	value := t.ParseRecord(record)
 	return t.RecordByteToAny(value)
 }
@@ -382,7 +382,7 @@ func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 		}
 	}
 	fieldsBytes := t.FieldsToBytes(fields)
-	key := t.indexs.GetPrimaryKey().JoinValue(&fieldsBytes, t.name)
+	key := t.indexs.GetPrimaryKey().JoinValue(fieldsBytes, t.name)
 	return t.ReadByBytes(key), nil
 }
 
@@ -432,13 +432,13 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 			continue
 		}
 		if _, ok := t.fields[field]; ok {
-			fieldsBytes[field] = util.AnyToBytes(val)
+			(*fieldsBytes)[field] = util.AnyToBytes(val)
 		}
 	}
 	//设置新值添加
-	record = t.FormatRecord(&fieldsBytes)
-	BatchContainer.SetValue(0, record)                                       //添加主键value=record
-	BatchContainer.SetValue(1, t.indexs.GetPrimaryKey().GetID(&fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
+	record = t.FormatRecord(fieldsBytes)
+	BatchContainer.SetValue(0, record)                                      //添加主键value=record
+	BatchContainer.SetValue(1, t.indexs.GetPrimaryKey().GetID(fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
 	//添加全文索引key=joinValue,value=nil
 	BatchContainer.Operation(fieldsBytes)
 	//提交事务
@@ -483,12 +483,12 @@ func (t *Table) MatchIndex(fields ...string) Index {
 }
 
 // 将数据转换为字节数组，该合适搜索时用。搜索时nil值不能更改,否则导致结果错误
-func (t *Table) FieldsToBytesNil(fields *map[string]any) map[string][]byte {
+func (t *Table) FieldsToBytesNil(fields *map[string]any) *map[string][]byte {
 	result := make(map[string][]byte, len(*fields))
 	for k, v := range *fields {
 		result[k] = util.AnyToBytes(v)
 	}
-	return result
+	return &result
 }
 func (t *Table) Search(fields *map[string]any) (*TableIter, error) {
 	var field []string
@@ -504,7 +504,7 @@ func (t *Table) Search(fields *map[string]any) (*TableIter, error) {
 	var key []byte
 	if idx != nil {
 		fieldsBytes := t.FieldsToBytesNil(fields)
-		key = idx.JoinValue(&fieldsBytes, t.name)
+		key = idx.JoinValue(fieldsBytes, t.name)
 	} else {
 		//没有索引，则设置为全表主键扫描迭代器
 		idx = t.indexs.GetPrimaryKey()
