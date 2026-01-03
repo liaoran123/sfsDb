@@ -193,11 +193,7 @@ func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields 
 		}
 		fieldlen := len(dpk.fields)
 		if v, ok := (*fieldsBytes)[fit]; ok {
-			if fieldlen > 1 { //组合主键需要转义，否则无法提取其中某个值
-				Value.Write(util.Bytes(v).Escape())
-			} else {
-				Value.Write(v)
-			}
+			Value.Write(v)
 			if i < fieldlen-1 {
 				Value.Write([]byte(SPLIT))
 			}
