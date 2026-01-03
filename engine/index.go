@@ -28,9 +28,8 @@ type Index interface {
 	// 匹配索引字段
 	MatchFields(fields ...string) bool
 	// 解析kv的value值，返回字段值map
+	// 主键索引解析出记录。其他索引解析出主键值。因为支持组合主键，需要解析。
 	Parse(fields []string, value []byte) *map[string][]byte
-	// 获取主键字段值map
-
 }
 
 // ------------------------------------------

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"sync"
 
 	"github.com/liaoran123/sfsDb/engine/record"
@@ -72,6 +73,52 @@ func PageNew(No ...int) Page {
 	}
 }
 
+// 通过二级索引解析索引记录
+// 组合主键需要反转义
+// 组合主键时，所有索引对应的主键值都是经过转义的。
+// 这是为了提取组合主键中的某个字段值作为匹配索引的功能，必须转义才能正确根据转义符分割提取。
+// 所以在用索引的主键值回表记录时，需要对索引值进行反转义。
+func (t *TableIter) ByIndexGetRecord(v []byte) record.Record {
+	value := v
+	if len(t.table.indexs.GetPrimaryKey().GetFields()) > 1 { //只有组合主键才需要转义
+		value = util.Bytes(v).UnEscape()
+	}
+	//获取并且拼接前缀得到key值
+	pfx := t.table.indexs.GetPrimaryKey().Prefix(t.table.name)
+	key := bytes.Join([][]byte{pfx, value}, []byte(SPLIT))
+	// 读取完整记录
+	byrecord := t.table.ReadByBytes(key)
+	if byrecord == nil {
+		return nil
+	}
+	// 解析记录并提取指定字段
+	fields := t.table.ParseRecordValue(byrecord)
+	if fields == nil {
+		return nil
+	}
+	rd := record.Record(*fields)
+	return rd
+}
+
+// 通过主键获取记录
+// ByPrimaryGet=ByPrimary.Get 两种方式都可
+func (t *TableIter) ByPrimaryGetRecord(v []byte) record.Record {
+	fields := t.table.ParseRecordValue(v)
+	if fields == nil {
+		return nil
+	}
+	rd := record.Record(*fields)
+	return rd
+}
+
+// 还原全文索引的value原始值，专用于全文索引。
+// 全文索引设计索引时，规定必须在末尾将主键全量追加到key的键值中。为了避免重复储存字段值，设置value键值为空。
+func (t *TableIter) RestoreValByIndex(k, v []byte) (Value []byte) {
+	//从key中提取主键
+	fieldsBytes := t.ParseBytes(k, v)
+	Value = t.table.indexs.GetPrimaryKey().GetID(fieldsBytes)
+	return Value
+}
 func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	var fieldsBytes *map[string][]byte
 	switch t.index.(type) {
@@ -84,33 +131,6 @@ func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 		fieldsBytes = t.index.Parse(t.table.indexs.GetPrimaryKey().GetFields(), v)
 	}
 	return fieldsBytes
-}
-
-func (t *TableIter) ParseRecord(k, v []byte) (rd record.Record) {
-	fieldsBytes := t.ParseBytes(k, v)
-	if fieldsBytes == nil {
-		return nil
-	}
-	switch t.index.(type) {
-	case PrimaryKey: //主键通过Parse直接得到的就是记录
-		rd = record.Record(*t.table.RecordByteToAny(fieldsBytes))
-	default: //其他二级索引通过Parse得到的是主键ID值，需要回表才能得到记录。
-		// 拼接主键前缀和索引值，得到主键key
-		pfx := t.table.indexs.GetPrimaryKey().JoinValue(fieldsBytes, t.table.name)
-		// 回表读取完整记录
-		byrecord := t.table.ReadByBytes(pfx)
-		if byrecord == nil {
-			return nil
-		}
-		//通过主键解析记录
-		trd := t.table.indexs.GetPrimaryKey().Parse(nil, byrecord)
-		if trd == nil {
-			return nil
-		}
-		//转换为记录 ： *map[string][]byte ==> *map[string]any
-		rd = record.Record(*t.table.RecordByteToAny(trd))
-	}
-	return rd
 }
 
 // 遍历迭代器返回解析后的记录
@@ -131,14 +151,24 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
 		r = make(record.Records, 0, page.Count)
 	}
 
-	//var Value []byte
+	var Value []byte
 	loop := 0
 	// 处理当前位置的元素
 	for {
 		if loop < page.Start {
 			loop++
 		} else {
-			rd = t.ParseRecord(t.iter.Key(), t.iter.Value())
+			if len(t.iter.Value()) == 0 { //这种情况是全文索引，value值为空，需要从key中提取主键，末尾就是对应主键的值
+				Value = t.RestoreValByIndex(t.iter.Key(), t.iter.Value())
+			} else {
+				Value = t.iter.Value()
+			}
+			switch t.index.(type) { //需要区别主键和索引，根据handler命名规则
+			case PrimaryKey:
+				rd = t.ByPrimaryGetRecord(Value)
+			default:
+				rd = t.ByIndexGetRecord(Value)
+			}
 			rd = rd.GetKeys(t.selectFields...)
 			r = append(r, rd)
 			if page.Count > 0 && len(r) >= page.Count {
@@ -226,15 +256,11 @@ func (t *TableIter) GetPrimaryKeys(k, v []byte, fields ...string) (r any) {
 	}
 	isComposite := len(fields) > 1
 	if isComposite {
-		//组合主键,则将所有字段值拼接起来为字符串
 		r = ""
 		for _, f := range val {
 			r = r.(string) + string(f) + SPLIT
 		}
-		// 去掉最后一个分隔符
-		r = r.(string)[:len(r.(string))-1]
 	} else {
-		// 单主键，直接转换为对应类型
 		r = util.Bytes((*fbs)[fields[0]]).ToAny(t.table.fields[fields[0]])
 	}
 	return
