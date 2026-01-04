@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"sync"
 
 	"github.com/liaoran123/sfsDb/engine/record"
@@ -72,6 +73,8 @@ func PageNew(No ...int) Page {
 	}
 }
 
+// 解析k，v里所有存在的字段byte值
+// 主键得到整个记录值,其他索引得到主键ID值
 func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	var fieldsBytes *map[string][]byte
 	switch t.index.(type) {
@@ -116,6 +119,12 @@ func (t *TableIter) ParseRecord(k, v []byte) (rd record.Record) {
 // 遍历迭代器返回解析后的记录
 // 单个简单查询直接使用
 func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
+	page := PageNew(limit...)
+	return t.GerMultiAndJumpRangeRecords(esc, page, nil)
+}
+
+/*
+func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
 	//添加锁，防止并发访问
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -152,10 +161,67 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
 	}
 	return r
 }
+*/
+// 遍历迭代器返回解析后的记录
+// 复杂组合查询函数，根据Match条件匹配记录
+// 不需要跳跃区间时，jumpRanges 为 nil
+func (t *TableIter) GerMultiRecords(esc bool, page Page, match ...Match) (r record.Records) {
+	return t.GerMultiAndJumpRangeRecords(esc, page, nil, match...)
+}
+
+// 遍历迭代器返回解析后的记录
+// 需要跳跃区间时，但不需要匹配Match
+func (t *TableIter) GerjumpRangesRecords(esc bool, page Page, jumpRanges []storage.Iterator) (r record.Records) {
+	return t.GerMultiAndJumpRangeRecords(esc, page, jumpRanges)
+}
+
+/*
+// 检测跳跃区间内是否包含key
+// 如果包含，返回跳跃区间的结束位置
+// 如果不包含，返回nil
+//esc  true 表示顺序，false 表示倒序
+*/
+func (t *TableIter) JumpRange(key []byte, jumpRanges []storage.Iterator, esc bool) []byte {
+	for _, jumpRange := range jumpRanges {
+		if esc {
+			jumpRange.First()
+		} else {
+			jumpRange.Last()
+		}
+		if bytes.Equal(jumpRange.Key(), key) {
+			if esc {
+				// 顺序时，需要判断是否是最后一个元素
+				if jumpRange.Last() {
+					return jumpRange.Key()
+				}
+			} else {
+				// 倒序时，需要判断是否是第一个元素
+				if jumpRange.First() {
+					return jumpRange.Key()
+				}
+			}
+		}
+	}
+	return nil
+}
+func (t *TableIter) Match(k, v []byte, match ...Match) bool {
+	if len(match) == 0 {
+		return true //不需要匹配
+	}
+	for _, m := range match {
+		fieldsBytes := t.ParseBytes(k, v)
+		idxrd := t.table.RecordByteToAny(fieldsBytes)
+		if !m.Match(idxrd) {
+			return false
+		}
+	}
+	return true
+}
 
 // 遍历迭代器返回解析后的记录
 // 复杂组合查询函数，根据Match条件匹配记录
-func (t *TableIter) GerMultiRecords(esc bool, page Page, match ...Match) (r record.Records) {
+// jumpRanges 跳跃区间，用于跳过某些数据
+func (t *TableIter) GerMultiAndJumpRangeRecords(esc bool, page Page, jumpRanges []storage.Iterator, match ...Match) (r record.Records) {
 	//添加锁，防止并发访问
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -167,20 +233,31 @@ func (t *TableIter) GerMultiRecords(esc bool, page Page, match ...Match) (r reco
 		r = make(record.Records, 0, page.Count)
 	}
 	loop := 0
+	var end []byte
 	// 处理当前位置的元素
 	for {
-		if loop < page.Start {
+		// 跳跃区间为空，直接返回nil
+		if jumpRanges != nil {
+			end = t.JumpRange(t.iter.Key(), jumpRanges, esc)
+			if end != nil {
+				// 跳跃到跳跃区间的结束位置
+				t.iter.Seek(end)
+				// 移动到跳跃区间的下一个元素
+				t.move[esc]()
+				continue
+			}
+		}
+		if t.Match(t.iter.Key(), t.iter.Value(), match...) {
+			if loop < page.Start {
+				loop++
+				continue
+			}
+			rd = t.ParseRecord(t.iter.Key(), t.iter.Value())
+			rd = rd.GetKeys(t.selectFields...)
+			r = append(r, rd)
 			loop++
-		} else {
-			for _, m := range match {
-				fieldsBytes := t.ParseBytes(t.iter.Key(), t.iter.Value())
-				idxrd := t.table.RecordByteToAny(fieldsBytes)
-				if m.Match(idxrd) {
-					r = append(r, rd)
-					if page.Count > 0 && len(r) >= page.Count {
-						break
-					}
-				}
+			if page.Count > 0 && len(r) >= page.Count {
+				break
 			}
 		}
 		// 移动到下一个/前一个元素
