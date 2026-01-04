@@ -492,9 +492,10 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 		//没有索引，则设置为全表主键扫描迭代器
 		idx = t.indexs.GetPrimaryKey()
 		key = t.indexs.GetPrimaryKey().Prefix(t.name)
+		ops = ops[:0] //设置使用默认Like操作
 	}
 	var op storage.ComparisonOperator
-	if len(ops) == 0 {
+	if len(ops) == 0 { //默认是Like操作
 		op = storage.Like
 	} else {
 		op = ops[0]
