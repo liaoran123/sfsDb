@@ -6,6 +6,7 @@ import (
 	"maps"
 	"testing"
 
+	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
 
@@ -798,7 +799,9 @@ func TestTableIndexChange(t *testing.T) {
 	//检测索引author_views_index的所有键值对
 	t.Log("检测索引author_views_index的所有键值对")
 	idxkey := tableWithIndex.name + SPLIT + "author_views_index" + SPLIT
-	iter := tableWithIndex.kvStore.Iterator([]byte(idxkey))
+	rangeHelper := storage.NewRangeHelper()
+	slice := rangeHelper.FromComparison(storage.Like, []byte(idxkey))
+	iter := tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {
 		key := iter.Key()
 		fmt.Println("author_views_index: ", string(key))
@@ -818,7 +821,8 @@ func TestTableIndexChange(t *testing.T) {
 	}
 
 	// 验证修改成功
-	iter = tableWithIndex.kvStore.Iterator([]byte(idxkey))
+	slice = rangeHelper.FromComparison(storage.Like, []byte(idxkey))
+	iter = tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {
 		key := iter.Key()
 		fmt.Println("author_views_index: ", string(key))
@@ -846,7 +850,9 @@ func TestTableIndexChange(t *testing.T) {
 	//检测索引content_fulltext的所有键值对
 	t.Log("检测索引content_fulltext的所有键值对")
 	idxkey = tableWithIndex.name + SPLIT + "content_fulltext" + SPLIT
-	iter = tableWithIndex.kvStore.Iterator([]byte(idxkey))
+	rangeHelper = storage.NewRangeHelper()
+	slice = rangeHelper.FromComparison(storage.Like, []byte(idxkey))
+	iter = tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {
 		key := iter.Key()
 		fmt.Println("content_fulltext: ", string(key))
@@ -861,7 +867,8 @@ func TestTableIndexChange(t *testing.T) {
 		t.Fatalf("Failed to update indexed record: %v", err)
 	}
 	// 验证修改成功
-	iter = tableWithIndex.kvStore.Iterator([]byte(idxkey))
+	slice = rangeHelper.FromComparison(storage.Like, []byte(idxkey))
+	iter = tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {
 		key := iter.Key()
 		fmt.Println("content_fulltext: ", string(key))

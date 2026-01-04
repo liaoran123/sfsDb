@@ -1,5 +1,7 @@
 package storage
 
+import "github.com/syndtr/goleveldb/leveldb/util"
+
 // Error definitions
 var (
 	ErrNotFound     = NewError("key not found")
@@ -41,7 +43,7 @@ type Store interface {
 	WriteBatch(batch Batch) error
 
 	// Iterator 创建迭代器
-	Iterator(para ...[]byte) Iterator
+	Iterator(slice *util.Range) Iterator
 
 	// Snapshot 创建快照
 	Snapshot() (Snapshot, error)
@@ -99,7 +101,7 @@ type Snapshot interface {
 	Get(key []byte) ([]byte, error)
 
 	// Iterator 从快照中创建迭代器
-	Iterator(para ...[]byte) Iterator
+	Iterator(slice *util.Range) Iterator
 
 	// Release 释放快照资源
 	Release() error

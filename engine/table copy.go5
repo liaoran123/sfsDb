@@ -447,17 +447,13 @@ func (t *Table) ReadByBytes(key []byte) []byte {
 // 遍历表所有kv，复制表用
 func (t *Table) For() storage.Iterator {
 	pfx := t.name + SPLIT
-	rangeHelper := storage.NewRangeHelper()
-	slice := rangeHelper.FromComparison(storage.Like, []byte(pfx))
-	return t.kvStore.Iterator(slice)
+	return t.kvStore.Iterator([]byte(pfx))
 }
 
 // 遍历表所有数据
 func (t *Table) ForData() storage.Iterator {
 	pfx := t.indexs.GetPrimaryKey().Prefix(t.name)
-	rangeHelper := storage.NewRangeHelper()
-	slice := rangeHelper.FromComparison(storage.Like, []byte(pfx))
-	return t.kvStore.Iterator(slice)
+	return t.kvStore.Iterator([]byte(pfx))
 }
 
 // 匹配索引
@@ -473,7 +469,7 @@ func (t *Table) FieldsToBytesNil(fields *map[string]any) *map[string][]byte {
 	}
 	return &result
 }
-func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator) (*TableIter, error) {
+func (t *Table) Search(fields *map[string]any, op ...storage.ComparisonOperator) (*TableIter, error) {
 	var field []string
 	for k := range *fields {
 		//判断字段是否在表中
@@ -493,14 +489,6 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 		idx = t.indexs.GetPrimaryKey()
 		key = t.indexs.GetPrimaryKey().Prefix(t.name)
 	}
-	var op storage.ComparisonOperator
-	if len(ops) == 0 {
-		op = storage.Like
-	} else {
-		op = ops[0]
-	}
-	rangeHelper := storage.NewRangeHelper()
-	slice := rangeHelper.FromComparison(op, key)
-	iter := t.kvStore.Iterator(slice)
+	iter := t.kvStore.Iterator(key)
 	return TableIterNew(t, iter, idx), nil
 }

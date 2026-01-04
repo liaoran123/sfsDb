@@ -8,10 +8,15 @@ type Match interface {
 	Match(fields *map[string]any) bool
 }
 
+/*
+//该结构作用是多个迭代器的主键值进行相同或不相同的匹配
+//rule为true时，多个迭代器的主键值必须相同，才匹配成功
+//rule为false时，多个迭代器的主键值必须不同，才匹配成功
+//rule为false的作用主要是用在跳跃查询中，比如sql语句中 field not in (1,2,3)，则data=map[any]bool{1:true,2:true,3:true}
+*/
 type AND struct {
 	//需要匹配的字段名，与fields *map[string]any中的key对应
 	fields []string
-	//data是TableIter生成的键值map，作为存在或不存在的判断。
 	//data 是由(t *TableIter) Map(fields ...string) (data map[any]bool)生成
 	//也可以自定义，比如sql语句中 field in (1,2,3)，则data=map[any]bool{1:true,2:true,3:true}
 	data map[any]bool

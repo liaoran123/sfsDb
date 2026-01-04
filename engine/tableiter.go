@@ -275,6 +275,11 @@ func (t *TableIter) Value() []byte {
 	return t.iter.Value()
 }
 
+// Seek 移动到大于等于指定key的位置
+func (t *TableIter) Seek(key []byte) bool {
+	return t.iter.Seek(key)
+}
+
 // 判断是否存在指定的主键记录
 func (t *TableIter) Exist() bool {
 	return t.iter.First()
