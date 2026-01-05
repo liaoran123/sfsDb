@@ -231,7 +231,7 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 	}
 	defer dataIter.Release()
 	records := dataIter.GerRecords(true)
-	for i, item := range records {
+	for i, item := range records.Select() {
 		fmt.Printf("结果集 %d: %v\n", i, item)
 	}
 
@@ -346,14 +346,14 @@ func TestTableSearch(t *testing.T) {
 		fmt.Printf("records: %v\n", records)
 		//判断data[0]和records是否相等
 
-		if records[0]["name"] != data[0]["name"] {
-			t.Errorf("搜索主键为1的记录错误，期望: %v, 实际: %v", data[0]["name"], records[0]["name"])
+		if records.Get(0)["name"] != data[0]["name"] {
+			t.Errorf("搜索主键为1的记录错误，期望: %v, 实际: %v", data[0]["name"], records.Get(0)["name"])
 		}
-		if records[0]["age"] != data[0]["age"] {
-			t.Errorf("搜索主键为1的记录错误，期望: %v, 实际: %v", data[0]["age"], records[0]["age"])
+		if records.Get(0)["age"] != data[0]["age"] {
+			t.Errorf("搜索主键为1的记录错误，期望: %v, 实际: %v", data[0]["age"], records.Get(0)["age"])
 		}
-		if records[0]["description"] != data[0]["description"] {
-			t.Errorf("搜索主键为1的记录错误，期望: %v, 实际: %v", data[0]["description"], records[0]["description"])
+		if records.Get(0)["description"] != data[0]["description"] {
+			t.Errorf("搜索主键为1的记录错误，期望: %v, 实际: %v", data[0]["description"], records.Get(0)["description"])
 		}
 
 	})
@@ -370,12 +370,12 @@ func TestTableSearch(t *testing.T) {
 		}
 		defer dataIter.Release()
 		records := dataIter.GerRecords(true)
-		for _, item := range records {
+		for _, item := range records.Select("name", "age", "description") {
 			fmt.Printf("records: %v\n", item)
 		}
 
-		if records[0]["age"] != data[2]["age"] {
-			t.Errorf("搜索name为Charlie的记录错误，期望: %v, 实际: %v", data[2]["age"], records[0]["age"])
+		if records.Get(0)["age"] != data[2]["age"] {
+			t.Errorf("搜索name为Charlie的记录错误，期望: %v, 实际: %v", data[2]["age"], records.Get(0)["age"])
 		}
 	})
 
@@ -391,7 +391,7 @@ func TestTableSearch(t *testing.T) {
 		}
 		defer dataIter.Release()
 		records := dataIter.GerRecords(true)
-		for _, item := range records {
+		for _, item := range records.Select("name", "age", "description") {
 			fmt.Printf("records: %v\n", item)
 		}
 
@@ -416,19 +416,19 @@ func TestTableSearch(t *testing.T) {
 			defer dataIter.Release()
 
 			records := dataIter.GerRecords(true)
-			for _, item := range records {
+			for _, item := range records.Select("name", "age", "description") {
 				fmt.Printf("搜索:%v -》 records: %v\n", fields["description"], item)
 			}
 
 			//判断data[1]和records是否相等
-			if records[0]["name"] != data[0]["name"] {
-				t.Errorf("全文索引搜索 description 包含Bob的记录错误，期望: %v, 实际: %v", data[1]["name"], records[0]["name"])
+			if records.Get(0)["name"] != data[0]["name"] {
+				t.Errorf("全文索引搜索 description 包含Bob的记录错误，期望: %v, 实际: %v", data[0]["name"], records.Get(0)["name"])
 			}
-			if records[0]["age"] != data[0]["age"] {
-				t.Errorf("全文索引搜索 description 包含Bob的记录错误，期望: %v, 实际: %v", data[0]["age"], records[0]["age"])
+			if records.Get(0)["age"] != data[0]["age"] {
+				t.Errorf("全文索引搜索 description 包含Bob的记录错误，期望: %v, 实际: %v", data[0]["age"], records.Get(0)["age"])
 			}
-			if records[0]["description"] != data[0]["description"] {
-				t.Errorf("全文索引搜索 description 包含Bob的记录错误，期望: %v, 实际: %v", data[0]["description"], records[0]["description"])
+			if records.Get(0)["description"] != data[0]["description"] {
+				t.Errorf("全文索引搜索 description 包含Bob的记录错误，期望: %v, 实际: %v", data[0]["description"], records.Get(0)["description"])
 			}
 		}
 
@@ -453,12 +453,12 @@ func TestTableSearch(t *testing.T) {
 			defer dataIter.Release()
 
 			records := dataIter.GerRecords(true)
-			for _, item := range records {
+			for _, item := range records.Select("name", "age", "description") {
 				fmt.Printf("搜索:%v -》 records: %v\n", fields["description"], item)
 			}
-			if records[0][table.indexs.GetPrimaryKey().GetFields()[0]] != data[1]["id"] {
+			if records.Get(0)[table.indexs.GetPrimaryKey().GetFields()[0]] != data[1]["id"] {
 				fmt.Printf("查询结果可能是多个: %v\n。但是测试并没有错误。", records)
-				//t.Errorf("全文索引搜索 description 包含Bob的记录错误，期望: %v, 实际: %v", data[1]["id"], records[0][table.indexs.GetPrimaryKey().GetFields()[0]])
+				//t.Errorf("全文索引搜索 description 包含Bob的记录错误，期望: %v, 实际: %v", data[1]["id"], records.Get(0)[table.indexs.GetPrimaryKey().GetFields()[0]])
 			}
 		}
 	})
@@ -476,8 +476,8 @@ func TestTableSearch(t *testing.T) {
 		defer dataIter.Release()
 		records := dataIter.GerRecords(true)
 		//判断data[1]和records是否相等
-		if len(records) != 0 {
-			t.Errorf("搜索description包含Bob的记录错误，期望: %v, 实际: %v", data[1]["id"], records[0][table.indexs.GetPrimaryKey().GetFields()[0]])
+		if records != nil {
+			t.Errorf("搜索description包含Bob的记录错误，期望: %v, 实际: %v", data[1]["id"], records.Get(0)[table.indexs.GetPrimaryKey().GetFields()[0]])
 		}
 	})
 
@@ -493,7 +493,7 @@ func TestTableSearch(t *testing.T) {
 		}
 		defer dataIter.Release()
 		records := dataIter.GerRecords(true)
-		for i, item := range records {
+		for i, item := range records.Select("name", "age", "description") {
 			fmt.Printf("item %d: %v\n", i, item)
 		}
 	})
@@ -539,13 +539,13 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	records := dataIter.GerRecords(true)
-	if len(records) == 0 {
+	if records.Len() == 0 {
 		t.Error("Record not found after adding")
 	} else {
-		if records[0]["name"] != "张三" || records[0]["age"] != 25 {
-			t.Errorf("Record data mismatch: got %v, expected name=张三, age=25", records[0])
+		if records.Get(0)["name"] != "张三" || records.Get(0)["age"] != 25 {
+			t.Errorf("Record data mismatch: got %v, expected name=张三, age=25", records.Get(0))
 		} else {
-			t.Logf("添加记录成功: %v", records[0])
+			t.Logf("添加记录成功: %v", records.Get(0))
 		}
 	}
 
@@ -570,13 +570,13 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	updatedRecords := dataIter.GerRecords(true)
-	if len(updatedRecords) == 0 {
+	if updatedRecords.Len() == 0 {
 		t.Error("Updated record not found")
 	} else {
-		if updatedRecords[0]["name"] != "张三修改" || updatedRecords[0]["age"] != 26 {
-			t.Errorf("Record update failed: got %v, expected name=张三修改, age=26", updatedRecords[0])
+		if updatedRecords.Get(0)["name"] != "张三修改" || updatedRecords.Get(0)["age"] != 26 {
+			t.Errorf("Record update failed: got %v, expected name=张三修改, age=26", updatedRecords.Get(0))
 		} else {
-			t.Logf("修改记录成功: %v", updatedRecords[0])
+			t.Logf("修改记录成功: %v", updatedRecords.Get(0))
 		}
 	}
 
@@ -596,10 +596,10 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	deletedRecords := dataIter.GerRecords(true)
-	if len(deletedRecords) != 0 {
-		t.Errorf("Record deletion failed: found %v, expected none", deletedRecords)
-	} else {
+	if deletedRecords == nil {
 		t.Log("删除记录成功")
+	} else {
+		t.Errorf("Record deletion failed: found %v, expected none", deletedRecords)
 	}
 
 	t.Log("所有CRUD测试通过")
@@ -708,10 +708,10 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	titleRecords := dataIter.GerRecords(true)
-	if len(titleRecords) != 1 {
-		t.Errorf("Expected 1 record for title 'Go语言入门', got %d", len(titleRecords))
+	if titleRecords.Len() != 1 {
+		t.Errorf("Expected 1 record for title 'Go语言入门', got %d", titleRecords.Len())
 	} else {
-		t.Logf("通过标题索引查询成功: %v", titleRecords[0])
+		t.Logf("通过标题索引查询成功: %v", titleRecords.Get(0))
 	}
 
 	// 测试通过复合索引查询
@@ -723,10 +723,10 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	authorRecords := dataIter.GerRecords(true)
-	if len(authorRecords) != 2 {
-		t.Errorf("Expected 2 records for author '张三', got %d", len(authorRecords))
+	if authorRecords.Len() != 2 {
+		t.Errorf("Expected 2 records for author '张三', got %d", authorRecords.Len())
 	} else {
-		t.Logf("通过作者索引查询成功，找到 %d 条记录", len(authorRecords))
+		t.Logf("通过作者索引查询成功，找到 %d 条记录", authorRecords.Len())
 	}
 
 	// 测试修改记录
@@ -750,13 +750,13 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	updatedRecords = dataIter.GerRecords(true)
-	if len(updatedRecords) == 0 {
+	if updatedRecords.Len() == 0 {
 		t.Error("Updated record not found")
 	} else {
-		if updatedRecords[0]["title"] != "Go语言入门教程" || updatedRecords[0]["views"] != 120 {
-			t.Errorf("Record update failed: got %v, expected title=Go语言入门教程, views=120", updatedRecords[0])
+		if updatedRecords.Get(0)["title"] != "Go语言入门教程" || updatedRecords.Get(0)["views"] != 120 {
+			t.Errorf("Record update failed: got %v, expected title=Go语言入门教程, views=120", updatedRecords.Get(0))
 		} else {
-			t.Logf("修改带索引记录成功: %v", updatedRecords[0])
+			t.Logf("修改带索引记录成功: %v", updatedRecords.Get(0))
 		}
 	}
 
@@ -776,10 +776,10 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	deletedRecords = dataIter.GerRecords(true)
-	if len(deletedRecords) != 0 {
-		t.Errorf("Record deletion failed: found %v, expected none", deletedRecords)
-	} else {
+	if deletedRecords == nil {
 		t.Log("删除带索引记录成功")
+	} else {
+		t.Errorf("Record deletion failed: found %v, expected none", deletedRecords.Get(0))
 	}
 
 	// 验证索引仍然有效
@@ -790,10 +790,10 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	authorRecordsAfterDelete := dataIter.GerRecords(true)
-	if len(authorRecordsAfterDelete) != 1 {
-		t.Errorf("Expected 1 record for author '张三' after delete, got %d", len(authorRecordsAfterDelete))
+	if authorRecordsAfterDelete.Len() != 1 {
+		t.Errorf("Expected 1 record for author '张三' after delete, got %d", authorRecordsAfterDelete.Len())
 	} else {
-		t.Logf("删除后通过作者索引查询成功，找到 %d 条记录", len(authorRecordsAfterDelete))
+		t.Logf("删除后通过作者索引查询成功，找到 %d 条记录", authorRecordsAfterDelete.Len())
 	}
 
 	t.Log("所有带索引的CRUD测试通过")
@@ -905,10 +905,10 @@ func TestTableIndexChange(t *testing.T) {
 	}
 
 	titleRecords := dataIter.GerRecords(true)
-	if len(titleRecords) != 1 {
-		t.Errorf("Expected 1 record for title 'Go语言入门', got %d", len(titleRecords))
+	if titleRecords.Len() != 1 {
+		t.Errorf("Expected 1 record for title 'Go语言入门', got %d", titleRecords.Len())
 	} else {
-		t.Logf("通过标题索引查询成功: %v", titleRecords[0])
+		t.Logf("通过标题索引查询成功: %v", titleRecords.Get(0))
 	}
 
 	// 测试通过复合索引查询
@@ -920,10 +920,10 @@ func TestTableIndexChange(t *testing.T) {
 	}
 
 	authorRecords := dataIter.GerRecords(true)
-	if len(authorRecords) != 2 {
-		t.Errorf("Expected 2 records for author '张三', got %d", len(authorRecords))
+	if authorRecords.Len() != 2 {
+		t.Errorf("Expected 2 records for author '张三', got %d", authorRecords.Len())
 	} else {
-		t.Logf("通过作者索引查询成功，找到 %d 条记录", len(authorRecords))
+		t.Logf("通过作者索引查询成功，找到 %d 条记录", authorRecords.Len())
 	}
 	//检测索引author_views_index的所有键值对
 	t.Log("检测索引author_views_index的所有键值对")
@@ -983,13 +983,13 @@ func TestTableIndexChange(t *testing.T) {
 	}
 
 	updatedRecords := dataIter.GerRecords(true)
-	if len(updatedRecords) == 0 {
+	if updatedRecords.Len() == 0 {
 		t.Error("Updated record not found")
 	} else {
-		if updatedRecords[0]["title"] != "Go语言入门教程" || updatedRecords[0]["views"] != 120 {
-			t.Errorf("Record update failed: got %v, expected title=Go语言入门教程, views=120", updatedRecords[0])
+		if updatedRecords.Get(0)["title"] != "Go语言入门教程" || updatedRecords.Get(0)["views"] != 120 {
+			t.Errorf("Record update failed: got %v, expected title=Go语言入门教程, views=120", updatedRecords.Get(0))
 		} else {
-			t.Logf("修改带索引记录成功: %v", updatedRecords[0])
+			t.Logf("修改带索引记录成功: %v", updatedRecords.Get(0))
 		}
 	}
 

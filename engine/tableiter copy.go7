@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"sync"
 
+	"github.com/liaoran123/sfsDb/engine/record"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
@@ -12,28 +13,28 @@ import (
 // 如果keys为空，则返回所有字段
 // 在最底层转换，最大化减少内存占用
 type TableIter struct {
-	iter       storage.Iterator
-	jumpRanges []storage.Iterator
-	table      *Table
-	match      []Match
-	selects    []string
-	index      Index //搜索时使用的索引
-	move       map[bool]func() bool
-	top        map[bool]func() bool
-	mu         sync.Mutex
+	iter         storage.Iterator
+	jumpRanges   []storage.Iterator
+	table        *Table
+	match        []Match
+	selectFields []string
+	index        Index //搜索时使用的索引
+	move         map[bool]func() bool
+	top          map[bool]func() bool
+	mu           sync.Mutex
 }
 
 // 导出记录 ，用于流式处理删除修改记录操作等。
-type ExportRecord func(rd *Record) bool
+type ExportRecord func(rd *record.Record) bool
 
 // 导出函数
 type Export func(k, v []byte) bool
 
-func TableIterNew(table *Table, iter storage.Iterator, index Index, selects ...string) *TableIter {
+func TableIterNew(table *Table, iter storage.Iterator, index Index, selectFields ...string) *TableIter {
 	return &TableIter{
-		table:   table,
-		selects: selects,
-		index:   index,
+		table:        table,
+		selectFields: selectFields,
+		index:        index,
 		move: map[bool]func() bool{
 			true:  iter.Next,
 			false: iter.Prev,
@@ -77,8 +78,8 @@ func (t *TableIter) SetMatch(match ...Match) {
 }
 
 // sql语句中的select f0,f1,... from table 要返回的字段
-func (t *TableIter) SetSelects(fields ...string) {
-	t.selects = fields
+func (t *TableIter) SetSelectFields(fields ...string) {
+	t.selectFields = fields
 }
 
 // 解析k，v里所有存在的字段byte值
@@ -97,14 +98,14 @@ func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	return fieldsBytes
 }
 
-func (t *TableIter) ParseRecord(k, v []byte) (rd Record) {
+func (t *TableIter) ParseRecord(k, v []byte) (rd record.Record) {
 	fieldsBytes := t.ParseBytes(k, v)
 	if fieldsBytes == nil {
 		return nil
 	}
 	switch t.index.(type) {
 	case PrimaryKey: //主键通过Parse直接得到的就是记录
-		rd = Record(*t.table.RecordByteToAny(fieldsBytes))
+		rd = record.Record(*t.table.RecordByteToAny(fieldsBytes))
 	default: //其他二级索引通过Parse得到的是主键ID值，需要回表才能得到记录。
 		// 拼接主键前缀和索引值，得到主键key
 		pfx := t.table.indexs.GetPrimaryKey().JoinValue(fieldsBytes, t.table.name)
@@ -119,7 +120,7 @@ func (t *TableIter) ParseRecord(k, v []byte) (rd Record) {
 			return nil
 		}
 		//转换为记录 ： *map[string][]byte ==> *map[string]any
-		rd = Record(*t.table.RecordByteToAny(trd))
+		rd = record.Record(*t.table.RecordByteToAny(trd))
 	}
 	return rd
 }
@@ -188,23 +189,17 @@ func (t *TableIter) Match(k, v []byte, match []Match) bool {
 // 遍历迭代器返回解析后的记录
 // 复杂组合查询函数，根据Match条件匹配记录
 // jumpRanges 跳跃区间，用于跳过某些数据
-func (t *TableIter) GerRecords(esc bool, limit ...int) (r *Records) {
+func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
 	//添加锁，防止并发访问
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if !t.top[esc]() {
 		return nil
 	}
-	var rd Record
-
+	var rd record.Record
 	page := PageNew(limit...)
 	if page.Count > 0 {
-		r = &Records{
-			table:   t.table,
-			records: make([]Record, 0, page.Count),
-		}
-	} else {
-		r = NewRecords(t.table)
+		r = make(record.Records, 0, page.Count)
 	}
 	loop := 0
 	var end []byte
@@ -226,10 +221,10 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r *Records) {
 				continue
 			}
 			rd = t.ParseRecord(t.iter.Key(), t.iter.Value())
-			rd = rd.Select(t.selects...)
-			r.Append(rd)
+			rd = rd.GetKeys(t.selectFields...)
+			r = append(r, rd)
 			loop++
-			if page.Count > 0 && len(r.records) >= page.Count {
+			if page.Count > 0 && len(r) >= page.Count {
 				break
 			}
 		}
@@ -252,7 +247,7 @@ func (t *TableIter) ExportRecord(esc bool, export ExportRecord) {
 	if !t.top[esc]() {
 		return
 	}
-	var rd Record
+	var rd record.Record
 	var end []byte
 	// 处理当前位置的元素
 	for {
@@ -267,9 +262,9 @@ func (t *TableIter) ExportRecord(esc bool, export ExportRecord) {
 		}
 
 		if t.Match(t.iter.Key(), t.iter.Value(), t.match) {
-			rd = Record(t.ParseRecord(t.iter.Key(), t.iter.Value()))
-			rd = rd.Select(t.selects...)
-			// 将 Record 转换为 map[string]any，然后取地址
+			rd = t.ParseRecord(t.iter.Key(), t.iter.Value())
+			rd = rd.GetKeys(t.selectFields...)
+			// 将 record.Record 转换为 map[string]any，然后取地址
 			if !export(&rd) {
 				return
 			}
