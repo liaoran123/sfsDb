@@ -10,6 +10,135 @@ import (
 	"github.com/liaoran123/sfsDb/util"
 )
 
+// 测试索引匹配功能
+func TestIndexMatching(t *testing.T) {
+	// 创建测试表
+	table, err := TableNew("test_index_matching")
+	if err != nil {
+		t.Fatalf("TableNew 失败: %v", err)
+	}
+
+	// 定义表字段
+	fields := map[string]any{
+		"id":      0,
+		"title":   "",
+		"author":  "",
+		"views":   0,
+		"content": "",
+	}
+	maps.Copy(table.fields, fields)
+
+	// 创建各种类型的索引
+
+	// 创建普通索引
+	titleIndex, err := DefaultNormalIndexNew("title_index")
+	if err != nil {
+		t.Fatalf("创建title索引失败: %v", err)
+	}
+	titleIndex.AddFields("title")
+	err = table.CreateIndex(titleIndex)
+	if err != nil {
+		t.Fatalf("添加title索引失败: %v", err)
+	}
+
+	// 创建复合索引
+	authorViewsIndex, err := DefaultNormalIndexNew("author_views_index")
+	if err != nil {
+		t.Fatalf("创建author_views索引失败: %v", err)
+	}
+	authorViewsIndex.AddFields("author", "views")
+	err = table.CreateIndex(authorViewsIndex)
+	if err != nil {
+		t.Fatalf("添加author_views索引失败: %v", err)
+	}
+
+	// 创建全文索引
+	contentIndex, err := DefaultFullTextIndexNew("content_index")
+	if err != nil {
+		t.Fatalf("创建content索引失败: %v", err)
+	}
+	contentIndex.AddFields("content", "id")
+	err = contentIndex.SetFullField("content", 5)
+	if err != nil {
+		t.Fatalf("设置content全文索引字段失败: %v", err)
+	}
+	err = table.CreateIndex(contentIndex)
+	if err != nil {
+		t.Fatalf("添加content索引失败: %v", err)
+	}
+
+	// 测试1: MatchIndex - 匹配单个索引
+	t.Log("测试1: MatchIndex - 匹配单个索引")
+	// 匹配title索引
+	idx1 := table.MatchIndex("title")
+	if idx1 == nil || idx1.Name() != "title_index" {
+		t.Errorf("期望匹配到title_index，实际匹配到: %v", idx1)
+	}
+
+	// 测试2: MatchIndexes - 匹配多个索引并排序
+	t.Log("测试2: MatchIndexes - 匹配多个索引并排序")
+	indexes := table.indexs.MatchIndexes("title", "author", "views")
+	if len(indexes) == 0 {
+		t.Error("期望匹配到至少一个索引，实际匹配到0个")
+	} else {
+		// 打印匹配到的索引
+		for i, idx := range indexes {
+			t.Logf("  匹配索引 %d: %s", i+1, idx.Name())
+		}
+	}
+
+	// 测试3: MatchBestIndex - 匹配最优索引
+	t.Log("测试3: MatchBestIndex - 匹配最优索引")
+	bestIdx := table.indexs.MatchBestIndex("title", "author", "views")
+	if bestIdx == nil {
+		t.Error("期望匹配到最优索引，实际匹配到nil")
+	} else {
+		t.Logf("  最优索引: %s", bestIdx.Name())
+	}
+
+	// 测试4: MatchIndexCombination - 匹配索引组合
+	t.Log("测试4: MatchIndexCombination - 匹配索引组合")
+	comb := table.indexs.MatchIndexCombination("title", "author", "views")
+	if comb == nil {
+		t.Error("期望匹配到索引组合，实际匹配到nil")
+	} else {
+		t.Logf("  索引组合: %d个索引，覆盖率: %.2f", len(comb.Indexes), comb.Coverage)
+		for i, idx := range comb.Indexes {
+			t.Logf("    组合索引 %d: %s", i+1, idx.Name())
+		}
+	}
+
+	// 测试5: GetIndexByType - 根据类型获取索引
+	t.Log("测试5: GetIndexByType - 根据类型获取索引")
+	// 获取普通索引
+	normalIndexes := table.indexs.GetIndexByType(NormalIndex(nil))
+	t.Logf("  普通索引数量: %d", len(normalIndexes))
+
+	// 获取全文索引
+	fulltextIndexes := table.indexs.GetIndexByType(FullTextIndex(nil))
+	t.Logf("  全文索引数量: %d", len(fulltextIndexes))
+
+	// 测试6: 联合索引前缀匹配
+	t.Log("测试6: 联合索引前缀匹配")
+	// 测试仅匹配author字段
+	indexes2 := table.indexs.MatchIndexes("author")
+	if len(indexes2) == 0 {
+		t.Error("期望匹配到author_views_index，实际匹配到0个索引")
+	} else {
+		t.Logf("  匹配到的索引数量: %d", len(indexes2))
+		for i, idx := range indexes2 {
+			t.Logf("    索引 %d: %s", i+1, idx.Name())
+		}
+	}
+
+	// 测试7: 无匹配索引
+	t.Log("测试7: 无匹配索引")
+	indexes3 := table.indexs.MatchIndexes("nonexistent_field")
+	if len(indexes3) != 0 {
+		t.Errorf("期望匹配到0个索引，实际匹配到: %d个", len(indexes3))
+	}
+}
+
 // 测试组合主键搜索
 func TestCompositePrimaryKeySearch(t *testing.T) {
 	table, err := TableNew("art")
@@ -374,7 +503,7 @@ func TestTableSearch(t *testing.T) {
 func TestTableCRUD(t *testing.T) {
 
 	// 创建表
-	table, err := TableNew("test_table")
+	table, err := TableNew("test_table_CRUD")
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -676,7 +805,7 @@ func TestTableIndexChange(t *testing.T) {
 	//t.Log("\n测试4: 带有索引和全文索引的表CRUD操作")
 
 	// 创建带索引的表
-	tableWithIndex, err := TableNew("test_table_with_index")
+	tableWithIndex, err := TableNew("test_table_with_index_Change")
 	if err != nil {
 		t.Fatalf("Failed to create table with index: %v", err)
 	}
@@ -804,7 +933,15 @@ func TestTableIndexChange(t *testing.T) {
 	iter := tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {
 		key := iter.Key()
-		fmt.Println("author_views_index: ", string(key))
+		fmt.Println("修改前", "author_views_index: ", string(key))
+	}
+	idxkey = tableWithIndex.name + SPLIT + "title_index" + SPLIT
+	rangeHelper = storage.NewRangeHelper()
+	slice = rangeHelper.FromComparison(storage.Like, []byte(idxkey))
+	iter = tableWithIndex.kvStore.Iterator(slice)
+	for iter.Next() {
+		key := iter.Key()
+		fmt.Println("修改前", "title_index: ", string(key))
 	}
 	iter.Release()
 	// 测试修改普通索引记录
@@ -819,13 +956,23 @@ func TestTableIndexChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to update indexed record: %v", err)
 	}
-
+	fmt.Println("------------------------------------------")
 	// 验证修改成功
+	idxkey = tableWithIndex.name + SPLIT + "author_views_index" + SPLIT
+	rangeHelper = storage.NewRangeHelper()
 	slice = rangeHelper.FromComparison(storage.Like, []byte(idxkey))
 	iter = tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {
 		key := iter.Key()
-		fmt.Println("author_views_index: ", string(key))
+		fmt.Println("修改后", "author_views_index: ", string(key))
+	}
+	idxkey = tableWithIndex.name + SPLIT + "title_index" + SPLIT
+	rangeHelper = storage.NewRangeHelper()
+	slice = rangeHelper.FromComparison(storage.Like, []byte(idxkey))
+	iter = tableWithIndex.kvStore.Iterator(slice)
+	for iter.Next() {
+		key := iter.Key()
+		fmt.Println("修改后", "title_index: ", string(key))
 	}
 	iter.Release()
 

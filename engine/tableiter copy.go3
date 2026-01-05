@@ -179,17 +179,9 @@ func (t *TableIter) GerjumpRangesRecords(esc bool, jumpRanges []storage.Iterator
 // 如果包含，返回跳跃区间的结束位置
 // 如果不包含，返回nil
 //esc  true 表示顺序，false 表示倒序
-场景1: 电商系统
-// 商品格式：product_类别_12345
-// 跳跃区间：SkipStart = []byte("product_electronics_"), SkipLimit = append([]byte("product_electronics_"), 0)
-// 查询除电子产品外的所有商品
-场景2: 金融系统
-// 交易格式：transaction_20231201_12345
-// 跳跃区间：SkipStart = []byte("transaction_20231201"), SkipLimit = []byte("transaction_20231202")
-// 查询除2023年12月1日外的所有交易
 */
 func (t *TableIter) JumpRange(key []byte, jumpRanges []storage.Iterator, esc bool) []byte {
-	if len(jumpRanges) == 0 {
+	if jumpRanges == nil || len(jumpRanges) == 0 {
 		return nil
 	}
 	for _, jumpRange := range jumpRanges {
@@ -214,15 +206,8 @@ func (t *TableIter) JumpRange(key []byte, jumpRanges []storage.Iterator, esc boo
 	}
 	return nil
 }
-
-/*
-// 检测记录是否符合Match条件
-// 如果符合，返回true
-// 如果不符合，返回false
-常见sql场景，f in (1,2,3) 或  and 等操作
-*/
 func (t *TableIter) Match(k, v []byte, match []Match) bool {
-	if len(match) == 0 {
+	if match == nil || len(match) == 0 {
 		return true //不需要匹配
 	}
 	for _, m := range match {
@@ -255,15 +240,16 @@ func (t *TableIter) GerMultiAndJumpRangeRecords(esc bool, jumpRanges []storage.I
 	// 处理当前位置的元素
 	for {
 		// 跳跃区间为空，直接返回nil
-		end = t.JumpRange(t.iter.Key(), jumpRanges, esc)
-		if end != nil {
-			// 跳跃到跳跃区间的结束位置
-			t.iter.Seek(end)
-			// 移动到跳跃区间的下一个元素
-			t.move[esc]()
-			continue
+		if jumpRanges != nil {
+			end = t.JumpRange(t.iter.Key(), jumpRanges, esc)
+			if end != nil {
+				// 跳跃到跳跃区间的结束位置
+				t.iter.Seek(end)
+				// 移动到跳跃区间的下一个元素
+				t.move[esc]()
+				continue
+			}
 		}
-
 		if t.Match(t.iter.Key(), t.iter.Value(), match) {
 			if loop < page.Start {
 				loop++

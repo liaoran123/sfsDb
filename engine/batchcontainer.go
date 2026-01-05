@@ -56,6 +56,9 @@ func (c *BatchContainer) Operation(fieldsBytes *map[string][]byte, existFields .
 	//添加/删除普通索引key=indexValues,value=pkValue
 	for _, Normal := range c.indexs.GetNormalIndexs() {
 		indexValue := Normal.JoinValue(fieldsBytes, c.tbname, existFields...)
+		if indexValue == nil {
+			continue
+		}
 		c.Add(append([]byte{}, indexValue...), 1) //添加普通索引key=indexValues,value=pkValue
 	}
 	/*
@@ -68,6 +71,9 @@ func (c *BatchContainer) Operation(fieldsBytes *map[string][]byte, existFields .
 		joinValues := FullText.JoinFullValues(fieldsBytes, c.tbname, existFields...)
 		defer util.PutBytesArray(joinValues)
 		for _, joinValue := range joinValues {
+			if joinValue == nil {
+				continue
+			}
 			c.Add(append([]byte{}, joinValue...), 2) //添加全文索引key=joinValue,value=t.primaryKey.ID()
 		}
 	}

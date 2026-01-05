@@ -403,10 +403,10 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.name)
 	//删除
 	BatchContainer.Operation(fieldsBytes, updateFields...)
-	//更新字段值
 
+	//更新字段值
 	for field, val := range *fields {
-		//排除主键字段
+		//排除主键字段，主键字段不能更新
 		if t.indexs.GetPrimaryKey().MatchFields(field) {
 			continue
 		}
@@ -419,7 +419,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	BatchContainer.SetValue(0, record)                                      //添加主键value=record
 	BatchContainer.SetValue(1, t.indexs.GetPrimaryKey().GetID(fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
 	//添加全文索引key=joinValue,value=nil
-	BatchContainer.Operation(fieldsBytes)
+	BatchContainer.Operation(fieldsBytes, updateFields...)
 	//提交事务
 	if len(batchs) == 0 { //用户未手动控制事务，自动提交
 		if err := t.kvStore.WriteBatch(batch); err != nil {
@@ -504,4 +504,57 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 	slice := rangeHelper.FromComparison(op, key)
 	iter := t.kvStore.Iterator(slice)
 	return TableIterNew(t, iter, idx), nil
+}
+
+// SearchOptimized 优化版搜索方法，根据索引类型自动选择最佳操作符
+// 对于二级索引默认使用Equal操作符进行精确匹配
+// 对于主键索引或无索引默认使用Like操作符进行前缀匹配
+func (t *Table) SearchOptimized(fields *map[string]any, ops ...storage.ComparisonOperator) (*TableIter, error) {
+	var field []string
+	for k := range *fields {
+		//判断字段是否在表中
+		if _, ok := t.fields[k]; !ok {
+			return nil, fmt.Errorf("字段 '%s' 不存在于表 '%s'", k, t.name)
+		}
+		field = append(field, k)
+	}
+	//匹配索引
+	idx := t.MatchIndex(field...)
+	var key []byte
+	if idx != nil {
+		fieldsBytes := t.FieldsToBytesNil(fields)
+		key = idx.JoinValue(fieldsBytes, t.name)
+	} else {
+		//没有索引，则设置为全表主键扫描迭代器
+		idx = t.indexs.GetPrimaryKey()
+		key = t.indexs.GetPrimaryKey().Prefix(t.name)
+		ops = ops[:0] //设置使用默认Like操作
+	}
+	var op storage.ComparisonOperator
+	if len(ops) == 0 {
+		if idx != nil {
+			// 检查是否为二级索引
+			if _, ok := idx.(NormalIndex); ok {
+				// 对于二级索引，默认使用Equal操作符进行精确匹配
+				op = storage.Equal
+			} else {
+				// 对于主键索引或无索引，默认使用Like操作符进行前缀匹配
+				op = storage.Like
+			}
+		} else {
+			// 无索引，默认使用Like操作符
+			op = storage.Like
+		}
+	} else {
+		op = ops[0]
+	}
+	rangeHelper := storage.NewRangeHelper()
+	slice := rangeHelper.FromComparison(op, key)
+	iter := t.kvStore.Iterator(slice)
+	return TableIterNew(t, iter, idx), nil
+}
+
+// SearchWithIndexOptimization 与SearchOptimized相同，提供别名
+func (t *Table) SearchWithIndexOptimization(fields *map[string]any, ops ...storage.ComparisonOperator) (*TableIter, error) {
+	return t.SearchOptimized(fields, ops...)
 }
