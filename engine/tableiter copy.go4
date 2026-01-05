@@ -23,8 +23,8 @@ type TableIter struct {
 	mu           sync.Mutex
 }
 
-// 导出记录 ，用于流式处理删除修改记录操作等。
-type ExportRecord func(rd *record.Record) bool
+// 解析函数
+//type Parser func(k, v []byte) record.Record
 
 // 导出函数
 type Export func(k, v []byte) bool
@@ -124,6 +124,45 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
 	return t.GerMultiAndJumpRangeRecords(esc, nil, nil, limit...)
 }
 
+/*
+func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
+	//添加锁，防止并发访问
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if !t.top[esc]() {
+		return nil
+	}
+	var rd record.Record
+
+	page := PageNew(limit...)
+
+	if page.Count > 0 {
+		r = make(record.Records, 0, page.Count)
+	}
+
+	//var Value []byte
+	loop := 0
+	// 处理当前位置的元素
+	for {
+		if loop < page.Start {
+			loop++
+		} else {
+			rd = t.ParseRecord(t.iter.Key(), t.iter.Value())
+			rd = rd.GetKeys(t.selectFields...)
+			r = append(r, rd)
+			if page.Count > 0 && len(r) >= page.Count {
+				break
+			}
+		}
+		// 移动到下一个/前一个元素
+		if !t.move[esc]() {
+			break
+		}
+	}
+	return r
+}
+*/
 // 遍历迭代器返回解析后的记录
 // 复杂组合查询函数，根据Match条件匹配记录
 // 不需要跳跃区间时，jumpRanges 为 nil
@@ -246,66 +285,6 @@ func (t *TableIter) GerMultiAndJumpRangeRecords(esc bool, jumpRanges []storage.I
 		}
 	}
 	return r
-}
-
-// 遍历迭代器返回解析后的记录
-// 单个简单查询直接使用
-func (t *TableIter) GerRecordsExport(esc bool, export ExportRecord) {
-	t.GerMultiAndJumpRangeRecordsExport(esc, nil, nil, export)
-}
-
-// 遍历迭代器返回解析后的记录
-// 复杂组合查询函数，根据Match条件匹配记录
-// 不需要跳跃区间时，jumpRanges 为 nil
-func (t *TableIter) GerMultiRecordsExport(esc bool, match []Match, export ExportRecord) {
-	t.GerMultiAndJumpRangeRecordsExport(esc, nil, match, export)
-}
-
-// 遍历迭代器返回解析后的记录
-// 需要跳跃区间时，但不需要匹配Match
-func (t *TableIter) GerjumpRangesRecordsExport(esc bool, jumpRanges []storage.Iterator, export ExportRecord) {
-	t.GerMultiAndJumpRangeRecordsExport(esc, jumpRanges, nil, export)
-}
-
-// 遍历迭代器返回解析后的记录
-// 复杂组合查询函数，根据Match条件匹配记录
-// jumpRanges 跳跃区间，用于跳过某些数据
-// export 导出函数，用于处理匹配的记录
-func (t *TableIter) GerMultiAndJumpRangeRecordsExport(esc bool, jumpRanges []storage.Iterator, match []Match, export ExportRecord) {
-	//添加锁，防止并发访问
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if !t.top[esc]() {
-		return
-	}
-	var rd record.Record
-	var end []byte
-	// 处理当前位置的元素
-	for {
-		// 跳跃区间为空，直接返回nil
-		end = t.JumpRange(t.iter.Key(), jumpRanges, esc)
-		if end != nil {
-			// 跳跃到跳跃区间的结束位置
-			t.iter.Seek(end)
-			// 移动到跳跃区间的下一个元素
-			t.move[esc]()
-			continue
-		}
-
-		if t.Match(t.iter.Key(), t.iter.Value(), match) {
-			rd = t.ParseRecord(t.iter.Key(), t.iter.Value())
-			rd = rd.GetKeys(t.selectFields...)
-			// 将 record.Record 转换为 map[string]any，然后取地址
-			if !export(&rd) {
-				return
-			}
-		}
-		// 移动到下一个/前一个元素
-		if !t.move[esc]() {
-			break
-		}
-	}
-
 }
 
 // 遍历迭代器导出数据

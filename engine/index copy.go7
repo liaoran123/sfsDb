@@ -140,11 +140,9 @@ func (bi *BaseIndex) JoinValue(fieldsBytes *map[string][]byte, tbname string, ex
 func MatchFields(fields []string, existFields ...string) bool {
 	count := 0
 	for _, fit := range fields {
-		//判断是否存在索引切片中
+		//判断是否存在切片中
 		if slices.Contains(existFields, fit) {
 			count++
-		} else { //依照索引前缀匹配规则，有一个不匹配，则后面的都不会匹配。
-			return false
 		}
 	}
 	return count == len(existFields) //兼容匹配，主键字段可以少于索引字段
