@@ -46,9 +46,6 @@ func TableIterNew(table *Table, iter storage.Iterator, index Index, selectFields
 		iter: iter,
 	}
 }
-func (t *TableIter) Release() {
-	t.iter.Release()
-}
 
 // 分页变量
 type Page struct {
@@ -71,6 +68,11 @@ func PageNew(No ...int) Page {
 		Start: start,
 		Count: count,
 	}
+}
+
+// sql语句中的select f0,f1,... from table 要返回的字段
+func (t *TableIter) SetSelectFields(fields ...string) {
+	t.selectFields = fields
 }
 
 // 解析k，v里所有存在的字段byte值
@@ -388,4 +390,7 @@ func (t *TableIter) Count() int {
 		i++
 	}
 	return i
+}
+func (t *TableIter) Release() {
+	t.iter.Release()
 }
