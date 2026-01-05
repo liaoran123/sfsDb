@@ -15,9 +15,7 @@ import (
 type TableIter struct {
 	//baseIter
 	iter         storage.Iterator
-	jumpRanges   []storage.Iterator
 	table        *Table
-	match        []Match
 	selectFields []string
 	index        Index //搜索时使用的索引
 	move         map[bool]func() bool
@@ -71,12 +69,6 @@ func PageNew(No ...int) Page {
 		Count: count,
 	}
 }
-func (t *TableIter) SetJumpRanges(jumpRanges ...storage.Iterator) {
-	t.jumpRanges = jumpRanges
-}
-func (t *TableIter) SetMatch(match ...Match) {
-	t.match = match
-}
 
 // sql语句中的select f0,f1,... from table 要返回的字段
 func (t *TableIter) SetSelectFields(fields ...string) {
@@ -124,6 +116,25 @@ func (t *TableIter) ParseRecord(k, v []byte) (rd record.Record) {
 		rd = record.Record(*t.table.RecordByteToAny(trd))
 	}
 	return rd
+}
+
+// 遍历迭代器返回解析后的记录
+// 单个简单查询直接使用
+func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
+	return t.GerMultiAndJumpRangeRecords(esc, nil, nil, limit...)
+}
+
+// 遍历迭代器返回解析后的记录
+// 复杂组合查询函数，根据Match条件匹配记录
+// 不需要跳跃区间时，jumpRanges 为 nil
+func (t *TableIter) GerMultiRecords(esc bool, match []Match, limit ...int) (r record.Records) {
+	return t.GerMultiAndJumpRangeRecords(esc, nil, match, limit...)
+}
+
+// 遍历迭代器返回解析后的记录
+// 需要跳跃区间时，但不需要匹配Match
+func (t *TableIter) GerjumpRangesRecords(esc bool, jumpRanges []storage.Iterator, limit ...int) (r record.Records) {
+	return t.GerMultiAndJumpRangeRecords(esc, jumpRanges, nil, limit...)
 }
 
 /*
@@ -190,7 +201,7 @@ func (t *TableIter) Match(k, v []byte, match []Match) bool {
 // 遍历迭代器返回解析后的记录
 // 复杂组合查询函数，根据Match条件匹配记录
 // jumpRanges 跳跃区间，用于跳过某些数据
-func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
+func (t *TableIter) GerMultiAndJumpRangeRecords(esc bool, jumpRanges []storage.Iterator, match []Match, limit ...int) (r record.Records) {
 	//添加锁，防止并发访问
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -207,7 +218,7 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
 	// 处理当前位置的元素
 	for {
 		// 跳跃区间为空，直接返回nil
-		end = t.JumpRange(t.iter.Key(), t.jumpRanges, esc)
+		end = t.JumpRange(t.iter.Key(), jumpRanges, esc)
 		if end != nil {
 			// 跳跃到跳跃区间的结束位置
 			t.iter.Seek(end)
@@ -216,7 +227,7 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
 			continue
 		}
 
-		if t.Match(t.iter.Key(), t.iter.Value(), t.match) {
+		if t.Match(t.iter.Key(), t.iter.Value(), match) {
 			if loop < page.Start {
 				loop++
 				continue
@@ -238,10 +249,29 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r record.Records) {
 }
 
 // 遍历迭代器返回解析后的记录
+// 单个简单查询直接使用
+func (t *TableIter) GerRecordsExport(esc bool, export ExportRecord) {
+	t.GerMultiAndJumpRangeRecordsExport(esc, nil, nil, export)
+}
+
+// 遍历迭代器返回解析后的记录
+// 复杂组合查询函数，根据Match条件匹配记录
+// 不需要跳跃区间时，jumpRanges 为 nil
+func (t *TableIter) GerMultiRecordsExport(esc bool, match []Match, export ExportRecord) {
+	t.GerMultiAndJumpRangeRecordsExport(esc, nil, match, export)
+}
+
+// 遍历迭代器返回解析后的记录
+// 需要跳跃区间时，但不需要匹配Match
+func (t *TableIter) GerjumpRangesRecordsExport(esc bool, jumpRanges []storage.Iterator, export ExportRecord) {
+	t.GerMultiAndJumpRangeRecordsExport(esc, jumpRanges, nil, export)
+}
+
+// 遍历迭代器返回解析后的记录
 // 复杂组合查询函数，根据Match条件匹配记录
 // jumpRanges 跳跃区间，用于跳过某些数据
 // export 导出函数，用于处理匹配的记录
-func (t *TableIter) ExportRecord(esc bool, export ExportRecord) {
+func (t *TableIter) GerMultiAndJumpRangeRecordsExport(esc bool, jumpRanges []storage.Iterator, match []Match, export ExportRecord) {
 	//添加锁，防止并发访问
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -253,7 +283,7 @@ func (t *TableIter) ExportRecord(esc bool, export ExportRecord) {
 	// 处理当前位置的元素
 	for {
 		// 跳跃区间为空，直接返回nil
-		end = t.JumpRange(t.iter.Key(), t.jumpRanges, esc)
+		end = t.JumpRange(t.iter.Key(), jumpRanges, esc)
 		if end != nil {
 			// 跳跃到跳跃区间的结束位置
 			t.iter.Seek(end)
@@ -262,7 +292,7 @@ func (t *TableIter) ExportRecord(esc bool, export ExportRecord) {
 			continue
 		}
 
-		if t.Match(t.iter.Key(), t.iter.Value(), t.match) {
+		if t.Match(t.iter.Key(), t.iter.Value(), match) {
 			rd = t.ParseRecord(t.iter.Key(), t.iter.Value())
 			rd = rd.GetKeys(t.selectFields...)
 			// 将 record.Record 转换为 map[string]any，然后取地址

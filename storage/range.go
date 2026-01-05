@@ -11,6 +11,8 @@ type ComparisonOperator int
 const (
 	// Equal 等于 (=)
 	Equal ComparisonOperator = iota
+	// NotEqual 不等于 (!=)
+	NotEqual
 	// GreaterThan 大于 (>)
 	GreaterThan
 	// GreaterThanOrEqual 大于等于 (>=)
@@ -28,6 +30,8 @@ func (op ComparisonOperator) String() string {
 	switch op {
 	case Equal:
 		return "="
+	case NotEqual:
+		return "!="
 	case GreaterThan:
 		return ">"
 	case GreaterThanOrEqual:
@@ -178,10 +182,39 @@ func (h *RangeHelper) FromComparison(op ComparisonOperator, value []byte) *util.
 	case Like:
 		// 使用LikeRange方法处理LIKE操作
 		return h.Prefix(value)
+	case NotEqual:
+		// 不等于操作使用全库扫描，具体过滤在应用层处理
+		// 或者调用FromComparisonNotEqual获取两个Range
+		return FullScanRange
 	default:
 		// 默认返回全库扫描
 		return FullScanRange
 	}
+}
+
+// FromComparisonNotEqual 处理不等于操作，返回两个util.Range
+// 对于不等于value的情况，返回两个Range：
+// 1. (-∞, value) - 小于value的范围
+// 2. (value, +∞) - 大于value的范围
+func (h *RangeHelper) FromComparisonNotEqual(value []byte) [2]*util.Range {
+	return [2]*util.Range{
+		// (-∞, value) - 小于value的范围
+		{
+			Start: nil,
+			Limit: value,
+		},
+		// (value, +∞) - 大于value的范围
+		{
+			Start: append(value, 0),
+			Limit: nil,
+		},
+	}
+}
+
+// FromComparisonNotEqual 处理不等于操作，返回两个util.Range（静态方法）
+func FromComparisonNotEqual(value []byte) [2]*util.Range {
+	h := NewRangeHelper()
+	return h.FromComparisonNotEqual(value)
 }
 
 // FromComparison 创建基于比较操作符的Range（静态方法）

@@ -137,6 +137,7 @@ func (bi *BaseIndex) JoinValue(fieldsBytes *map[string][]byte, tbname string, ex
 	return Value.Bytes()
 }
 
+// 前缀规则匹配索引字段
 func MatchFields(fields []string, existFields ...string) bool {
 	count := 0
 	for _, fit := range fields {
@@ -144,10 +145,11 @@ func MatchFields(fields []string, existFields ...string) bool {
 		if slices.Contains(existFields, fit) {
 			count++
 		} else { //依照索引前缀匹配规则，有一个不匹配，则后面的都不会匹配。
-			return false
+			break
 		}
 	}
-	return count == len(existFields) //兼容匹配，主键字段可以少于索引字段
+	//如索引是3个字段组合，需要匹配的是2个字段，如何2个字段都按索引字段先后顺序匹配（即前缀匹配），则成功。
+	return count == len(existFields)
 }
 func (bi *BaseIndex) MatchFields(fields ...string) bool {
 	return MatchFields(bi.fields, fields...)

@@ -501,24 +501,15 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 		op = ops[0]
 	}
 	rangeHelper := storage.NewRangeHelper()
+	slice := rangeHelper.FromComparison(op, key)
+	iter := t.kvStore.Iterator(slice)
 
-	var iter storage.Iterator
-	var tbiter *TableIter
-	if op != storage.NotEqual {
-		slice := rangeHelper.FromComparison(op, key)
-		iter = t.kvStore.Iterator(slice)
-		tbiter = TableIterNew(t, iter, idx)
-	} else { //不等于会全表扫描，并且设置跳跃区间
-		//设置为全表主键扫描迭代器
-		idx = t.indexs.GetPrimaryKey()
-		pkkey := t.indexs.GetPrimaryKey().Prefix(t.name)
-		slice := rangeHelper.FromComparison(storage.Like, pkkey)
-		iter = t.kvStore.Iterator(slice)
-		tbiter = TableIterNew(t, iter, idx)
-		//设置跳跃区间
-		neslice := rangeHelper.FromComparison(storage.Like, key) //跳跃区间key
+	tbiter := TableIterNew(t, iter, idx)
+	if op == storage.NotEqual { //不等于会全表扫描，所以设置跳跃区间
+		neslice := rangeHelper.FromComparison(storage.Like, key)
 		tbiter.SetJumpRanges(t.kvStore.Iterator(neslice))
 	}
+	//tbiter.SetSelectFields(field...)
 	return tbiter, nil
 }
 
