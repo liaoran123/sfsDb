@@ -9,17 +9,17 @@ type BatchContainer struct {
 	indexs *Indexs // 索引集合
 	values map[uint8][]byte
 	batch  storage.Batch
-	tbname string
+	tbid   uint8
 }
 
-func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbname string) *BatchContainer {
+func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8) *BatchContainer {
 	if batch == nil {
 		batch = storage.KVDb.GetBatch()
 	}
 	return &BatchContainer{
 		indexs: indexs,
 		batch:  batch,
-		tbname: tbname,
+		tbid:   tbid,
 		//values3个nil值，key分别为0,1,2
 		values: map[uint8][]byte{
 			0: nil, //主键值
@@ -49,13 +49,12 @@ func (c *BatchContainer) GetValue(key uint8) []byte {
 // 添加/删除记录操作
 // 添加时，key值已经存在的field值，value中会过滤掉，不重复添加。
 func (c *BatchContainer) Operation(fieldsBytes *map[string][]byte, existFields ...string) {
-
-	pkValue := c.indexs.GetPrimaryKey().JoinValue(fieldsBytes, c.tbname)
+	pkValue := c.indexs.getPrimaryKey().JoinValue(fieldsBytes, c.tbid)
 	c.Add(pkValue, 0) //添加主键记录key=pkValue,value=record
 
 	//添加/删除普通索引key=indexValues,value=pkValue
 	for _, Normal := range c.indexs.GetNormalIndexs() {
-		indexValue := Normal.JoinValue(fieldsBytes, c.tbname, existFields...)
+		indexValue := Normal.JoinValue(fieldsBytes, c.tbid, existFields...)
 		if indexValue == nil {
 			continue
 		}
@@ -68,7 +67,7 @@ func (c *BatchContainer) Operation(fieldsBytes *map[string][]byte, existFields .
 		查询时，在key值里提取出主键值还原value值。
 	*/
 	for _, FullText := range c.indexs.GetFullTextIndexs() {
-		joinValues := FullText.JoinFullValues(fieldsBytes, c.tbname, existFields...)
+		joinValues := FullText.JoinFullValues(fieldsBytes, c.tbid, existFields...)
 		defer util.PutBytesArray(joinValues)
 		for _, joinValue := range joinValues {
 			if joinValue == nil {

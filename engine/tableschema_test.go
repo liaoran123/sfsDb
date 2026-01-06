@@ -28,7 +28,7 @@ func TestTableSchemaSerialization(t *testing.T) {
 		t.Fatalf("创建主键索引失败: %v", err)
 	}
 	primaryKey.AddFields("id")
-	if err := table.indexs.CreateIndex(primaryKey); err != nil {
+	if err := table.CreateIndex(primaryKey); err != nil {
 		t.Fatalf("添加主键索引失败: %v", err)
 	}
 
@@ -37,7 +37,7 @@ func TestTableSchemaSerialization(t *testing.T) {
 		t.Fatalf("创建普通索引失败: %v", err)
 	}
 	normalIndex.AddFields("name", "age")
-	if err := table.indexs.CreateIndex(normalIndex); err != nil {
+	if err := table.CreateIndex(normalIndex); err != nil {
 		t.Fatalf("添加普通索引失败: %v", err)
 	}
 
@@ -46,7 +46,7 @@ func TestTableSchemaSerialization(t *testing.T) {
 		t.Fatalf("创建全文索引失败: %v", err)
 	}
 	fulltextIndex.AddFields("name")
-	if err := table.indexs.CreateIndex(fulltextIndex); err != nil {
+	if err := table.CreateIndex(fulltextIndex); err != nil {
 		t.Fatalf("添加全文索引失败: %v", err)
 	}
 
@@ -131,7 +131,7 @@ func TestTableSerializationFull(t *testing.T) {
 		t.Fatalf("创建主键索引失败: %v", err)
 	}
 	primaryKey.AddFields("id")
-	if err := table.indexs.CreateIndex(primaryKey); err != nil {
+	if err := table.CreateIndex(primaryKey); err != nil {
 		t.Fatalf("添加主键索引失败: %v", err)
 	}
 

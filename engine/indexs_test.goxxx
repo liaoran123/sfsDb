@@ -29,7 +29,7 @@ func TestIndexsCreateIndex(t *testing.T) {
 	normalIndex.AddFields("name")
 
 	// Test 1: Create primary key index
-	err = indexs.CreateIndex(primaryKey)
+	err = indexs.createIndex(primaryKey)
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}

@@ -22,7 +22,7 @@ func BenchmarkTableInsert(b *testing.B) {
 	// 创建主键索引
 	pk, _ := DefaultPrimaryKeyNew("pk")
 	pk.AddFields("id")
-	table.indexs.CreateIndex(pk)
+	table.CreateIndex(pk)
 
 	// 重置计时器
 	b.ResetTimer()
@@ -63,7 +63,7 @@ func BenchmarkTableInsertBatch(b *testing.B) {
 	// 创建主键索引
 	pk, _ := DefaultPrimaryKeyNew("pk")
 	pk.AddFields("id")
-	table.indexs.CreateIndex(pk)
+	table.CreateIndex(pk)
 
 	// 重置计时器
 	b.ResetTimer()

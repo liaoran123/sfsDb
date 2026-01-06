@@ -11,19 +11,19 @@ func BenchmarkTableSearchPrimaryKey(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to create table: %v", err)
 	}
-	
+
 	// 设置表字段
 	fields := map[string]any{"id": 0, "name": "", "age": 0, "email": ""}
 	err = table.SetFields(fields)
 	if err != nil {
 		b.Fatalf("Failed to set fields: %v", err)
 	}
-	
+
 	// 创建主键索引
 	pk, _ := DefaultPrimaryKeyNew("pk")
 	pk.AddFields("id")
-	table.indexs.CreateIndex(pk)
-	
+	table.CreateIndex(pk)
+
 	// 插入测试数据
 	for i := 0; i < 1000; i++ {
 		testData := map[string]any{
@@ -37,14 +37,14 @@ func BenchmarkTableSearchPrimaryKey(b *testing.B) {
 			b.Fatalf("Failed to insert test data: %v", err)
 		}
 	}
-	
+
 	// 重置计时器
 	b.ResetTimer()
-	
+
 	// 运行基准测试
 	for i := 0; i < b.N; i++ {
 		// 搜索主键
-		searchData := map[string]any{"id": (i%1000)+1}
+		searchData := map[string]any{"id": (i % 1000) + 1}
 		iter := table.Search(&searchData)
 		if iter != nil {
 			iter.Release()
@@ -59,24 +59,24 @@ func BenchmarkTableSearchIndex(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to create table: %v", err)
 	}
-	
+
 	// 设置表字段
 	fields := map[string]any{"id": 0, "name": "", "age": 0, "email": ""}
 	err = table.SetFields(fields)
 	if err != nil {
 		b.Fatalf("Failed to set fields: %v", err)
 	}
-	
+
 	// 创建主键索引
 	pk, _ := DefaultPrimaryKeyNew("pk")
 	pk.AddFields("id")
-	table.indexs.CreateIndex(pk)
-	
+	table.CreateIndex(pk)
+
 	// 创建普通索引
 	idx, _ := DefaultNormalIndexNew("name_index")
 	idx.AddFields("name")
-	table.indexs.CreateIndex(idx)
-	
+	table.CreateIndex(idx)
+
 	// 插入测试数据
 	for i := 0; i < 1000; i++ {
 		testData := map[string]any{
@@ -90,10 +90,10 @@ func BenchmarkTableSearchIndex(b *testing.B) {
 			b.Fatalf("Failed to insert test data: %v", err)
 		}
 	}
-	
+
 	// 重置计时器
 	b.ResetTimer()
-	
+
 	// 运行基准测试
 	for i := 0; i < b.N; i++ {
 		// 搜索普通索引
@@ -112,19 +112,19 @@ func BenchmarkTableSearchFullScan(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to create table: %v", err)
 	}
-	
+
 	// 设置表字段
 	fields := map[string]any{"id": 0, "name": "", "age": 0, "email": ""}
 	err = table.SetFields(fields)
 	if err != nil {
 		b.Fatalf("Failed to set fields: %v", err)
 	}
-	
+
 	// 创建主键索引
 	pk, _ := DefaultPrimaryKeyNew("pk")
 	pk.AddFields("id")
-	table.indexs.CreateIndex(pk)
-	
+	table.CreateIndex(pk)
+
 	// 插入测试数据
 	for i := 0; i < 1000; i++ {
 		testData := map[string]any{
@@ -138,10 +138,10 @@ func BenchmarkTableSearchFullScan(b *testing.B) {
 			b.Fatalf("Failed to insert test data: %v", err)
 		}
 	}
-	
+
 	// 重置计时器
 	b.ResetTimer()
-	
+
 	// 运行基准测试
 	for i := 0; i < b.N; i++ {
 		// 全表扫描（搜索不存在的字段，触发全表扫描）

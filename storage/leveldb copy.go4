@@ -1,0 +1,305 @@
+package storage
+
+import (
+	"sync"
+
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/iterator"
+	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/syndtr/goleveldb/leveldb/util"
+)
+
+// LevelDBGetter 定义LevelDB读取操作的公共接口，适用于DB和Snapshot
+type LevelDBGetter interface {
+	// Get 获取指定key的值
+	Get(key []byte, ro *opt.ReadOptions) (value []byte, err error)
+
+	// NewIterator 创建迭代器
+	NewIterator(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator
+}
+
+// LevelDBStore LevelDB存储实现，支持快照功能
+type LevelDBStore struct {
+	ldb        LevelDBGetter // 可以是*leveldb.DB或*leveldb.Snapshot
+	isSnapshot bool          // 标记是否为快照
+	opts       *opt.Options
+}
+
+// LevelDBBatch LevelDB批量操作实现
+type LevelDBBatch struct {
+	batch *leveldb.Batch
+	ldb   *leveldb.DB
+}
+
+// NewLevelDBStore 创建新的LevelDB存储实例
+func NewLevelDBStore(config StoreConfig) (Store, error) {
+	opts := &opt.Options{
+		// 设置默认选项
+		WriteBuffer:            64 * 1024 * 1024,  // 64MB write buffer
+		OpenFilesCacheCapacity: 200,               // 打开文件缓存，增加以提高并发读取性能
+		BlockCacheCapacity:     128 * 1024 * 1024, // 128MB block cache，增加以提高读取性能
+	}
+	ldb, err := leveldb.OpenFile(config.Path, opts)
+	if err != nil {
+		panic("leveldb open file failed")
+	}
+	/*
+		if ldb == nil {
+			//中断程序
+			panic("leveldb open file failed")
+			//return nil, ErrStoreClosed
+		}*/
+	return &LevelDBStore{
+		ldb:        ldb,
+		isSnapshot: false,
+		opts:       opts,
+	}, nil
+}
+
+// Get 获取指定key的值
+func (s *LevelDBStore) Get(key []byte) ([]byte, error) {
+	value, err := s.ldb.Get(key, nil)
+	if err != nil {
+		if err == leveldb.ErrNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return value, nil
+}
+
+// Put 设置key-value对
+func (s *LevelDBStore) Put(key []byte, value []byte) error {
+
+	// 快照不支持写操作
+	if s.isSnapshot {
+		return NewError("snapshot does not support write operations")
+	}
+
+	// 确保ldb是*leveldb.DB类型
+	db, ok := s.ldb.(*leveldb.DB)
+	if !ok {
+		return NewError("invalid database type for write operations")
+	}
+
+	return db.Put(key, value, nil)
+}
+
+// Delete 删除指定key
+func (s *LevelDBStore) Delete(key []byte) error {
+
+	// 快照不支持写操作
+	if s.isSnapshot {
+		return NewError("snapshot does not support write operations")
+	}
+
+	// 确保ldb是*leveldb.DB类型
+	db, ok := s.ldb.(*leveldb.DB)
+	if !ok {
+		return NewError("invalid database type for write operations")
+	}
+
+	return db.Delete(key, nil)
+}
+
+var LdbBatchPool = sync.Pool{
+	New: func() any {
+		return new(leveldb.Batch)
+	},
+}
+
+// Batch 创建批量操作对象
+func (s *LevelDBStore) GetBatch() Batch {
+	// 快照不支持批量操作
+	if s.isSnapshot {
+		return nil
+	}
+
+	// 确保ldb是*leveldb.DB类型
+	_, ok := s.ldb.(*leveldb.DB)
+	if !ok {
+		return nil
+	}
+	//从sync.Pool 中获取一个Batch对象
+	return LdbBatchPool.Get().(*leveldb.Batch)
+}
+func (s *LevelDBStore) WriteBatch(batch Batch) error {
+	// 确保ldb是*leveldb.DB类型
+	db, ok := s.ldb.(*leveldb.DB)
+	if !ok {
+		return NewError("invalid database type for write operations")
+	}
+	err := db.Write(batch.(*leveldb.Batch), nil)
+	if err != nil {
+		return err
+	}
+	batch.(*leveldb.Batch).Reset()
+	LdbBatchPool.Put(batch.(*leveldb.Batch))
+	return nil
+}
+
+// Iterator 创建迭代器
+func (s *LevelDBStore) Iterator(slice *util.Range) Iterator {
+	return s.ldb.NewIterator(slice, nil)
+}
+
+/*
+// Iterator 创建迭代器
+func (s *LevelDBStore) Iterator(para ...[]byte) Iterator {
+
+	var slice *util.Range
+	plen := len(para)
+	switch plen {
+	case 0: //不提供参数即是全库扫描
+		slice = nil
+	case 1: //提供一个参数，即是前缀扫描
+		slice = util.BytesPrefix(para[0])
+	default: //默认取前两个范围扫描
+		slice = &util.Range{Start: para[0], Limit: para[1]}
+	}
+	return s.ldb.NewIterator(slice, nil)
+}
+*/
+// Snapshot 创建快照
+func (s *LevelDBStore) Snapshot() (Snapshot, error) {
+
+	// 快照不支持创建快照
+	if s.isSnapshot {
+		return nil, NewError("cannot create snapshot from snapshot")
+	}
+
+	// 确保ldb是*leveldb.DB类型
+	db, ok := s.ldb.(*leveldb.DB)
+	if !ok {
+		return nil, NewError("invalid database type for creating snapshot")
+	}
+
+	// 创建LevelDB快照
+	snapshot, err := db.GetSnapshot()
+	if err != nil {
+		return nil, err
+	}
+	if snapshot == nil {
+		return nil, NewError("failed to create snapshot")
+	}
+	// 返回一个新的LevelDBStore实例，其中ldb字段为快照
+	return &LevelDBStore{
+		ldb:        snapshot,
+		isSnapshot: true,
+		opts:       s.opts,
+	}, nil
+}
+
+// Close 关闭存储
+func (s *LevelDBStore) Close() error {
+
+	// 如果是快照，释放快照资源
+	if s.isSnapshot {
+		if snapshot, ok := s.ldb.(*leveldb.Snapshot); ok {
+			snapshot.Release()
+			s.ldb = nil
+		}
+		return nil
+	}
+
+	// 如果是数据库实例，关闭数据库
+	if db, ok := s.ldb.(*leveldb.DB); ok {
+		err := db.Close()
+		if err != nil {
+			return err
+		}
+		s.ldb = nil
+		return nil
+	}
+
+	return NewError("invalid database type")
+}
+
+// Release 释放快照资源
+// 对于普通数据库实例，Release方法不做任何事情
+// 对于快照实例，Release方法会释放快照资源
+func (s *LevelDBStore) Release() error {
+	// 如果是快照，调用Close方法释放资源
+	if s.isSnapshot {
+		return s.Close()
+	}
+	// 对于普通数据库实例，Release方法不做任何事情
+	return nil
+}
+
+// Put 添加put操作
+func (b *LevelDBBatch) Put(key []byte, value []byte) {
+	b.batch.Put(key, value)
+}
+
+// Delete 添加delete操作
+func (b *LevelDBBatch) Delete(key []byte) {
+	b.batch.Delete(key)
+}
+
+// Reset 重置批量操作
+func (b *LevelDBBatch) Reset() {
+	b.batch.Reset()
+}
+
+// Commit 提交批量操作
+func (b *LevelDBBatch) Commit() error {
+	/*
+		if b.ldb == nil {
+			return ErrStoreClosed
+		}
+	*/
+	return b.ldb.Write(b.batch, nil)
+}
+
+/*
+// LevelDBIterator LevelDB迭代器实现
+type LevelDBIterator struct {
+	iter iterator.Iterator
+}
+// First 移动到第一个元素
+func (i *LevelDBIterator) First() bool {
+	return i.iter.First()
+}
+
+// Last 移动到最后一个元素
+func (i *LevelDBIterator) Last() bool {
+	return i.iter.Last()
+}
+
+// Seek 移动到大于等于指定key的位置
+func (i *LevelDBIterator) Seek(key []byte) bool {
+	return i.iter.Seek(key)
+}
+
+// Next 移动到下一个元素
+func (i *LevelDBIterator) Next() bool {
+	return i.iter.Next()
+}
+
+// Prev 移动到前一个元素
+func (i *LevelDBIterator) Prev() bool {
+	return i.iter.Prev()
+}
+
+// Key 获取当前元素的key
+func (i *LevelDBIterator) Key() []byte {
+	return i.iter.Key()
+}
+
+// Value 获取当前元素的value
+func (i *LevelDBIterator) Value() []byte {
+	return i.iter.Value()
+}
+
+// Valid 检查迭代器是否有效
+func (i *LevelDBIterator) Valid() bool {
+	return i.iter.Valid()
+}
+
+// Release 释放迭代器资源
+func (i *LevelDBIterator) Release() {
+	i.iter.Release()
+}
+*/

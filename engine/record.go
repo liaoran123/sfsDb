@@ -83,7 +83,7 @@ func (r *Records) Select(fields ...string) (rs []Record) {
 
 // 判断主键是否存在
 func (r *Records) hasPrimaryKey(rd Record) bool {
-	pkfs := r.table.indexs.GetPrimaryKey().GetFields()
+	pkfs := r.table.GetPrimaryKey().GetFields()
 	for _, f := range pkfs {
 		if _, ok := rd[f]; !ok {
 			return false
@@ -117,7 +117,7 @@ func (r *Records) Update(fields *map[string]any) error {
 	if len(r.records) == 0 {
 		return ErrNoUpdateFields
 	}
-	pkfs := r.table.indexs.GetPrimaryKey().GetFields()
+	pkfs := r.table.GetPrimaryKey().GetFields()
 	//判断主键是否存在，因为通过select语句返回的记录是没有主键的
 	//同一个表，只需判断第一条记录是否有主键即可
 	if !r.hasPrimaryKey(r.records[0]) {

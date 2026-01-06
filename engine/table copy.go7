@@ -550,6 +550,7 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 		op = ops[0]
 	}
 	rangeHelper := storage.NewRangeHelper()
+
 	var iter storage.Iterator
 	var tbiter *TableIter
 	if op != storage.NotEqual {
@@ -558,15 +559,13 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 		tbiter = TableIterNew(t, iter, idx)
 	} else { //不等于会全表扫描，并且设置跳跃区间
 		//设置为全表主键扫描迭代器
-		//示例：key=0-1-100
-		pklen := t.GetPrimaryKey().Len()
-		//pkkey=0-1-  将后面的值去掉则得到该索引的前缀，即该索引或主键的全部遍历。
-		pkkey := key[:len(key)-pklen]
+		idx = t.GetPrimaryKey()
+		pkkey := t.GetPrimaryKey().Prefix(t.id)
 		slice := rangeHelper.FromComparison(storage.Like, pkkey)
 		iter = t.kvStore.Iterator(slice)
 		tbiter = TableIterNew(t, iter, idx)
 		//设置跳跃区间
-		neslice := rangeHelper.FromComparison(storage.Like, key) //跳跃区间key=0-1-100==>0-1-101
+		neslice := rangeHelper.FromComparison(storage.Like, key) //跳跃区间key
 		tbiter.SetJumpRanges(t.kvStore.Iterator(neslice))
 	}
 	return tbiter

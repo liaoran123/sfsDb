@@ -49,7 +49,7 @@ func TestRecordsBasic(t *testing.T) {
 	// 创建主键索引
 	pk, _ := DefaultPrimaryKeyNew("pk")
 	pk.AddFields("id")
-	table.indexs.CreateIndex(pk)
+	table.CreateIndex(pk)
 
 	// 创建 Records 对象
 	records := NewRecords(table)
@@ -106,7 +106,7 @@ func TestRecordsSelect(t *testing.T) {
 	// 创建主键索引
 	pk, _ := DefaultPrimaryKeyNew("pk")
 	pk.AddFields("id")
-	table.indexs.CreateIndex(pk)
+	table.CreateIndex(pk)
 
 	// 创建 Records 对象并添加记录
 	records := NewRecords(table)
@@ -154,7 +154,7 @@ func TestRecordsSetOperations(t *testing.T) {
 	// 创建主键索引
 	pk, _ := DefaultPrimaryKeyNew("pk")
 	pk.AddFields("id")
-	table.indexs.CreateIndex(pk)
+	table.CreateIndex(pk)
 
 	// 创建第一个 Records 对象
 	records1 := NewRecords(table)
@@ -219,7 +219,7 @@ func TestRecordsHasPrimaryKey(t *testing.T) {
 	// 创建主键索引
 	pk, _ := DefaultPrimaryKeyNew("pk")
 	pk.AddFields("id")
-	table.indexs.CreateIndex(pk)
+	table.CreateIndex(pk)
 
 	// 创建 Records 对象
 	records := NewRecords(table)

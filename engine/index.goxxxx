@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"slices"
+	"strings"
 
 	"github.com/liaoran123/sfsDb/util"
 )
@@ -16,16 +17,15 @@ type Index interface {
 	// 获取索引字段列表
 	GetFields() []string
 	Len() int
-	SetId(id uint8)
-	GetId() uint8
 	// 获取索引前缀
 	Name() string
 	SetName(name string) error
+	SetID(id uint8)
 	//拼接前缀
-	Prefix(tbid uint8) []byte
+	Prefix(tbname string) []byte
+	Pfx(tbnameid uint8) []byte
 	// 拼接索引前缀+索引值
-	//JoinVal(fieldsBytes *map[string][]byte, tbname string, existFields ...string) []byte
-	JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte
+	JoinValue(fieldsBytes *map[string][]byte, tbname string, existFields ...string) []byte
 	// 匹配索引字段
 	MatchFields(fields ...string) bool
 	// 解析kv的value值，返回字段值map
@@ -37,25 +37,25 @@ type Index interface {
 // 基础索引结构体，包含所有索引类型共有的字段和方法
 type BaseIndex struct {
 	fields []string
-	id     uint8
+	id     uint8 //使用索引id
 	name   string
 }
 
 // 基础索引的通用方法
+func (bi *BaseIndex) SetID(id uint8) {
+	bi.id = id
+}
+
 func (bi *BaseIndex) SetName(name string) error {
 	if name == "" {
 		return errors.New("name can not be empty")
 	}
+	//不能包含SPLIT
+	if strings.Contains(name, SPLIT) {
+		return errors.New("name can not contain SPLIT")
+	}
 	bi.name = name
 	return nil
-}
-
-func (bi *BaseIndex) SetId(id uint8) {
-	bi.id = id
-}
-
-func (bi *BaseIndex) GetId() uint8 {
-	return bi.id
 }
 
 func (bi *BaseIndex) Name() string {
@@ -86,15 +86,19 @@ func JoinAndToBytes(v ...string) []byte {
 	}
 	return Value.Bytes()
 }
-func (bi *BaseIndex) Prefix(tbid uint8) []byte {
-	return []byte{byte(tbid), SPLIT[0], byte(bi.id)}
-}
 
-/*
 func (bi *BaseIndex) Prefix(tbname string) []byte {
 	return JoinAndToBytes(tbname, bi.name)
 }
-*/
+
+func (bi *BaseIndex) Pfx(tbnameid uint8) (r []byte) {
+	tbid := byte(tbnameid)
+	idxid := byte(bi.id)
+	sp := byte(SPLIT[0])
+	r = []byte{tbid, sp, idxid}
+	return r
+}
+
 // 存在某个字段
 func exist(fields []string, existFields ...string) bool {
 	if len(existFields) == 0 {
@@ -133,7 +137,7 @@ func Join(fieldsBytes *map[string][]byte, fields []string, existFields ...string
 	return Value.Bytes()
 }
 
-func (bi *BaseIndex) JoinVal(fieldsBytes *map[string][]byte, tbname string, existFields ...string) []byte {
+func (bi *BaseIndex) JoinValue(fieldsBytes *map[string][]byte, tbname string, existFields ...string) []byte {
 	if !exist(bi.fields, existFields...) {
 		return nil
 	}
@@ -143,19 +147,6 @@ func (bi *BaseIndex) JoinVal(fieldsBytes *map[string][]byte, tbname string, exis
 		Value.Write(util.Bytes(bpxf))
 		Value.Write([]byte(SPLIT))
 	}
-	Value.Write(Join(fieldsBytes, bi.fields))
-	return Value.Bytes()
-}
-func (bi *BaseIndex) JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte {
-	if !exist(bi.fields, existFields...) {
-		return nil
-	}
-	var Value bytes.Buffer
-	//表id和索引id拼接
-	bpxf := bi.Prefix(tbid) //[]byte{byte(tbid), SPLIT[0], byte(bi.id)}
-	Value.Write(util.Bytes(bpxf))
-	Value.Write([]byte(SPLIT))
-
 	Value.Write(Join(fieldsBytes, bi.fields))
 	return Value.Bytes()
 }
@@ -174,19 +165,6 @@ func MatchFields(fields []string, existFields ...string) bool {
 	//如索引是3个字段组合，需要匹配的是2个字段，如何2个字段都按索引字段先后顺序匹配（即前缀匹配），则成功。
 	return count == len(existFields)
 }
-
-/*
-	func MatchFields(fields []string, existFields ...string) bool {
-		count := 0
-		for _, fit := range fields {
-			//判断是否存在切片中
-			if slices.Contains(existFields, fit) {
-				count++
-			}
-		}
-		return count == len(existFields) //兼容匹配，主键字段可以少于索引字段
-	}
-*/
 func (bi *BaseIndex) MatchFields(fields ...string) bool {
 	return MatchFields(bi.fields, fields...)
 }
@@ -321,7 +299,7 @@ type FullTextIndex interface {
 	SetFullField(field string, len int) error
 	//GetFtlen() int
 	// 拼接全文索引值
-	JoinFullValues(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) [][]byte
+	JoinFullValues(fieldsBytes *map[string][]byte, tbname string, existFields ...string) [][]byte
 	// 分词方法
 	Tokenize(nr string, ftlen int) (tokens []string)
 	//GetPrimaryBytes(primaryfields []string, FullTextKey []byte) *map[string][]byte
@@ -395,7 +373,7 @@ func (dfi *DefaultFullTextIndex) SetFullField(field string, len int) error {
 // 调用基类JoinValue
 // 对应全文索引，该函数仅作搜索前缀用。
 // 拼接全文索引前缀,所有全文索引值都会进行转义。
-func (dfi *DefaultFullTextIndex) JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte {
+func (dfi *DefaultFullTextIndex) JoinValue(fieldsBytes *map[string][]byte, tbname string, existFields ...string) []byte {
 	if v, ok := (*fieldsBytes)[dfi.ftsplit]; ok {
 		//将转换为string中文，如果长度大于ftlen个字符，则截取前ftlen个字符
 		if len([]rune(string(v))) > int(dfi.ftlen) {
@@ -404,7 +382,7 @@ func (dfi *DefaultFullTextIndex) JoinValue(fieldsBytes *map[string][]byte, tbid 
 			(*fieldsBytes)[dfi.ftsplit] = tval
 		}
 	}
-	return dfi.BaseIndex.JoinValue(fieldsBytes, tbid, existFields...)
+	return dfi.BaseIndex.JoinValue(fieldsBytes, tbname, existFields...)
 }
 func (dfi *DefaultFullTextIndex) Tokenize(nr string, ftlen int) (tokens []string) {
 	tokens = util.GetStringSlice()
@@ -427,7 +405,7 @@ func (dfi *DefaultFullTextIndex) Tokenize(nr string, ftlen int) (tokens []string
 // put时拼接key的值
 // 全文索引考据级别的切词算法。
 // 只有全文索引才需要转义
-func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) [][]byte {
+func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, tbname string, existFields ...string) [][]byte {
 	if !exist(dfi.fields, existFields...) {
 		return nil
 	}
@@ -460,7 +438,7 @@ func (dfi *DefaultFullTextIndex) JoinFullValues(fieldsBytes *map[string][]byte, 
 		}
 		loop++
 	}
-	ftpxf := dfi.Prefix(tbid) //[]byte{byte(tbid), SPLIT[0], byte(dfi.id), SPLIT[0]}
+	ftpxf := JoinAndToBytes(tbname, dfi.name)
 	ftpxf = append(ftpxf, []byte(SPLIT)...)
 	//拼接indexfieldsBytes成为全文索引值
 	//return CombineBytes(indexfieldsBytes, []byte(SPLIT), ftpxf)

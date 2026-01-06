@@ -88,11 +88,11 @@ func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	switch t.index.(type) {
 	case FullTextIndex:
 		//全文索引时，value值为空，需要从key中提取主键
-		fieldsBytes = t.index.Parse(t.table.indexs.GetPrimaryKey().GetFields(), k)
+		fieldsBytes = t.index.Parse(t.table.GetPrimaryKey().GetFields(), k)
 	case PrimaryKey:
 		fieldsBytes = t.index.Parse(nil, v)
 	default:
-		fieldsBytes = t.index.Parse(t.table.indexs.GetPrimaryKey().GetFields(), v)
+		fieldsBytes = t.index.Parse(t.table.GetPrimaryKey().GetFields(), v)
 	}
 	return fieldsBytes
 }
@@ -107,14 +107,14 @@ func (t *TableIter) ParseRecord(k, v []byte) (rd Record) {
 		rd = Record(*t.table.RecordByteToAny(fieldsBytes))
 	default: //其他二级索引通过Parse得到的是主键ID值，需要回表才能得到记录。
 		// 拼接主键前缀和索引值，得到主键key
-		pfx := t.table.indexs.GetPrimaryKey().JoinValue(fieldsBytes, t.table.name)
+		pfx := t.table.GetPrimaryKey().JoinValue(fieldsBytes, t.table.id)
 		// 回表读取完整记录
 		byrecord := t.table.ReadByBytes(pfx)
 		if byrecord == nil {
 			return nil
 		}
 		//通过主键解析记录
-		trd := t.table.indexs.GetPrimaryKey().Parse(nil, byrecord)
+		trd := t.table.GetPrimaryKey().Parse(nil, byrecord)
 		if trd == nil {
 			return nil
 		}
@@ -306,7 +306,7 @@ func (t *TableIter) ForExport(esc bool, export Export) {
 func (t *TableIter) GetPrimaryKeys(k, v []byte, fields ...string) (r any) {
 	fbs := t.ParseBytes(k, v)
 	if len(fields) == 0 {
-		fields = t.table.indexs.GetPrimaryKey().GetFields()
+		fields = t.table.GetPrimaryKey().GetFields()
 	}
 	//提取对应的值
 	val := make(map[string][]byte, len(fields))
