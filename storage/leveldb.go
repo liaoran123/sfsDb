@@ -35,8 +35,9 @@ type LevelDBBatch struct {
 func NewLevelDBStore(config StoreConfig) (Store, error) {
 	opts := &opt.Options{
 		// 设置默认选项
-		WriteBuffer:            64 * 1024 * 1024, // 64MB write buffer
-		OpenFilesCacheCapacity: 100,              // 打开文件缓存
+		WriteBuffer:            64 * 1024 * 1024,  // 64MB write buffer
+		OpenFilesCacheCapacity: 200,               // 打开文件缓存，增加以提高并发读取性能
+		BlockCacheCapacity:     128 * 1024 * 1024, // 128MB block cache，增加以提高读取性能
 	}
 	ldb, err := leveldb.OpenFile(config.Path, opts)
 	if err != nil {
