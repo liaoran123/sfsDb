@@ -225,7 +225,7 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 		fmt.Printf("iter.Key(): %v,iter.Value(): %v\n", string(iter.Key()), string(iter.Value()))
 	}
 
-	dataIter, err := table.Search(&fields1)
+	dataIter := table.Search(&fields1)
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败: %v", err)
 	}
@@ -338,10 +338,11 @@ func TestTableSearch(t *testing.T) {
 		fields := map[string]any{
 			"id": 1,
 		}
-		dataIter, err := table.Search(&fields)
+		dataIter := table.Search(&fields)
 		if dataIter.iter == nil {
-			t.Fatalf("Search 失败: %v", err)
+			t.Fatalf("Search 失败")
 		}
+		defer dataIter.Release()
 		records := dataIter.GerRecords(true)
 		fmt.Printf("records: %v\n", records)
 		//判断data[0]和records是否相等
@@ -364,9 +365,9 @@ func TestTableSearch(t *testing.T) {
 		fields := map[string]any{
 			"name": "Charlie",
 		}
-		dataIter, err := table.Search(&fields)
+		dataIter := table.Search(&fields)
 		if dataIter.iter == nil {
-			t.Fatalf("Search 失败: %v", err)
+			t.Fatalf("Search 失败")
 		}
 		defer dataIter.Release()
 		records := dataIter.GerRecords(true)
@@ -385,9 +386,9 @@ func TestTableSearch(t *testing.T) {
 		fields := map[string]any{
 			"description": "Bob",
 		}
-		dataIter, err := table.Search(&fields)
+		dataIter := table.Search(&fields)
 		if dataIter.iter == nil {
-			t.Fatalf("Search 失败: %v", err)
+			t.Fatalf("Search 失败")
 		}
 		defer dataIter.Release()
 		records := dataIter.GerRecords(true)
@@ -409,9 +410,9 @@ func TestTableSearch(t *testing.T) {
 			fields := map[string]any{
 				"description": item["description"],
 			}
-			dataIter, err := table.Search(&fields)
+			dataIter := table.Search(&fields)
 			if dataIter.iter == nil {
-				t.Fatalf("Search 失败: %v", err)
+				t.Fatalf("Search 失败")
 			}
 			defer dataIter.Release()
 
@@ -446,9 +447,9 @@ func TestTableSearch(t *testing.T) {
 			fields := map[string]any{
 				"description": item["description"],
 			}
-			dataIter, err := table.Search(&fields)
+			dataIter := table.Search(&fields)
 			if dataIter.iter == nil {
-				t.Fatalf("Search 失败: %v", err)
+				t.Fatalf("Search 失败")
 			}
 			defer dataIter.Release()
 
@@ -469,9 +470,9 @@ func TestTableSearch(t *testing.T) {
 			"id": 100,
 		}
 		// 使用Search方法搜索不存在的id
-		dataIter, err := table.Search(&fields)
+		dataIter := table.Search(&fields)
 		if dataIter.iter == nil {
-			t.Fatalf("Search 失败: %v", err)
+			t.Fatalf("Search 失败")
 		}
 		defer dataIter.Release()
 		records := dataIter.GerRecords(true)
@@ -487,9 +488,9 @@ func TestTableSearch(t *testing.T) {
 		fields := map[string]any{
 			"id": nil, // id=nil或空，将获取所有表记录
 		}
-		dataIter, err := table.Search(&fields)
+		dataIter := table.Search(&fields)
 		if dataIter.iter == nil {
-			t.Fatalf("Search 失败: %v", err)
+			t.Fatalf("Search 失败")
 		}
 		defer dataIter.Release()
 		records := dataIter.GerRecords(true)
@@ -533,9 +534,9 @@ func TestTableCRUD(t *testing.T) {
 
 	// 验证记录存在
 	searchFields := map[string]any{"id": 1}
-	dataIter, err := table.Search(&searchFields)
-	if err != nil {
-		t.Fatalf("Failed to search record: %v", err)
+	dataIter := table.Search(&searchFields)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
 	}
 
 	records := dataIter.GerRecords(true)
@@ -564,9 +565,9 @@ func TestTableCRUD(t *testing.T) {
 
 	// 验证修改成功
 	searchFields = map[string]any{"id": 1}
-	dataIter, err = table.Search(&searchFields)
-	if err != nil {
-		t.Fatalf("Failed to search updated record: %v", err)
+	dataIter = table.Search(&searchFields)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
 	}
 
 	updatedRecords := dataIter.GerRecords(true)
@@ -590,9 +591,9 @@ func TestTableCRUD(t *testing.T) {
 
 	// 验证记录已删除
 	searchFields = map[string]any{"id": 1}
-	dataIter, err = table.Search(&searchFields)
-	if err != nil {
-		t.Fatalf("Failed to search deleted record: %v", err)
+	dataIter = table.Search(&searchFields)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
 	}
 
 	deletedRecords := dataIter.GerRecords(true)
@@ -702,9 +703,9 @@ func TestTableCRUD(t *testing.T) {
 	// 测试通过普通索引查询
 	t.Log("测试通过普通索引查询")
 	searchByTitle := map[string]any{"title": "Go语言入门"}
-	dataIter, err = tableWithIndex.Search(&searchByTitle)
-	if err != nil {
-		t.Fatalf("Failed to search by title index: %v", err)
+	dataIter = tableWithIndex.Search(&searchByTitle)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
 	}
 
 	titleRecords := dataIter.GerRecords(true)
@@ -713,13 +714,20 @@ func TestTableCRUD(t *testing.T) {
 	} else {
 		t.Logf("通过标题索引查询成功: %v", titleRecords.Get(0))
 	}
-
+	/*
+		// -----------------------------------------
+		tb := tableWithIndex
+		tb.Search(&searchByTitle).GerRecords(true).Select("id", "title", "content", "author", "views")
+		tb.Search(&searchByTitle).GerRecords(true).Delete()
+		tb.Search(&searchByTitle).GerRecords(true).Update(&updateRecord)
+		//-----------------------------------------
+	*/
 	// 测试通过复合索引查询
 	t.Log("测试通过复合索引查询")
 	searchByAuthor := map[string]any{"author": "张三"}
-	dataIter, err = tableWithIndex.Search(&searchByAuthor)
-	if err != nil {
-		t.Fatalf("Failed to search by author index: %v", err)
+	dataIter = tableWithIndex.Search(&searchByAuthor)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
 	}
 
 	authorRecords := dataIter.GerRecords(true)
@@ -744,9 +752,9 @@ func TestTableCRUD(t *testing.T) {
 
 	// 验证修改成功
 	searchUpdated := map[string]any{"id": 1}
-	dataIter, err = tableWithIndex.Search(&searchUpdated)
-	if err != nil {
-		t.Fatalf("Failed to search updated record: %v", err)
+	dataIter = tableWithIndex.Search(&searchUpdated)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
 	}
 
 	updatedRecords = dataIter.GerRecords(true)
@@ -770,9 +778,9 @@ func TestTableCRUD(t *testing.T) {
 
 	// 验证记录已删除
 	searchDeleted := map[string]any{"id": 3}
-	dataIter, err = tableWithIndex.Search(&searchDeleted)
-	if err != nil {
-		t.Fatalf("Failed to search deleted record: %v", err)
+	dataIter = tableWithIndex.Search(&searchDeleted)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
 	}
 
 	deletedRecords = dataIter.GerRecords(true)
@@ -784,9 +792,9 @@ func TestTableCRUD(t *testing.T) {
 
 	// 验证索引仍然有效
 	searchByAuthorAfterDelete := map[string]any{"author": "张三"}
-	dataIter, err = tableWithIndex.Search(&searchByAuthorAfterDelete)
-	if err != nil {
-		t.Fatalf("Failed to search by author after delete: %v", err)
+	dataIter = tableWithIndex.Search(&searchByAuthorAfterDelete)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
 	}
 
 	authorRecordsAfterDelete := dataIter.GerRecords(true)
@@ -899,9 +907,9 @@ func TestTableIndexChange(t *testing.T) {
 	// 测试通过普通索引查询
 	t.Log("测试通过普通索引查询")
 	searchByTitle := map[string]any{"title": "Go语言入门"}
-	dataIter, err := tableWithIndex.Search(&searchByTitle)
-	if err != nil {
-		t.Fatalf("Failed to search by title index: %v", err)
+	dataIter := tableWithIndex.Search(&searchByTitle)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
 	}
 
 	titleRecords := dataIter.GerRecords(true)
@@ -910,13 +918,14 @@ func TestTableIndexChange(t *testing.T) {
 	} else {
 		t.Logf("通过标题索引查询成功: %v", titleRecords.Get(0))
 	}
-
+	//tb:=tableWithIndex;
+	//tb.Search(&searchByTitle).GerRecords(true)
 	// 测试通过复合索引查询
 	t.Log("测试通过复合索引查询")
 	searchByAuthor := map[string]any{"author": "张三"}
-	dataIter, err = tableWithIndex.Search(&searchByAuthor)
-	if err != nil {
-		t.Fatalf("Failed to search by author index: %v", err)
+	dataIter = tableWithIndex.Search(&searchByAuthor)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
 	}
 
 	authorRecords := dataIter.GerRecords(true)
@@ -977,9 +986,9 @@ func TestTableIndexChange(t *testing.T) {
 	iter.Release()
 
 	searchUpdated := map[string]any{"id": 1}
-	dataIter, err = tableWithIndex.Search(&searchUpdated)
-	if err != nil {
-		t.Fatalf("Failed to search updated record: %v", err)
+	dataIter = tableWithIndex.Search(&searchUpdated)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
 	}
 
 	updatedRecords := dataIter.GerRecords(true)

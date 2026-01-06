@@ -5,6 +5,7 @@ package engine
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"maps"
 	"reflect"
 	"slices"
@@ -87,7 +88,7 @@ func (t *Table) InitAuto() {
 // 获取当前最大自动增值记录的主键值
 func (t *Table) MaxAutoValue() int {
 	fields := map[string]any{"id": nil} //id为nil时，全表扫描。
-	tableIter, _ := t.Search(&fields)
+	tableIter := t.Search(&fields)
 	defer tableIter.Release()
 	if tableIter == nil {
 		return 0
@@ -473,12 +474,14 @@ func (t *Table) FieldsToBytesNil(fields *map[string]any) *map[string][]byte {
 	}
 	return &result
 }
-func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator) (*TableIter, error) {
+func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator) *TableIter {
 	var field []string
 	for k := range *fields {
 		//判断字段是否在表中
 		if _, ok := t.fields[k]; !ok {
-			return nil, fmt.Errorf("字段 '%s' 不存在于表 '%s'", k, t.name)
+			//写错误日志
+			log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
+			return nil
 		}
 		field = append(field, k)
 	}
@@ -519,18 +522,20 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 		neslice := rangeHelper.FromComparison(storage.Like, key) //跳跃区间key
 		tbiter.SetJumpRanges(t.kvStore.Iterator(neslice))
 	}
-	return tbiter, nil
+	return tbiter
 }
 
 // SearchOptimized 优化版搜索方法，根据索引类型自动选择最佳操作符
 // 对于二级索引默认使用Equal操作符进行精确匹配
 // 对于主键索引或无索引默认使用Like操作符进行前缀匹配
-func (t *Table) SearchOptimized(fields *map[string]any, ops ...storage.ComparisonOperator) (*TableIter, error) {
+func (t *Table) SearchOptimized(fields *map[string]any, ops ...storage.ComparisonOperator) *TableIter {
 	var field []string
 	for k := range *fields {
 		//判断字段是否在表中
 		if _, ok := t.fields[k]; !ok {
-			return nil, fmt.Errorf("字段 '%s' 不存在于表 '%s'", k, t.name)
+			//写错误日志
+			log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
+			return nil
 		}
 		field = append(field, k)
 	}
@@ -567,10 +572,10 @@ func (t *Table) SearchOptimized(fields *map[string]any, ops ...storage.Compariso
 	rangeHelper := storage.NewRangeHelper()
 	slice := rangeHelper.FromComparison(op, key)
 	iter := t.kvStore.Iterator(slice)
-	return TableIterNew(t, iter, idx), nil
+	return TableIterNew(t, iter, idx)
 }
 
 // SearchWithIndexOptimization 与SearchOptimized相同，提供别名
-func (t *Table) SearchWithIndexOptimization(fields *map[string]any, ops ...storage.ComparisonOperator) (*TableIter, error) {
+func (t *Table) SearchWithIndexOptimization(fields *map[string]any, ops ...storage.ComparisonOperator) *TableIter {
 	return t.SearchOptimized(fields, ops...)
 }
