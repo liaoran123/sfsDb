@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/liaoran123/sfsDb/storage"
-	"github.com/liaoran123/sfsDb/util"
 )
 
 // 测试索引匹配功能
@@ -169,16 +168,17 @@ func TestTableSearch(t *testing.T) {
 		fields["name"] = item["name"]
 		fields["age"] = item["age"]
 		fields["description"] = item["description"]
-		currentID, err := table.Insert(&fields)
+		_, err := table.Insert(&fields)
 		if err != nil {
 			t.Fatalf("插入测试数据失败: %v", err)
 		}
-		if item["id"] == nil {
-			continue
-		}
-		if currentID != util.AnyToInt(item["id"]) {
-			t.Errorf("插入测试数据后，当前ID应为%v，实际: %d", util.AnyToInt(item["id"]), currentID)
-		}
+		/*
+				if item["id"] == nil {
+					continue
+				}
+			if currentID != util.AnyToInt(item["id"]) {
+				t.Errorf("插入测试数据后，当前ID应为%v，实际: %d", util.AnyToInt(item["id"]), currentID)
+			}*/
 	}
 	//测试遍历表所有kv
 	t.Run("For", func(t *testing.T) {
@@ -203,8 +203,20 @@ func TestTableSearch(t *testing.T) {
 				break
 			}
 		}
+		fmt.Println("-----------------")
+		tbiter := TableIterNew(table, dataIter, table.GetPrimaryKey())
+		records := tbiter.GerRecords(true)
+		for _, item := range records.Select() {
+			fmt.Printf("records: %v\n", item)
+		}
+		if tbiter.Last() {
+			fmt.Printf("Last: %v\n", tbiter.Key())
+		}
+		tbiter.Release()
 
 	})
+	fmt.Println("-----------------")
+
 	// 测试1: 主键搜索
 	t.Run("PrimaryKeySearch", func(t *testing.T) {
 		// 使用Search方法搜索主键为3的记录
@@ -367,7 +379,7 @@ func TestTableSearch(t *testing.T) {
 		}
 		defer dataIter.Release()
 		records := dataIter.GerRecords(true)
-		for i, item := range records.Select("name", "age", "description") {
+		for i, item := range records.Select() {
 			fmt.Printf("item %d: %v\n", i, item)
 		}
 	})

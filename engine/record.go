@@ -72,7 +72,7 @@ func (r *Records) Append(rd Record) error {
 // 如果keys为空，则返回所有字段
 func (r *Records) Select(fields ...string) (rs []Record) {
 	if len(fields) == 0 {
-		return rs
+		return r.records
 	}
 	rs = make([]Record, len(r.records))
 	for i, r := range r.records {

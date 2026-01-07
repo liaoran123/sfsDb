@@ -87,6 +87,7 @@ func JoinAndToBytes(v ...string) []byte {
 	return Value.Bytes()
 }
 func (bi *BaseIndex) Prefix(tbid uint8) []byte {
+	//fmt.Printf("tbid: %d, SPLIT: %s, bi.id: %d\n", tbid, SPLIT, bi.id)
 	return []byte{byte(tbid), SPLIT[0], byte(bi.id)}
 }
 

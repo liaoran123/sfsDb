@@ -539,7 +539,6 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 		key = idx.JoinValue(fieldsBytes, t.id)
 	} else {
 		//没有索引，则设置为全表主键扫描迭代器
-		//该搜索并不支持无索引的搜索，需要配合mach接口自定义匹配规则
 		idx = t.GetPrimaryKey()
 		key = t.GetPrimaryKey().Prefix(t.id)
 		ops = ops[:0] //设置使用默认Like操作
@@ -571,4 +570,59 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 		tbiter.SetJumpRanges(t.kvStore.Iterator(neslice))
 	}
 	return tbiter
+}
+
+// SearchOptimized 优化版搜索方法，根据索引类型自动选择最佳操作符
+// 对于二级索引默认使用Equal操作符进行精确匹配
+// 对于主键索引或无索引默认使用Like操作符进行前缀匹配
+func (t *Table) SearchOptimized(fields *map[string]any, ops ...storage.ComparisonOperator) *TableIter {
+	var field []string
+	for k := range *fields {
+		//判断字段是否在表中
+		if _, ok := t.fields[k]; !ok {
+			//写错误日志
+			log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
+			return nil
+		}
+		field = append(field, k)
+	}
+	//匹配索引
+	idx := t.MatchIndex(field...)
+	var key []byte
+	if idx != nil {
+		fieldsBytes := t.FieldsToBytesNil(fields)
+		key = idx.JoinValue(fieldsBytes, t.id)
+	} else {
+		//没有索引，则设置为全表主键扫描迭代器
+		idx = t.GetPrimaryKey()
+		key = t.GetPrimaryKey().Prefix(t.id)
+		ops = ops[:0] //设置使用默认Like操作
+	}
+	var op storage.ComparisonOperator
+	if len(ops) == 0 {
+		if idx != nil {
+			// 检查是否为二级索引
+			if _, ok := idx.(NormalIndex); ok {
+				// 对于二级索引，默认使用Equal操作符进行精确匹配
+				op = storage.Equal
+			} else {
+				// 对于主键索引或无索引，默认使用Like操作符进行前缀匹配
+				op = storage.Like
+			}
+		} else {
+			// 无索引，默认使用Like操作符
+			op = storage.Like
+		}
+	} else {
+		op = ops[0]
+	}
+	rangeHelper := storage.NewRangeHelper()
+	slice := rangeHelper.FromComparison(op, key)
+	iter := t.kvStore.Iterator(slice)
+	return TableIterNew(t, iter, idx)
+}
+
+// SearchWithIndexOptimization 与SearchOptimized相同，提供别名
+func (t *Table) SearchWithIndexOptimization(fields *map[string]any, ops ...storage.ComparisonOperator) *TableIter {
+	return t.SearchOptimized(fields, ops...)
 }

@@ -213,8 +213,11 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r *Records) {
 		// 跳跃区间为空，直接返回nil
 		end = t.JumpRange(t.iter.Key(), t.jumpRanges, esc)
 		if end != nil {
-			// 跳跃到区间的结束位置
+			// 跳跃到跳跃区间的结束位置
 			t.iter.Seek(end)
+			// 移动到跳跃区间的下一个元素
+			//t.move[esc]()
+			//continue
 		}
 
 		if t.Match(t.iter.Key(), t.iter.Value(), t.match) {
