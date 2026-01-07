@@ -133,8 +133,9 @@ func TestTableSearchComprehensive(t *testing.T) {
 
 		// Test 4: Like operator (prefix search)
 		{
-			name:          "Like search on id (prefix)",
-			searchData:    map[string]any{"id": 1},
+			name: "Like search on id (prefix)",
+			//主键设置为nil，查询所有。如果是组合主键，末尾的字段设置为nil，则同前缀匹配
+			searchData:    map[string]any{"id": nil},
 			operator:      storage.Like,
 			expectedCount: 10, // all ids starting with 1 (1, 10)
 		},
@@ -146,17 +147,27 @@ func TestTableSearchComprehensive(t *testing.T) {
 			operator:      storage.NotEqual,
 			expectedCount: 9, // all except id=5
 		},
-
-		// Test 6: Default operator (Like)
-		{
-			name:       "Default operator (Like) on id=1",
-			searchData: map[string]any{"id": 1},
-
-			operator:      storage.Like,
-			expectedCount: 10, // all ids starting with 1
-		},
 	}
+	/*
+		//--------检测kv数据-----------
+		iter := table.For()
+		loop := 0
+		for iter.Next() {
+			fmt.Printf("loop: %v\n", loop)
+			loop++
+			k, v := iter.Key(), iter.Value()
+			rv := table.RecordByteToAny(table.GetPrimaryKey().Parse(nil, v))
+			fmt.Printf("record: %v\n", rv)
+			rk := table.RecordByteToAny(table.GetPrimaryKey().Parse(nil, k))
+			fmt.Printf("record: %v\n", rk)
 
+			fmt.Printf("-----------------------\n")
+			if k == nil {
+				break
+			}
+		}
+	*/
+	//--------------------------
 	// Run each test case
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

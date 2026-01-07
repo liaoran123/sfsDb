@@ -23,8 +23,12 @@ type Index interface {
 	SetName(name string) error
 	//拼接前缀
 	Prefix(tbid uint8) []byte
-	// 拼接索引前缀+索引值
-	//JoinVal(fieldsBytes *map[string][]byte, tbname string, existFields ...string) []byte
+
+	//拼接值，不需要前缀
+	Join(fieldsBytes *map[string][]byte) []byte
+	//拼接前缀+值
+	JoinPrefix(tbid uint8, val []byte) []byte
+	// 拼接索引前缀+索引值，调用JoinPrefix，Join方法
 	JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte
 	// 匹配索引字段
 	MatchFields(fields ...string) bool
@@ -87,7 +91,7 @@ func JoinAndToBytes(v ...string) []byte {
 	return Value.Bytes()
 }
 func (bi *BaseIndex) Prefix(tbid uint8) []byte {
-	//fmt.Printf("tbid: %d, SPLIT: %s, bi.id: %d\n", tbid, SPLIT, bi.id)
+	//fmt.Printf(" %d %s%d\n", tbid, SPLIT, bi.id)
 	return []byte{byte(tbid), SPLIT[0], byte(bi.id)}
 }
 
@@ -113,10 +117,8 @@ func exist(fields []string, existFields ...string) bool {
 // 系统对kv数据库优化设计，将已经存在key值索引数据，从value中略去。使用时再重新分解拼接。
 // 所有拼接数据都要进行转义
 // 添加匹配字段功能
-func Join(fieldsBytes *map[string][]byte, fields []string, existFields ...string) []byte {
-	if !exist(fields, existFields...) {
-		return nil
-	}
+func Join(fieldsBytes *map[string][]byte, fields []string) []byte {
+
 	var Value bytes.Buffer
 	for _, fit := range fields {
 		if v, ok := (*fieldsBytes)[fit]; ok {
@@ -134,31 +136,40 @@ func Join(fieldsBytes *map[string][]byte, fields []string, existFields ...string
 	return Value.Bytes()
 }
 
-func (bi *BaseIndex) JoinVal(fieldsBytes *map[string][]byte, tbname string, existFields ...string) []byte {
-	if !exist(bi.fields, existFields...) {
-		return nil
-	}
-	var Value bytes.Buffer
-	bpxf := JoinAndToBytes(tbname, bi.name) //通常就是表明和索引名拼接
-	if bpxf != nil {
+/*
+	func (bi *BaseIndex) JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte {
+		if !exist(bi.fields, existFields...) {
+			return nil
+		}
+		var Value bytes.Buffer
+		//表id和索引id拼接
+		bpxf := bi.Prefix(tbid) //[]byte{byte(tbid), SPLIT[0], byte(bi.id)}
 		Value.Write(util.Bytes(bpxf))
 		Value.Write([]byte(SPLIT))
+
+		Value.Write(Join(fieldsBytes, bi.fields))
+		//fmt.Printf("Value: %s\n", Value.String())
+		return Value.Bytes()
 	}
-	Value.Write(Join(fieldsBytes, bi.fields))
-	return Value.Bytes()
-}
+*/
 func (bi *BaseIndex) JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte {
 	if !exist(bi.fields, existFields...) {
 		return nil
 	}
+	val := bi.Join(fieldsBytes)
+	return bi.JoinPrefix(tbid, val)
+}
+func (bi *BaseIndex) JoinPrefix(tbid uint8, val []byte) []byte {
 	var Value bytes.Buffer
 	//表id和索引id拼接
 	bpxf := bi.Prefix(tbid) //[]byte{byte(tbid), SPLIT[0], byte(bi.id)}
 	Value.Write(util.Bytes(bpxf))
 	Value.Write([]byte(SPLIT))
-
-	Value.Write(Join(fieldsBytes, bi.fields))
+	Value.Write(val)
 	return Value.Bytes()
+}
+func (bi *BaseIndex) Join(fieldsBytes *map[string][]byte) []byte {
+	return Join(fieldsBytes, bi.fields)
 }
 
 // 前缀规则匹配索引字段

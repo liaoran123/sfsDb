@@ -494,7 +494,7 @@ func (t *Table) ReadByBytes(key []byte) []byte {
 // 遍历表所有kv，复制表用
 func (t *Table) For() storage.Iterator {
 	pfx := []byte{byte(t.id), SPLIT[0]}
-	rangeHelper := storage.NewRangeHelper(pfx)
+	rangeHelper := storage.NewRangeHelper()
 	slice := rangeHelper.FromComparison(storage.Like, pfx)
 	return t.kvStore.Iterator(slice)
 }
@@ -502,7 +502,7 @@ func (t *Table) For() storage.Iterator {
 // 遍历表所有数据
 func (t *Table) ForData() *TableIter {
 	pfx := t.GetPrimaryKey().Prefix(t.id)
-	rangeHelper := storage.NewRangeHelper(pfx)
+	rangeHelper := storage.NewRangeHelper()
 	slice := rangeHelper.FromComparison(storage.Like, []byte(pfx))
 	return TableIterNew(t, t.kvStore.Iterator(slice), t.GetPrimaryKey())
 }
@@ -520,7 +520,6 @@ func (t *Table) FieldsToBytesNil(fields *map[string]any) *map[string][]byte {
 	}
 	return &result
 }
-
 func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator) *TableIter {
 	var field []string
 	for k := range *fields {
@@ -535,9 +534,8 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 	//匹配索引
 	idx := t.MatchIndex(field...)
 	var key []byte
-	var fieldsBytes *map[string][]byte
 	if idx != nil {
-		fieldsBytes = t.FieldsToBytesNil(fields)
+		fieldsBytes := t.FieldsToBytesNil(fields)
 		key = idx.JoinValue(fieldsBytes, t.id)
 	} else {
 		/*
@@ -553,57 +551,7 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 	} else {
 		op = ops[0]
 	}
-	pfx := idx.Prefix(t.id)
-	pfx = append(pfx, SPLIT[0])
-	rangeHelper := storage.NewRangeHelper(pfx)
-	var iter storage.Iterator
-	var tbiter *TableIter
-	if op != storage.NotEqual {
-		slice := rangeHelper.FromComparison(op, key)
-		iter = t.kvStore.Iterator(slice)
-		tbiter = TableIterNew(t, iter, idx)
-	} else { //不等于将会通过主键或索引进行全表扫描，并且设置跳跃区间
-		slice := rangeHelper.FromComparison(storage.Like, pfx) //遍历前缀，即通过主键或索引全表扫描
-		iter = t.kvStore.Iterator(slice)
-		tbiter = TableIterNew(t, iter, idx)
-		//设置跳跃区间
-		neslice := rangeHelper.FromComparison(storage.Like, key) //跳跃区间key=0-1-100==>0-1-101
-		tbiter.SetJumpRanges(t.kvStore.Iterator(neslice))
-	}
-	return tbiter
-}
-
-/*
-func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator) *TableIter {
-	var field []string
-	for k := range *fields {
-		if _, ok := t.fields[k]; !ok {
-			log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
-			return nil
-		}
-		field = append(field, k) //提取字段
-	}
-	//匹配索引
-	idx := t.MatchIndex(field...)
-	var key []byte
-	if idx != nil {
-		fieldsBytes := t.FieldsToBytesNil(fields)
-		key = idx.JoinValue(fieldsBytes, t.id)
-	} else {
-
-		log.Printf("字段 '%s' 没有匹配索引", field)
-		return nil
-	}
-	var op storage.ComparisonOperator
-	if len(ops) == 0 { //默认是Like操作
-		op = storage.Like
-	} else {
-		op = ops[0]
-	}
-	// 获取索引前缀，用于替代无穷范围
-	pklen := t.GetPrimaryKey().Len()
-	pkkey := key[:len(key)-pklen]
-	rangeHelper := storage.NewRangeHelper(pkkey)
+	rangeHelper := storage.NewRangeHelper()
 	var iter storage.Iterator
 	var tbiter *TableIter
 	if op != storage.NotEqual {
@@ -613,6 +561,9 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 	} else { //不等于会全表扫描，并且设置跳跃区间
 		//设置为全表主键扫描迭代器
 		//示例：key=0-1-100
+		pklen := t.GetPrimaryKey().Len()
+		//pkkey=0-1-  将后面的值去掉则得到该索引的前缀，即该索引或主键的全部遍历。
+		pkkey := key[:len(key)-pklen]
 		slice := rangeHelper.FromComparison(storage.Like, pkkey)
 		iter = t.kvStore.Iterator(slice)
 		tbiter = TableIterNew(t, iter, idx)
@@ -622,4 +573,3 @@ func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator
 	}
 	return tbiter
 }
-*/

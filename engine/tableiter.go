@@ -195,6 +195,7 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r *Records) {
 	if !t.top[esc]() {
 		return nil
 	}
+	defer t.iter.Release()
 	var rd Record
 
 	page := PageNew(limit...)
@@ -215,6 +216,9 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r *Records) {
 		if end != nil {
 			// 跳跃到区间的结束位置
 			t.iter.Seek(end)
+			if !t.move[esc]() {
+				break
+			}
 		}
 
 		if t.Match(t.iter.Key(), t.iter.Value(), t.match) {
@@ -249,6 +253,7 @@ func (t *TableIter) ExportRecord(esc bool, export ExportRecord) {
 	if !t.top[esc]() {
 		return
 	}
+	defer t.iter.Release()
 	var rd Record
 	var end []byte
 	// 处理当前位置的元素

@@ -196,24 +196,10 @@ func TestTableSearch(t *testing.T) {
 	t.Run("ForData", func(t *testing.T) {
 		// 使用ForData方法遍历所有数据
 		dataIter := table.ForData()
-		for dataIter.Next() {
-			k, v := dataIter.Key(), dataIter.Value()
-			fmt.Printf("key: %s, value: %s\n", k, v)
-			if k == nil {
-				break
-			}
-		}
-		fmt.Println("-----------------")
-		tbiter := TableIterNew(table, dataIter, table.GetPrimaryKey())
-		records := tbiter.GerRecords(true)
-		for _, item := range records.Select() {
+		rs := dataIter.GerRecords(true)
+		for _, item := range rs.Select() {
 			fmt.Printf("records: %v\n", item)
 		}
-		if tbiter.Last() {
-			fmt.Printf("Last: %v\n", tbiter.Key())
-		}
-		tbiter.Release()
-
 	})
 	fmt.Println("-----------------")
 
@@ -823,7 +809,7 @@ func TestTableIndexChange(t *testing.T) {
 	//检测索引author_views_index的所有键值对
 	t.Log("检测索引author_views_index的所有键值对")
 	idxkey := authorViewsIndex.Prefix(tableWithIndex.id)
-	rangeHelper := storage.NewRangeHelper()
+	rangeHelper := storage.NewRangeHelper(nil)
 	slice := rangeHelper.FromComparison(storage.Like, idxkey)
 	iter := tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {
@@ -831,7 +817,7 @@ func TestTableIndexChange(t *testing.T) {
 		fmt.Println("修改前", "author_views_index: ", string(key))
 	}
 	idxkey = titleIndex.Prefix(tableWithIndex.id)
-	rangeHelper = storage.NewRangeHelper()
+	rangeHelper = storage.NewRangeHelper(nil)
 	slice = rangeHelper.FromComparison(storage.Like, idxkey)
 	iter = tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {
@@ -854,7 +840,7 @@ func TestTableIndexChange(t *testing.T) {
 	fmt.Println("------------------------------------------")
 	// 验证修改成功
 	idxkey = authorViewsIndex.Prefix(tableWithIndex.id)
-	rangeHelper = storage.NewRangeHelper()
+	rangeHelper = storage.NewRangeHelper(nil)
 	slice = rangeHelper.FromComparison(storage.Like, idxkey)
 	iter = tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {
@@ -862,7 +848,7 @@ func TestTableIndexChange(t *testing.T) {
 		fmt.Println("修改后", "author_views_index: ", string(key))
 	}
 	idxkey = titleIndex.Prefix(tableWithIndex.id)
-	rangeHelper = storage.NewRangeHelper()
+	rangeHelper = storage.NewRangeHelper(nil)
 	slice = rangeHelper.FromComparison(storage.Like, idxkey)
 	iter = tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {
@@ -892,7 +878,7 @@ func TestTableIndexChange(t *testing.T) {
 	//检测索引content_fulltext的所有键值对
 	t.Log("检测索引content_fulltext的所有键值对")
 	idxkey = contentFulltextIndex.Prefix(tableWithIndex.id)
-	rangeHelper = storage.NewRangeHelper()
+	rangeHelper = storage.NewRangeHelper(nil)
 	slice = rangeHelper.FromComparison(storage.Like, idxkey)
 	iter = tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {
@@ -910,7 +896,7 @@ func TestTableIndexChange(t *testing.T) {
 	}
 	// 验证修改成功
 	idxkey = contentFulltextIndex.Prefix(tableWithIndex.id)
-	rangeHelper = storage.NewRangeHelper()
+	rangeHelper = storage.NewRangeHelper(nil)
 	slice = rangeHelper.FromComparison(storage.Like, idxkey)
 	iter = tableWithIndex.kvStore.Iterator(slice)
 	for iter.Next() {

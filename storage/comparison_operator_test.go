@@ -50,7 +50,7 @@ func TestComparisonOperatorEnum(t *testing.T) {
 
 // TestComparisonOperatorBasicFunctionality tests basic functionality of comparison operators
 func TestComparisonOperatorBasicFunctionality(t *testing.T) {
-	rangeHelper := NewRangeHelper()
+	rangeHelper := NewRangeHelper(nil)
 	testKey := []byte("test_key_123")
 
 	// Test that FromComparison returns non-nil ranges for all operators

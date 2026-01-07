@@ -50,15 +50,11 @@ func (op ComparisonOperator) String() string {
 // RangeHelper 提供LevelDB Range的辅助函数和常量
 // 注意：在LevelDB中，util.Range的Start是包含的，Limit是不包含的
 // 即区间为 [Start, Limit)
-type RangeHelper struct {
-	pfx []byte
-}
+type RangeHelper struct{}
 
 // NewRangeHelper 创建一个新的RangeHelper实例
-func NewRangeHelper(pfx []byte) *RangeHelper {
-	return &RangeHelper{
-		pfx: pfx,
-	}
+func NewRangeHelper() *RangeHelper {
+	return &RangeHelper{}
 }
 
 // 常用的Range变量
@@ -139,23 +135,6 @@ func (h *RangeHelper) KeyRange(start, end []byte) *util.Range {
 	}
 }
 
-// util.BytesPrefix的函数
-// 功能：返回前缀的下一个字节
-// 例如：BytesPrefix([]byte("user_")) 将返回 []byte("user_")
-func bytesPrefix(prefix []byte) []byte {
-	var limit []byte
-	for i := len(prefix) - 1; i >= 0; i-- {
-		c := prefix[i]
-		if c < 0xff {
-			limit = make([]byte, i+1)
-			copy(limit, prefix)
-			limit[i] = c + 1
-			break
-		}
-	}
-	return limit
-}
-
 // FromComparison 创建基于比较操作符的Range
 // op: 比较操作符
 // value: 比较值
@@ -180,24 +159,24 @@ func (h *RangeHelper) FromComparison(op ComparisonOperator, value []byte) *util.
 		// (value, +∞) → [value+1, +∞)
 		return &util.Range{
 			Start: append(value, 0),
-			Limit: bytesPrefix(h.pfx),
+			Limit: nil,
 		}
 	case GreaterThanOrEqual:
 		// [value, +∞)
 		return &util.Range{
 			Start: value,
-			Limit: bytesPrefix(h.pfx),
+			Limit: nil,
 		}
 	case LessThan:
 		// (-∞, value)
 		return &util.Range{
-			Start: h.pfx,
+			Start: nil,
 			Limit: value,
 		}
 	case LessThanOrEqual:
 		// (-∞, value] → (-∞, value+1)
 		return &util.Range{
-			Start: h.pfx,
+			Start: nil,
 			Limit: append(value, 0),
 		}
 	case Like:
@@ -221,30 +200,29 @@ func (h *RangeHelper) FromComparisonNotEqual(value []byte) [2]*util.Range {
 	return [2]*util.Range{
 		// (-∞, value) - 小于value的范围
 		{
-			Start: h.pfx,
+			Start: nil,
 			Limit: value,
 		},
 		// (value, +∞) - 大于value的范围
 		{
 			Start: append(value, 0),
-			Limit: bytesPrefix(h.pfx),
+			Limit: nil,
 		},
 	}
 }
 
 // FromComparisonNotEqual 处理不等于操作，返回两个util.Range（静态方法）
-func FromComparisonNotEqual(value []byte, pfx []byte) [2]*util.Range {
-	h := NewRangeHelper(pfx)
+func FromComparisonNotEqual(value []byte) [2]*util.Range {
+	h := NewRangeHelper()
 	return h.FromComparisonNotEqual(value)
 }
 
 // FromComparison 创建基于比较操作符的Range（静态方法）
 // op: 比较操作符
 // value: 比较值
-// pfx: 前缀值，用于替代无穷范围
 // 返回对应的util.Range
-func FromComparison(op ComparisonOperator, value []byte, pfx []byte) *util.Range {
-	h := NewRangeHelper(pfx)
+func FromComparison(op ComparisonOperator, value []byte) *util.Range {
+	h := NewRangeHelper()
 	return h.FromComparison(op, value)
 }
 
@@ -293,7 +271,7 @@ func (h *RangeHelper) SingleValue(value []byte) *util.Range {
 func (h *RangeHelper) FromStart(start []byte) *util.Range {
 	return &util.Range{
 		Start: start,
-		Limit: bytesPrefix(h.pfx), // 没有上限，使用前缀替代
+		Limit: nil, // 没有上限
 	}
 }
 
@@ -302,7 +280,7 @@ func (h *RangeHelper) FromStart(start []byte) *util.Range {
 // 返回的Range将匹配所有小于end的key
 func (h *RangeHelper) ToEnd(end []byte) *util.Range {
 	return &util.Range{
-		Start: h.pfx, // 没有下限，使用前缀替代
+		Start: nil, // 没有下限
 		Limit: end,
 	}
 }
