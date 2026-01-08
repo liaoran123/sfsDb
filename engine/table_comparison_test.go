@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"github.com/liaoran123/sfsDb/storage"
+	"github.com/liaoran123/sfsDb/util"
 )
 
 // TestTableSearchComparisonOperators tests all comparison operators with Table.Search
@@ -49,56 +49,56 @@ func TestTableSearchComparisonOperators(t *testing.T) {
 	testCases := []struct {
 		name          string
 		searchData    map[string]any
-		operator      storage.ComparisonOperator
+		operator      util.ComparisonOperator
 		expectedCount int
 		expectedIDs   []int
 	}{
 		{
 			name:          "Equal",
 			searchData:    map[string]any{"id": 3},
-			operator:      storage.Equal,
+			operator:      util.Equal,
 			expectedCount: 1,
 			expectedIDs:   []int{3},
 		},
 		{
 			name:          "NotEqual",
 			searchData:    map[string]any{"id": 3},
-			operator:      storage.NotEqual,
+			operator:      util.NotEqual,
 			expectedCount: 4,
 			expectedIDs:   []int{1, 2, 4, 5},
 		},
 		{
 			name:          "GreaterThan",
 			searchData:    map[string]any{"id": 2},
-			operator:      storage.GreaterThan,
+			operator:      util.GreaterThan,
 			expectedCount: 3,
 			expectedIDs:   []int{3, 4, 5},
 		},
 		{
 			name:          "GreaterThanOrEqual",
 			searchData:    map[string]any{"id": 2},
-			operator:      storage.GreaterThanOrEqual,
+			operator:      util.GreaterThanOrEqual,
 			expectedCount: 4,
 			expectedIDs:   []int{2, 3, 4, 5},
 		},
 		{
 			name:          "LessThan",
 			searchData:    map[string]any{"id": 3},
-			operator:      storage.LessThan,
+			operator:      util.LessThan,
 			expectedCount: 2,
 			expectedIDs:   []int{1, 2},
 		},
 		{
 			name:          "LessThanOrEqual",
 			searchData:    map[string]any{"id": 3},
-			operator:      storage.LessThanOrEqual,
+			operator:      util.LessThanOrEqual,
 			expectedCount: 3,
 			expectedIDs:   []int{1, 2, 3},
 		},
 		{
 			name:          "Like (prefix search)",
 			searchData:    map[string]any{"id": 1},
-			operator:      storage.Like,
+			operator:      util.Like,
 			expectedCount: 5,
 			expectedIDs:   []int{1, 2, 3, 4, 5},
 		},
@@ -193,25 +193,25 @@ func TestTableSearchComparisonOperatorsWithAgeField(t *testing.T) {
 	testCases := []struct {
 		name          string
 		searchData    map[string]any
-		operator      storage.ComparisonOperator
+		operator      util.ComparisonOperator
 		expectedCount int
 	}{
 		{
 			name:          "Age GreaterThan 25",
 			searchData:    map[string]any{"age": 25},
-			operator:      storage.GreaterThan,
+			operator:      util.GreaterThan,
 			expectedCount: 3,
 		},
 		{
 			name:          "Age LessThanOrEqual 30",
 			searchData:    map[string]any{"age": 30},
-			operator:      storage.LessThanOrEqual,
+			operator:      util.LessThanOrEqual,
 			expectedCount: 3,
 		},
 		{
 			name:          "Age Equal 35",
 			searchData:    map[string]any{"age": 35},
-			operator:      storage.Equal,
+			operator:      util.Equal,
 			expectedCount: 1,
 		},
 	}

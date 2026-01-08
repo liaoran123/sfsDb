@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"github.com/liaoran123/sfsDb/storage"
+	"github.com/liaoran123/sfsDb/util"
 )
 
 // TestTableSearchComparisonOperatorsSimple tests comparison operators with Table.Search
@@ -43,37 +43,37 @@ func TestTableSearchComparisonOperatorsSimple(t *testing.T) {
 	testCases := []struct {
 		name          string
 		searchValue   int
-		operator      storage.ComparisonOperator
+		operator      util.ComparisonOperator
 		expectedCount int
 	}{
 		{
 			name:          "Equal to 3",
 			searchValue:   3,
-			operator:      storage.Equal,
+			operator:      util.Equal,
 			expectedCount: 1, // Should find only id=3
 		},
 		{
 			name:          "Greater than 2",
 			searchValue:   2,
-			operator:      storage.GreaterThan,
+			operator:      util.GreaterThan,
 			expectedCount: 3, // Should find ids=3,4,5
 		},
 		{
 			name:          "Greater than or equal to 2",
 			searchValue:   2,
-			operator:      storage.GreaterThanOrEqual,
+			operator:      util.GreaterThanOrEqual,
 			expectedCount: 4, // Should find ids=2,3,4,5
 		},
 		{
 			name:          "Less than 3",
 			searchValue:   3,
-			operator:      storage.LessThan,
+			operator:      util.LessThan,
 			expectedCount: 2, // Should find ids=1,2
 		},
 		{
 			name:          "Less than or equal to 3",
 			searchValue:   3,
-			operator:      storage.LessThanOrEqual,
+			operator:      util.LessThanOrEqual,
 			expectedCount: 3, // Should find ids=1,2,3
 		},
 	}
@@ -83,13 +83,13 @@ func TestTableSearchComparisonOperatorsSimple(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create search data with the test value
 			searchData := map[string]any{"id": tc.searchValue}
-			
+
 			// Search with the specified operator
 			iter := table.Search(&searchData, tc.operator)
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for operator %s", tc.operator)
 			}
-			defer iter.Release()
+			//defer iter.Release()
 
 			// Collect results by iterating through records
 			var count int
@@ -144,7 +144,7 @@ func TestTableSearchDefaultOperator(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Search returned nil iterator for default operator")
 	}
-	defer iter.Release()
+	//defer iter.Release()
 
 	// Collect results
 	var count int

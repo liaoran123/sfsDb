@@ -175,25 +175,25 @@ func IteratorWithJumpRange(store Store, jumpRange JumpRange) error {
 		if r != nil {
 			if r.Start != nil && r.Limit != nil {
 				// 有Start和Limit，使用范围扫描
-				iter = store.Iterator(r)
+				iter = store.Iterator(r.Start, r.Limit)
 			} else if r.Start != nil {
 				// 只有Start，从Start开始到结尾
-				iter = store.Iterator(r)
+				iter = store.Iterator(r.Start, nil)
 				// 使用Seek定位到Start位置
 				iter.Seek(r.Start)
 			} else if r.Limit != nil {
 				// 只有Limit，从开头到Limit
-				iter = store.Iterator(r)
+				iter = store.Iterator(nil, r.Limit)
 				// 从第一个元素开始
 				iter.First()
 			} else {
 				// 没有Start和Limit，全库扫描
-				iter = store.Iterator(r)
+				iter = store.Iterator(nil, nil)
 				iter.First()
 			}
 		} else {
 			// r为nil，全库扫描
-			iter = store.Iterator(r)
+			iter = store.Iterator(nil, nil)
 			iter.First()
 		}
 

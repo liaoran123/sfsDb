@@ -2,7 +2,7 @@ package engine
 
 import (
 	"bytes"
-	"maps"
+	"fmt"
 	"sync"
 
 	"github.com/liaoran123/sfsDb/storage"
@@ -14,7 +14,7 @@ import (
 // 在最底层转换，最大化减少内存占用
 type TableIter struct {
 	iter       storage.Iterator
-	jumpRanges []storage.Iterator
+	jumpRanges []*Range
 	table      *Table
 	match      []Match
 	selects    []string
@@ -55,9 +55,6 @@ type Page struct {
 }
 
 func PageNew(No ...int) Page {
-	// 分页参数：start,count
-	// start：分页开始位置，默认0
-	// count：分页数量，默认-1表示返回所有记录
 	start := 0
 	count := -1
 	switch len(No) {
@@ -73,7 +70,7 @@ func PageNew(No ...int) Page {
 		Count: count,
 	}
 }
-func (t *TableIter) SetJumpRanges(jumpRanges ...storage.Iterator) {
+func (t *TableIter) SetJumpRanges(jumpRanges ...*Range) {
 	t.jumpRanges = jumpRanges
 }
 func (t *TableIter) SetMatch(match ...Match) {
@@ -142,28 +139,14 @@ func (t *TableIter) ParseRecord(k, v []byte) (rd Record) {
 // 跳跃区间：SkipStart = []byte("transaction_20231201"), SkipLimit = []byte("transaction_20231202")
 // 查询除2023年12月1日外的所有交易
 */
-func (t *TableIter) JumpRange(key []byte, jumpRanges []storage.Iterator, esc bool) []byte {
+func (t *TableIter) JumpRange(key []byte, jumpRanges []*Range, esc bool) []byte {
 	if len(jumpRanges) == 0 {
 		return nil
 	}
 	for _, jumpRange := range jumpRanges {
-		if esc {
-			jumpRange.First()
-		} else {
-			jumpRange.Last()
-		}
-		if bytes.Equal(jumpRange.Key(), key) {
-			if esc {
-				// 顺序时，需要判断是否是最后一个元素
-				if jumpRange.Last() {
-					return jumpRange.Key()
-				}
-			} else {
-				// 倒序时，需要判断是否是第一个元素
-				if jumpRange.First() {
-					return jumpRange.Key()
-				}
-			}
+		jumpRange.First(esc)
+		if bytes.Equal(jumpRange.First(esc), key) {
+			return jumpRange.Last(esc)
 		}
 	}
 	return nil
@@ -247,76 +230,15 @@ func (t *TableIter) GerRecords(esc bool, limit ...int) (r *Records) {
 }
 func (t *TableIter) Records(esc bool, limit ...int) (r []Record) {
 	t.ExportRecord(func(rd *Record) bool {
-		if len(*rd) == 0 { //删除记录后，数据为空，但是迭代器依然存在，只是返回空。
-			return true
-		}
 		ird := rd.Select(t.selects...)
 		r = append(r, ird)
 		return true
 	}, esc, limit...)
 	return r
 }
-
-// 判断主键是否存在
-func (t *TableIter) hasPrimaryKey(rd Record) bool {
-	pkfs := t.table.GetPrimaryKey().GetFields()
-	for _, f := range pkfs {
-		if _, ok := rd[f]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-// 删除迭代器中的记录
 func (t *TableIter) Delete(limit ...int) {
-	existpk := false
-	var rdMap map[string]any
-	var err error
 	t.ExportRecord(func(rd *Record) bool {
-		//判断是否存在主键字段
-		if !existpk { //只需要判断一次，因为所有的记录字段是一样。
-			existpk = t.hasPrimaryKey(*rd)
-			if !existpk {
-				return false
-			}
-		}
-		//删除记录
-		rdMap = map[string]any(*rd)
-		err = t.table.Delete(&rdMap)
-		if err != nil {
-			return false
-		}
-		return true
-	}, true, limit...)
-}
-
-// 更新迭代器中的记录
-func (t *TableIter) Update(fields *map[string]any, limit ...int) {
-	existpk := false
-	pkfs := t.table.GetPrimaryKey().GetFields()
-	var err error
-	var pkValues map[string]any
-	t.ExportRecord(func(rd *Record) bool {
-		//判断是否存在主键字段
-		if !existpk { //只需要判断一次，因为所有的记录字段是一样。
-			existpk = t.hasPrimaryKey(*rd)
-			if !existpk {
-				return false
-			}
-		}
-		//从记录中提取主键值
-		pkValues = make(map[string]any, len(pkfs))
-		for _, f := range pkfs {
-			pkValues[f] = (*rd)[f]
-		}
-		//合并pkValues和fields
-		maps.Copy(pkValues, *fields)
-		//更新记录
-		err = t.table.Update(&pkValues)
-		if err != nil {
-			return false
-		}
+		fmt.Printf("rd: %v\n", rd)
 		return true
 	}, true, limit...)
 }
@@ -480,7 +402,24 @@ func (t *TableIter) Count() int {
 }
 func (t *TableIter) Release() {
 	t.iter.Release()
-	for _, jumpRange := range t.jumpRanges {
-		jumpRange.Release()
+}
+
+type Range struct {
+	// Start of the key range, include in the range.
+	Start []byte
+	// Limit of the key range, not include in the range.
+	End []byte
+}
+
+func (r *Range) First(esc bool) []byte {
+	if esc {
+		return r.Start
 	}
+	return r.End
+}
+func (r *Range) Last(esc bool) []byte {
+	if esc {
+		return r.End
+	}
+	return r.Start
 }

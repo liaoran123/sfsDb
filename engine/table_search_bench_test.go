@@ -126,7 +126,7 @@ func BenchmarkTableSearchFullScan(b *testing.B) {
 	table.CreateIndex(pk)
 
 	// 插入测试数据
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		testData := map[string]any{
 			"id":    i + 1,
 			"name":  "User" + string(rune('A'+i%26)),

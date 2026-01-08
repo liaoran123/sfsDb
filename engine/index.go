@@ -206,13 +206,13 @@ func (bi *BaseIndex) MatchFields(fields ...string) bool {
 // 将索引的value转换为主键map值
 // fields []string, value []byte, 顺序必须相同
 func (bi *BaseIndex) Parse(primaryFields []string, value []byte) *map[string][]byte {
-	fieldsBytes := map[string][]byte{}
 	// 解析索引值
 	indexValues := util.Bytes(value).Split()
 	//判断indexValues是否与fields长度相同
 	if len(indexValues) != len(primaryFields) {
 		return nil
 	}
+	fieldsBytes := make(map[string][]byte, len(indexValues))
 	for i, fit := range indexValues {
 		fieldsBytes[primaryFields[i]] = fit
 	}

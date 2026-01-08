@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"github.com/liaoran123/sfsDb/storage"
+	"github.com/liaoran123/sfsDb/util"
 )
 
 // TestTableSearchBasic tests basic search functionality
@@ -49,14 +49,14 @@ func TestTableSearchBasic(t *testing.T) {
 	testCases := []struct {
 		name          string
 		searchData    map[string]any
-		operator      storage.ComparisonOperator
+		operator      util.ComparisonOperator
 		expectedCount int
 	}{
 		// Test 1: Exact match on primary key
 		{
 			name:          "Exact match on id=3",
 			searchData:    map[string]any{"id": 3},
-			operator:      storage.Equal,
+			operator:      util.Equal,
 			expectedCount: 1,
 		},
 
@@ -64,7 +64,7 @@ func TestTableSearchBasic(t *testing.T) {
 		{
 			name:          "Search for non-existent id=999",
 			searchData:    map[string]any{"id": 999},
-			operator:      storage.Equal,
+			operator:      util.Equal,
 			expectedCount: 0,
 		},
 
@@ -72,7 +72,7 @@ func TestTableSearchBasic(t *testing.T) {
 		{
 			name:          "Default operator on id=1",
 			searchData:    map[string]any{"id": 1},
-			operator:      storage.Like,
+			operator:      util.Like,
 			expectedCount: 1, // Should return at least 1 record
 		},
 	}
@@ -156,7 +156,7 @@ func TestTableSearchWithSecondaryIndex(t *testing.T) {
 	// Test search on secondary index
 	t.Run("Search on secondary index (age=30)", func(t *testing.T) {
 		searchData := map[string]any{"age": 30}
-		iter := table.Search(&searchData, storage.Equal)
+		iter := table.Search(&searchData, util.Equal)
 		if iter == nil {
 			t.Fatalf("Search returned nil iterator")
 		}

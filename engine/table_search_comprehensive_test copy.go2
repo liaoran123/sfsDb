@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/liaoran123/sfsDb/util"
+	"github.com/liaoran123/sfsDb/storage"
 )
 
 // TestTableSearchComprehensive tests various search scenarios
@@ -63,14 +63,14 @@ func TestTableSearchComprehensive(t *testing.T) {
 	testCases := []struct {
 		name          string
 		searchData    map[string]any
-		operator      util.ComparisonOperator
+		operator      storage.ComparisonOperator
 		expectedCount int
 	}{
 		// Test 1: Exact match on primary key
 		{
 			name:          "Exact match on id=5",
 			searchData:    map[string]any{"id": 5},
-			operator:      util.Equal,
+			operator:      storage.Equal,
 			expectedCount: 1,
 		},
 
@@ -78,28 +78,28 @@ func TestTableSearchComprehensive(t *testing.T) {
 		{
 			name:          "id > 5",
 			searchData:    map[string]any{"id": 5},
-			operator:      util.GreaterThan,
+			operator:      storage.GreaterThan,
 			expectedCount: 5, // ids 6-10
 		},
 
 		{
 			name:          "id >= 3",
 			searchData:    map[string]any{"id": 3},
-			operator:      util.GreaterThanOrEqual,
+			operator:      storage.GreaterThanOrEqual,
 			expectedCount: 8, // ids 3-10
 		},
 
 		{
 			name:          "id < 4",
 			searchData:    map[string]any{"id": 4},
-			operator:      util.LessThan,
+			operator:      storage.LessThan,
 			expectedCount: 3, // ids 1-3
 		},
 
 		{
 			name:          "id <= 6",
 			searchData:    map[string]any{"id": 6},
-			operator:      util.LessThanOrEqual,
+			operator:      storage.LessThanOrEqual,
 			expectedCount: 6, // ids 1-6
 		},
 
@@ -107,28 +107,28 @@ func TestTableSearchComprehensive(t *testing.T) {
 		{
 			name:          "age > 40",
 			searchData:    map[string]any{"age": 40},
-			operator:      util.GreaterThan,
+			operator:      storage.GreaterThan,
 			expectedCount: 5, // ages 45, 50, 55, 60, 65
 		},
 
 		{
 			name:          "age >= 30",
 			searchData:    map[string]any{"age": 30},
-			operator:      util.GreaterThanOrEqual,
+			operator:      storage.GreaterThanOrEqual,
 			expectedCount: 8, // ages 30-65
 		},
 
 		{
 			name:          "age < 35",
 			searchData:    map[string]any{"age": 35},
-			operator:      util.LessThan,
+			operator:      storage.LessThan,
 			expectedCount: 3, // ages 20, 25, 30
 		},
 
 		{
 			name:          "age <= 45",
 			searchData:    map[string]any{"age": 45},
-			operator:      util.LessThanOrEqual,
+			operator:      storage.LessThanOrEqual,
 			expectedCount: 6, // ages 20-45
 		},
 
@@ -137,14 +137,14 @@ func TestTableSearchComprehensive(t *testing.T) {
 			name: "Like search on id (prefix)",
 			//主键设置为nil，查询所有。如果是组合主键，末尾的字段设置为nil，则同前缀匹配
 			searchData:    map[string]any{"id": nil},
-			operator:      util.Like,
+			operator:      storage.Like,
 			expectedCount: 10, // all ids starting with 1 (1, 10)
 		},
 		{
 			name: "Like search on age (prefix)",
 			//age设置为nil，查询所有。如果是组合索引，末尾的字段设置为nil，则同前缀匹配
 			searchData:    map[string]any{"age": nil},
-			operator:      util.Like,
+			operator:      storage.Like,
 			expectedCount: 10, // all ids starting with 1 (1, 10)
 		},
 
@@ -152,14 +152,14 @@ func TestTableSearchComprehensive(t *testing.T) {
 		{
 			name:          "age != 45",
 			searchData:    map[string]any{"age": 45},
-			operator:      util.NotEqual,
+			operator:      storage.NotEqual,
 			expectedCount: 9, // all except age=45
 		},
 		// Test 6: NotEqual operator
 		{
 			name:          "id != 5",
 			searchData:    map[string]any{"id": 5},
-			operator:      util.NotEqual,
+			operator:      storage.NotEqual,
 			expectedCount: 9, // all except id=5
 		},
 	}
@@ -195,24 +195,21 @@ func TestTableSearchComprehensive(t *testing.T) {
 
 			// Collect results
 			var count int
-			records := iter.Records(true)
-			count = len(records)
-			/*
-				records := iter.GerRecords(true)
-				if records != nil {
-					count = len(records.records)
-				}
-			*/
+			records := iter.GerRecords(true)
+			if records != nil {
+				count = len(records.records)
+			}
+
 			// Verify results
 			if count != tc.expectedCount {
 				t.Errorf("Expected %d results for %s, got %d", tc.expectedCount, tc.name, count)
 				// Print actual results for debugging
 				if records != nil {
-					t.Logf("Actual results: %v", records)
+					t.Logf("Actual results: %v", records.records)
 				}
 			} else {
 				fmt.Printf("---------- %v------------------\n", tc.name)
-				for i, record := range records {
+				for i, record := range records.records {
 					fmt.Printf("%v, %v\n", i, record)
 				}
 			}
@@ -260,14 +257,14 @@ func TestTableSearchEdgeCases(t *testing.T) {
 	testCases := []struct {
 		name          string
 		searchData    map[string]any
-		operator      util.ComparisonOperator
+		operator      storage.ComparisonOperator
 		expectedCount int
 	}{
 		// Test 1: Search for non-existent record
 		{
 			name:          "Search for non-existent id=999",
 			searchData:    map[string]any{"id": 999},
-			operator:      util.Equal,
+			operator:      storage.Equal,
 			expectedCount: 0,
 		},
 
@@ -275,7 +272,7 @@ func TestTableSearchEdgeCases(t *testing.T) {
 		{
 			name:          "Search with id=0",
 			searchData:    map[string]any{"id": 0},
-			operator:      util.LessThan,
+			operator:      storage.LessThan,
 			expectedCount: 0, // no records with id < 0
 		},
 
@@ -283,7 +280,7 @@ func TestTableSearchEdgeCases(t *testing.T) {
 		{
 			name:          "Search with empty search data",
 			searchData:    map[string]any{},
-			operator:      util.Equal,
+			operator:      storage.Equal,
 			expectedCount: 0, // should return nothing
 		},
 	}
@@ -355,7 +352,7 @@ func TestTableSearchMultipleFields(t *testing.T) {
 	// Test search with multiple fields (should use primary key)
 	t.Run("Search with multiple fields (id and age)", func(t *testing.T) {
 		searchData := map[string]any{"id": 3, "age": 30}
-		iter := table.Search(&searchData, util.Equal)
+		iter := table.Search(&searchData, storage.Equal)
 		if iter == nil {
 			t.Fatalf("Search returned nil iterator")
 		}

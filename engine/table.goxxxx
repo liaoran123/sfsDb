@@ -294,7 +294,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 		batch = t.kvStore.GetBatch()
 	}
 	record := t.FormatRecord(fieldsBytes)
-	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
+	BatchContainer := NewBatchContainer(batch, t.indexs, t.id)
 	BatchContainer.SetValue(0, record)                               //添加主键value=record
 	BatchContainer.SetValue(1, t.GetPrimaryKey().GetID(fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
 	//添加全文索引key=joinValue,value=nil
@@ -306,7 +306,6 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 			return 0, err
 		}
 	}
-	fmt.Printf("Insert BatchContainer.Len(): %v\n", BatchContainer.Len())
 	return currentID, nil
 }
 
@@ -391,12 +390,11 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	//反序列化记录，并且将字段值转换为对应的类型
 	//fieldsBytes := t.ParseRecord(record)
 	fieldsBytes := t.GetPrimaryKey().Parse(nil, record)
-	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
+	BatchContainer := NewBatchContainer(batch, t.indexs, t.id)
 	BatchContainer.Operation(fieldsBytes)
 	if len(batchs) == 0 { //用户未手动控制事务，自动提交
 		t.kvStore.WriteBatch(batch)
 	}
-	fmt.Printf("Delete BatchContainer.Len(): %v\n", BatchContainer.Len())
 	return nil
 }
 
@@ -417,10 +415,6 @@ func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	if t.fields == nil {
 		return fmt.Errorf("表 '%s' 未设置字段和类型", t.name)
-	}
-	// 检查字段类型是否匹配
-	if err := t.CheckType(fields); err != nil {
-		return err
 	}
 	var batch storage.Batch
 	//是否用户手动控制事务
@@ -453,7 +447,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	//反序列化记录，并且将字段值转换为对应的类型
 	//fieldsBytes := t.ParseRecord(record)
 	fieldsBytes := t.GetPrimaryKey().Parse(nil, record)
-	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
+	BatchContainer := NewBatchContainer(batch, t.indexs, t.id)
 	//删除
 	BatchContainer.Operation(fieldsBytes, updateFields...)
 
@@ -479,7 +473,6 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 			return err
 		}
 	}
-	fmt.Printf("Update BatchContainer.Len(): %v\n", BatchContainer.Len())
 	return nil
 }
 
@@ -499,17 +492,17 @@ func (t *Table) ReadByBytes(key []byte) []byte {
 // 遍历表所有kv，复制表用
 func (t *Table) For() storage.Iterator {
 	pfx := []byte{byte(t.id), SPLIT[0]}
-	rangeHelper := util.NewRangeHelper(pfx)
-	slice := rangeHelper.FromComparison(util.Like, pfx)
-	return t.kvStore.Iterator(slice.Start, slice.Limit)
+	rangeHelper := storage.NewRangeHelper(pfx)
+	slice := rangeHelper.FromComparison(storage.Like, pfx)
+	return t.kvStore.Iterator(slice)
 }
 
 // 遍历表所有数据
 func (t *Table) ForData() *TableIter {
 	pfx := t.GetPrimaryKey().Prefix(t.id)
-	rangeHelper := util.NewRangeHelper(pfx)
-	slice := rangeHelper.FromComparison(util.Like, []byte(pfx))
-	return TableIterNew(t, t.kvStore.Iterator(slice.Start, slice.Limit), t.GetPrimaryKey())
+	rangeHelper := storage.NewRangeHelper(pfx)
+	slice := rangeHelper.FromComparison(storage.Like, []byte(pfx))
+	return TableIterNew(t, t.kvStore.Iterator(slice), t.GetPrimaryKey())
 }
 
 // 匹配索引
@@ -526,7 +519,7 @@ func (t *Table) FieldsToBytesNil(fields *map[string]any) *map[string][]byte {
 	return &result
 }
 
-func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
+func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator) *TableIter {
 	var field []string
 	for k := range *fields {
 		//判断字段是否在表中
@@ -547,33 +540,86 @@ func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *
 	} else {
 		/*
 			该函数不支持无索引的搜索。
-			如果需要支持，可以使用ForData()方法或当前函数设置主键值为nil，则得到遍历全表迭代器，然后配合mach接口自定义匹配规则。
-			mach接口自定义匹配规则，理论上可以支持任意查询匹配。
+			如果需要支持，可以设置主键值为nil，则得到遍历全表迭代器，然后配合mach接口自定义匹配规则。
 		*/
 		return nil
 	}
-	var op util.ComparisonOperator
+	var op storage.ComparisonOperator
 	if len(ops) == 0 { //默认是Like操作
-		op = util.Like
+		op = storage.Like
 	} else {
 		op = ops[0]
 	}
 	pfx := idx.Prefix(t.id)
 	pfx = append(pfx, SPLIT[0])
-	rangeHelper := util.NewRangeHelper(pfx)
+	rangeHelper := storage.NewRangeHelper(pfx)
 	var iter storage.Iterator
 	var tbiter *TableIter
-	if op != util.NotEqual {
+	if op != storage.NotEqual {
 		slice := rangeHelper.FromComparison(op, key)
-		iter = t.kvStore.Iterator(slice.Start, slice.Limit)
+		iter = t.kvStore.Iterator(slice)
 		tbiter = TableIterNew(t, iter, idx)
 	} else { //不等于将会通过主键或索引进行全表扫描，并且设置跳跃区间
-		slice := rangeHelper.FromComparison(util.Like, pfx) //遍历前缀，即通过主键或索引全表扫描
-		iter = t.kvStore.Iterator(slice.Start, slice.Limit)
+		slice := rangeHelper.FromComparison(storage.Like, pfx) //遍历前缀，即通过主键或索引全表扫描
+		iter = t.kvStore.Iterator(slice)
 		tbiter = TableIterNew(t, iter, idx)
 		//设置跳跃区间
-		neslice := rangeHelper.FromComparison(util.Like, key) //跳跃区间key=0-1-100==>0-1-101
-		tbiter.SetJumpRanges(t.kvStore.Iterator(neslice.Start, neslice.Limit))
+		neslice := rangeHelper.FromComparison(storage.Like, key) //跳跃区间key=0-1-100==>0-1-101
+		tbiter.SetJumpRanges(&Range{
+			Start: neslice.Start,
+			End:   neslice.Limit,
+		})
 	}
 	return tbiter
 }
+
+/*
+func (t *Table) Search(fields *map[string]any, ops ...storage.ComparisonOperator) *TableIter {
+	var field []string
+	for k := range *fields {
+		if _, ok := t.fields[k]; !ok {
+			log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
+			return nil
+		}
+		field = append(field, k) //提取字段
+	}
+	//匹配索引
+	idx := t.MatchIndex(field...)
+	var key []byte
+	if idx != nil {
+		fieldsBytes := t.FieldsToBytesNil(fields)
+		key = idx.JoinValue(fieldsBytes, t.id)
+	} else {
+
+		log.Printf("字段 '%s' 没有匹配索引", field)
+		return nil
+	}
+	var op storage.ComparisonOperator
+	if len(ops) == 0 { //默认是Like操作
+		op = storage.Like
+	} else {
+		op = ops[0]
+	}
+	// 获取索引前缀，用于替代无穷范围
+	pklen := t.GetPrimaryKey().Len()
+	pkkey := key[:len(key)-pklen]
+	rangeHelper := storage.NewRangeHelper(pkkey)
+	var iter storage.Iterator
+	var tbiter *TableIter
+	if op != storage.NotEqual {
+		slice := rangeHelper.FromComparison(op, key)
+		iter = t.kvStore.Iterator(slice)
+		tbiter = TableIterNew(t, iter, idx)
+	} else { //不等于会全表扫描，并且设置跳跃区间
+		//设置为全表主键扫描迭代器
+		//示例：key=0-1-100
+		slice := rangeHelper.FromComparison(storage.Like, pkkey)
+		iter = t.kvStore.Iterator(slice)
+		tbiter = TableIterNew(t, iter, idx)
+		//设置跳跃区间
+		neslice := rangeHelper.FromComparison(storage.Like, key) //跳跃区间key=0-1-100==>0-1-101
+		tbiter.SetJumpRanges(t.kvStore.Iterator(neslice))
+	}
+	return tbiter
+}
+*/

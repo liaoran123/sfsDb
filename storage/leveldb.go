@@ -140,8 +140,13 @@ func (s *LevelDBStore) WriteBatch(batch Batch) error {
 }
 
 // Iterator 创建迭代器
-func (s *LevelDBStore) Iterator(slice *util.Range) Iterator {
+func (s *LevelDBStore) Iterator1(slice *util.Range) Iterator {
 	return s.ldb.NewIterator(slice, nil)
+}
+
+// Iterator 创建迭代器
+func (s *LevelDBStore) Iterator(start, limit []byte) Iterator {
+	return s.ldb.NewIterator(&util.Range{Start: start, Limit: limit}, nil)
 }
 
 /*

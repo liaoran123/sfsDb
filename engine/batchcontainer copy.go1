@@ -8,23 +8,20 @@ import (
 type BatchContainer struct {
 	indexs          *Indexs          // 索引集合
 	values          map[uint8][]byte // 操作值集合
-	kvStore         storage.Store
 	batch           storage.Batch
 	tbid            uint8 //表ID
 	len             int   // 操作数量
 	commitThreshold int   //提交阀值
 }
 
-func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore storage.Store) *BatchContainer {
+func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8) *BatchContainer {
 	if batch == nil {
 		batch = storage.KVDb.GetBatch()
 	}
 	return &BatchContainer{
-		indexs:          indexs,
-		batch:           batch,
-		tbid:            tbid,
-		commitThreshold: 1000,
-		kvStore:         kvStore,
+		indexs: indexs,
+		batch:  batch,
+		tbid:   tbid,
 		//values3个nil值，key分别为0,1,2
 		values: map[uint8][]byte{
 			0: nil, //主键值
@@ -41,11 +38,6 @@ func (c *BatchContainer) Add(key []byte, ValueMapKey uint8) {
 		c.batch.Put(key, c.values[ValueMapKey])
 	}
 	c.len++
-	// 检查是否达到提交阈值
-	if c.commitThreshold > 0 && c.len >= c.commitThreshold {
-		c.Commit()
-		c.len = 0
-	}
 }
 func (c *BatchContainer) SetValue(key uint8, val []byte) error {
 	c.values[key] = val
@@ -92,19 +84,13 @@ func (c *BatchContainer) Len() int {
 	return c.len
 }
 func (c *BatchContainer) Commit() error {
-	err := c.kvStore.WriteBatch(c.batch)
-	if err != nil {
-		return err
-	}
-	//WriteBatch已经put回对象池，这里需要重新获取一个batch
-	c.batch = c.kvStore.GetBatch()
-	return nil
+	return storage.KVDb.WriteBatch(c.batch)
 }
 
 // 设置提交阀值，避免批量操作 too many operations in a single batch
 func (c *BatchContainer) SetCommitThreshold(threshold int) {
-	//对于 LevelDB 批量操作的提交阈值，合理范围通常在 1000-10000 之间
-	if threshold <= 0 || threshold > 10000 {
+	//限制区间
+	if threshold <= 0 {
 		threshold = 1000
 	}
 	c.commitThreshold = threshold

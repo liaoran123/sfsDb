@@ -23,6 +23,7 @@ func (r Record) Select(keys ...string) (rs Record) {
 	return rs
 }
 
+// ----------------------------------
 type Records struct {
 	table   *Table
 	records []Record

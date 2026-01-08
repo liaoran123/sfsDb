@@ -6,7 +6,7 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/liaoran123/sfsDb/storage"
+	"github.com/liaoran123/sfsDb/util"
 )
 
 // 测试索引匹配功能
@@ -101,7 +101,7 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败: %v", err)
 	}
-	defer dataIter.Release()
+	//defer dataIter.Release()
 	records := dataIter.GerRecords(true)
 	for i, item := range records.Select() {
 		fmt.Printf("结果集 %d: %v\n", i, item)
@@ -213,7 +213,7 @@ func TestTableSearch(t *testing.T) {
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
-		defer dataIter.Release()
+		//defer dataIter.Release()
 		records := dataIter.GerRecords(true)
 		fmt.Printf("records: %v\n", records)
 		//判断data[0]和records是否相等
@@ -240,7 +240,7 @@ func TestTableSearch(t *testing.T) {
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
-		defer dataIter.Release()
+		//defer dataIter.Release()
 		records := dataIter.GerRecords(true)
 		for _, item := range records.Select("name", "age", "description") {
 			fmt.Printf("records: %v\n", item)
@@ -261,7 +261,7 @@ func TestTableSearch(t *testing.T) {
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
-		defer dataIter.Release()
+		//defer dataIter.Release()
 		records := dataIter.GerRecords(true)
 		for _, item := range records.Select("name", "age", "description") {
 			fmt.Printf("records: %v\n", item)
@@ -285,7 +285,7 @@ func TestTableSearch(t *testing.T) {
 			if dataIter.iter == nil {
 				t.Fatalf("Search 失败")
 			}
-			defer dataIter.Release()
+			//defer dataIter.Release()
 
 			records := dataIter.GerRecords(true)
 			for _, item := range records.Select("name", "age", "description") {
@@ -322,7 +322,7 @@ func TestTableSearch(t *testing.T) {
 			if dataIter.iter == nil {
 				t.Fatalf("Search 失败")
 			}
-			defer dataIter.Release()
+			//defer dataIter.Release()
 
 			records := dataIter.GerRecords(true)
 			for _, item := range records.Select("name", "age", "description") {
@@ -345,7 +345,7 @@ func TestTableSearch(t *testing.T) {
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
-		defer dataIter.Release()
+		//defer dataIter.Release()
 		records := dataIter.GerRecords(true)
 		//判断data[1]和records是否相等
 		if records != nil {
@@ -363,7 +363,7 @@ func TestTableSearch(t *testing.T) {
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
-		defer dataIter.Release()
+		//defer dataIter.Release()
 		records := dataIter.GerRecords(true)
 		for i, item := range records.Select() {
 			fmt.Printf("item %d: %v\n", i, item)
@@ -809,17 +809,17 @@ func TestTableIndexChange(t *testing.T) {
 	//检测索引author_views_index的所有键值对
 	t.Log("检测索引author_views_index的所有键值对")
 	idxkey := authorViewsIndex.Prefix(tableWithIndex.id)
-	rangeHelper := storage.NewRangeHelper(nil)
-	slice := rangeHelper.FromComparison(storage.Like, idxkey)
-	iter := tableWithIndex.kvStore.Iterator(slice)
+	rangeHelper := util.NewRangeHelper(nil)
+	slice := rangeHelper.FromComparison(util.Like, idxkey)
+	iter := tableWithIndex.kvStore.Iterator(slice.Start, slice.Limit)
 	for iter.Next() {
 		key := iter.Key()
 		fmt.Println("修改前", "author_views_index: ", string(key))
 	}
 	idxkey = titleIndex.Prefix(tableWithIndex.id)
-	rangeHelper = storage.NewRangeHelper(nil)
-	slice = rangeHelper.FromComparison(storage.Like, idxkey)
-	iter = tableWithIndex.kvStore.Iterator(slice)
+	rangeHelper = util.NewRangeHelper(nil)
+	slice = rangeHelper.FromComparison(util.Like, idxkey)
+	iter = tableWithIndex.kvStore.Iterator(slice.Start, slice.Limit)
 	for iter.Next() {
 		key := iter.Key()
 		fmt.Println("修改前", "title_index: ", string(key))
@@ -840,17 +840,17 @@ func TestTableIndexChange(t *testing.T) {
 	fmt.Println("------------------------------------------")
 	// 验证修改成功
 	idxkey = authorViewsIndex.Prefix(tableWithIndex.id)
-	rangeHelper = storage.NewRangeHelper(nil)
-	slice = rangeHelper.FromComparison(storage.Like, idxkey)
-	iter = tableWithIndex.kvStore.Iterator(slice)
+	rangeHelper = util.NewRangeHelper(nil)
+	slice = rangeHelper.FromComparison(util.Like, idxkey)
+	iter = tableWithIndex.kvStore.Iterator(slice.Start, slice.Limit)
 	for iter.Next() {
 		key := iter.Key()
 		fmt.Println("修改后", "author_views_index: ", string(key))
 	}
 	idxkey = titleIndex.Prefix(tableWithIndex.id)
-	rangeHelper = storage.NewRangeHelper(nil)
-	slice = rangeHelper.FromComparison(storage.Like, idxkey)
-	iter = tableWithIndex.kvStore.Iterator(slice)
+	rangeHelper = util.NewRangeHelper(nil)
+	slice = rangeHelper.FromComparison(util.Like, idxkey)
+	iter = tableWithIndex.kvStore.Iterator(slice.Start, slice.Limit)
 	for iter.Next() {
 		key := iter.Key()
 		fmt.Println("修改后", "title_index: ", string(key))
@@ -878,9 +878,9 @@ func TestTableIndexChange(t *testing.T) {
 	//检测索引content_fulltext的所有键值对
 	t.Log("检测索引content_fulltext的所有键值对")
 	idxkey = contentFulltextIndex.Prefix(tableWithIndex.id)
-	rangeHelper = storage.NewRangeHelper(nil)
-	slice = rangeHelper.FromComparison(storage.Like, idxkey)
-	iter = tableWithIndex.kvStore.Iterator(slice)
+	rangeHelper = util.NewRangeHelper(nil)
+	slice = rangeHelper.FromComparison(util.Like, idxkey)
+	iter = tableWithIndex.kvStore.Iterator(slice.Start, slice.Limit)
 	for iter.Next() {
 		key := iter.Key()
 		fmt.Println("content_fulltext: ", string(key))
@@ -896,9 +896,9 @@ func TestTableIndexChange(t *testing.T) {
 	}
 	// 验证修改成功
 	idxkey = contentFulltextIndex.Prefix(tableWithIndex.id)
-	rangeHelper = storage.NewRangeHelper(nil)
-	slice = rangeHelper.FromComparison(storage.Like, idxkey)
-	iter = tableWithIndex.kvStore.Iterator(slice)
+	rangeHelper = util.NewRangeHelper(nil)
+	slice = rangeHelper.FromComparison(util.Like, idxkey)
+	iter = tableWithIndex.kvStore.Iterator(slice.Start, slice.Limit)
 	for iter.Next() {
 		key := iter.Key()
 		fmt.Println("content_fulltext: ", string(key))
