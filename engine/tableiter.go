@@ -9,9 +9,6 @@ import (
 	"github.com/liaoran123/sfsDb/util"
 )
 
-// 实现sql语句中的select f0,f1,... from table 要返回的字段
-// 如果keys为空，则返回所有字段
-// 在最底层转换，最大化减少内存占用
 type TableIter struct {
 	iter       storage.Iterator
 	jumpRanges []storage.Iterator
@@ -189,65 +186,7 @@ func (t *TableIter) Match(k, v []byte, match []Match) bool {
 	return true
 }
 
-/*
 // 遍历迭代器返回解析后的记录
-// 复杂组合查询函数，根据Match条件匹配记录
-// jumpRanges 跳跃区间，用于跳过某些数据
-
-	func (t *TableIter) GerRecords(esc bool, limit ...int) (r *Records) {
-		//添加锁，防止并发访问
-		t.mu.Lock()
-		defer t.mu.Unlock()
-		if !t.top[esc]() {
-			return nil
-		}
-		defer t.iter.Release()
-		var rd Record
-
-		page := PageNew(limit...)
-		if page.Count > 0 {
-			r = &Records{
-				table:   t.table,
-				records: make([]Record, 0, page.Count),
-			}
-		} else {
-			r = NewRecords(t.table)
-		}
-		loop := 0
-		var end []byte
-		// 处理当前位置的元素
-		for {
-			// 跳跃区间为空，直接返回nil
-			end = t.JumpRange(t.iter.Key(), t.jumpRanges, esc)
-			if end != nil {
-				// 跳跃到区间的结束位置
-				t.iter.Seek(end)
-				if !t.move[esc]() {
-					break
-				}
-			}
-
-			if t.Match(t.iter.Key(), t.iter.Value(), t.match) {
-				if loop < page.Start {
-					loop++
-					continue
-				}
-				rd = t.ParseRecord(t.iter.Key(), t.iter.Value())
-				rd = rd.Select(t.selects...)
-				r.Append(rd)
-				loop++
-				if page.Count > 0 && len(r.records) >= page.Count {
-					break
-				}
-			}
-			// 移动到下一个/前一个元素
-			if !t.move[esc]() {
-				break
-			}
-		}
-		return r
-	}
-*/
 func (t *TableIter) GetRecords(esc bool, limit ...int) (r Records) {
 	t.ExportRecord(func(rd *Record) bool {
 		if len(*rd) == 0 { //删除记录后，数据为空，但是迭代器依然存在，只是返回空。
