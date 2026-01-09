@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"maps"
 	"reflect"
 )
 
@@ -24,175 +23,105 @@ func (r Record) Select(keys ...string) (rs Record) {
 }
 
 // ----------------------------------
-type Records struct {
-	table   *Table
-	records []Record
-}
 
-func NewRecords(table *Table) *Records {
-	return &Records{
-		table:   table,
-		records: make([]Record, 0),
+type Records []Record
+
+// 选择显示的key字段，如sql语句中的select f0,f1,... from table
+// 如果keys为空，则返回所有字段
+func (rs Records) Select(fields ...string) (rs2 Records) {
+	if len(fields) == 0 {
+		return rs
 	}
+	rs2 = make([]Record, len(rs))
+	for i, r := range rs {
+		rs2[i] = r.Select(fields...)
+	}
+	return rs2
 }
 
-func (r *Records) Len() int {
-	return len(r.records)
+// 添加交集，并集，差集等等
+func (rs Records) Intersect(other ...Records) (rs2 Records) {
+	if len(rs) == 0 || len(other) == 0 {
+		return nil
+	}
+	rs2 = make([]Record, 0, len(rs))
+	for _, r := range rs {
+		found := false
+		for _, o := range other {
+			if o.Contains(r) {
+				found = true
+				break
+			}
+		}
+		if found {
+			rs2 = append(rs2, r)
+		}
+	}
+	return rs2
 }
 
-func (r *Records) Get(index int) Record {
-	return r.records[index]
-}
-func (r *Records) GetAll() []Record {
-	return r.records
-}
-
-// 检查记录是否存在
-func (r *Records) Contains(rd Record) bool {
-	for _, r := range r.records {
-		if reflect.DeepEqual(r, rd) {
+// 判断是否包含指定记录
+func (rs Records) Contains(r Record) bool {
+	for _, record := range rs {
+		if reflect.DeepEqual(record, r) {
 			return true
 		}
 	}
 	return false
 }
-
-/*
-不提供该函数，避免被注入风险
-
-	func (r *Records) Set(index int, rd Record) {
-		r.records[index] = rd
-	}
-*/
-func (r *Records) Append(rd Record) error {
-	r.records = append(r.records, rd)
-	return nil
-}
-
-// 选择显示的key字段，如sql语句中的select f0,f1,... from table
-// 如果keys为空，则返回所有字段
-func (r *Records) Select(fields ...string) (rs []Record) {
-	if len(fields) == 0 {
-		return r.records
-	}
-	rs = make([]Record, len(r.records))
-	for i, r := range r.records {
-		rs[i] = r.Select(fields...)
-	}
-	return rs
-}
-
-// 判断主键是否存在
-func (r *Records) hasPrimaryKey(rd Record) bool {
-	pkfs := r.table.GetPrimaryKey().GetFields()
-	for _, f := range pkfs {
-		if _, ok := rd[f]; !ok {
-			return false
+func (rs Records) Union(other ...Records) (rs2 Records) {
+	if len(rs) == 0 {
+		if len(other) == 0 {
+			return nil
 		}
-	}
-	return true
-}
-
-// 删除记录
-func (r *Records) Delete() error {
-	var rdMap map[string]any
-	var err error
-	for _, rd := range r.records {
-		//判断主键是否存在，因为通过select语句返回的记录是没有主键的
-		if !r.hasPrimaryKey(rd) {
-			continue
-		}
-		//删除记录
-		rdMap = map[string]any(rd)
-		err = r.table.Delete(&rdMap)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// 更新记录
-// fields *map[string]any传入的仅仅是修改的字段和值，并没有带主键，主键值从记录中提取
-func (r *Records) Update(fields *map[string]any) error {
-	if len(r.records) == 0 {
-		return ErrNoUpdateFields
-	}
-	pkfs := r.table.GetPrimaryKey().GetFields()
-	//判断主键是否存在，因为通过select语句返回的记录是没有主键的
-	//同一个表，只需判断第一条记录是否有主键即可
-	if !r.hasPrimaryKey(r.records[0]) {
-		return ErrNoPrimaryKey
-	}
-	var pkValues map[string]any
-	var err error
-	for _, rd := range r.records {
-		//从记录中提取主键值
-		pkValues = make(map[string]any, len(pkfs))
-		for _, f := range pkfs {
-			pkValues[f] = rd[f]
-		}
-		//合并pkValues和fields
-		maps.Copy(pkValues, *fields)
-		//更新记录
-		err = r.table.Update(&pkValues)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// 交集
-func (r *Records) Intersect(other ...*Records) *Records {
-	rs := NewRecords(r.table)
-	for _, rd := range r.records {
-		found := true
+		// 当 rs 为空时，返回所有 other 记录的并集
+		rs2 = make([]Record, 0)
 		for _, o := range other {
-			if !o.Contains(rd) {
-				found = false
-				break
+			for _, r := range o {
+				if !rs2.Contains(r) {
+					rs2 = append(rs2, r)
+				}
 			}
 		}
-		if found {
-			rs.Append(rd)
-		}
+		return rs2
 	}
-	return rs
-}
-
-// 并集
-func (r *Records) Union(other ...*Records) *Records {
-	rs := NewRecords(r.table)
-	for _, rd := range r.records {
-		if !rs.Contains(rd) {
-			rs.Append(rd)
-		}
+	if len(other) == 0 {
+		return rs
 	}
+	rs2 = make([]Record, 0, len(rs))
+	// 添加 rs 中的所有记录
+	for _, r := range rs {
+		rs2 = append(rs2, r)
+	}
+	// 添加 other 中不存在于 rs 的记录
 	for _, o := range other {
-		for _, rd := range o.records {
-			if !rs.Contains(rd) {
-				rs.Append(rd)
+		for _, r := range o {
+			if !rs2.Contains(r) {
+				rs2 = append(rs2, r)
 			}
 		}
 	}
-	return rs
+	return rs2
 }
-
-// 差集
-func (r *Records) Difference(other ...*Records) *Records {
-	rs := NewRecords(r.table)
-	for _, rd := range r.records {
+func (rs Records) Difference(other ...Records) (rs2 Records) {
+	if len(rs) == 0 {
+		return nil
+	}
+	if len(other) == 0 {
+		return rs
+	}
+	rs2 = make([]Record, 0, len(rs))
+	for _, r := range rs {
 		found := false
 		for _, o := range other {
-			if o.Contains(rd) {
+			if o.Contains(r) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			rs.Append(rd)
+			rs2 = append(rs2, r)
 		}
 	}
-	return rs
+	return rs2
 }

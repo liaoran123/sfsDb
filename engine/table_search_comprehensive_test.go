@@ -188,6 +188,7 @@ func TestTableSearchComprehensive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Search with the specified operator
 			iter := table.Search(&tc.searchData, tc.operator)
+			defer iter.Release()
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for case: %s", tc.name)
 			}
@@ -195,7 +196,7 @@ func TestTableSearchComprehensive(t *testing.T) {
 
 			// Collect results
 			var count int
-			records := iter.Records(true)
+			records := iter.GetRecords(true)
 			count = len(records)
 			/*
 				records := iter.GerRecords(true)
@@ -293,6 +294,7 @@ func TestTableSearchEdgeCases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Search with the specified operator
 			iter := table.Search(&tc.searchData, tc.operator)
+			defer iter.Release()
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for case: %s", tc.name)
 			}
@@ -300,9 +302,9 @@ func TestTableSearchEdgeCases(t *testing.T) {
 
 			// Collect results
 			var count int
-			records := iter.GerRecords(true)
+			records := iter.GetRecords(true)
 			if records != nil {
-				count = len(records.records)
+				count = len(records)
 			}
 
 			// Verify results
@@ -356,6 +358,7 @@ func TestTableSearchMultipleFields(t *testing.T) {
 	t.Run("Search with multiple fields (id and age)", func(t *testing.T) {
 		searchData := map[string]any{"id": 3, "age": 30}
 		iter := table.Search(&searchData, util.Equal)
+		defer iter.Release()
 		if iter == nil {
 			t.Fatalf("Search returned nil iterator")
 		}
@@ -363,9 +366,9 @@ func TestTableSearchMultipleFields(t *testing.T) {
 
 		// Collect results
 		var count int
-		records := iter.GerRecords(true)
+		records := iter.GetRecords(true)
 		if records != nil {
-			count = len(records.records)
+			count = len(records)
 		}
 
 		// Should find the exact match

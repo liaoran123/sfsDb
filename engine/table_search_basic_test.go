@@ -89,9 +89,9 @@ func TestTableSearchBasic(t *testing.T) {
 
 			// Collect results
 			var count int
-			records := iter.GerRecords(true)
+			records := iter.GetRecords(true)
 			if records != nil {
-				count = len(records.records)
+				count = len(records.Select())
 			}
 
 			// Verify results
@@ -99,7 +99,7 @@ func TestTableSearchBasic(t *testing.T) {
 				t.Errorf("Expected %d results for %s, got %d", tc.expectedCount, tc.name, count)
 				// Print actual results for debugging
 				if records != nil {
-					t.Logf("Actual results: %v", records.records)
+					t.Logf("Actual results: %v", records.Select())
 				}
 			}
 		})
@@ -164,9 +164,9 @@ func TestTableSearchWithSecondaryIndex(t *testing.T) {
 
 		// Collect results
 		var count int
-		records := iter.GerRecords(true)
+		records := iter.GetRecords(true)
 		if records != nil {
-			count = len(records.records)
+			count = len(records.Select())
 		}
 
 		// Should find the exact match

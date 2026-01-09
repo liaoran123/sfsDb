@@ -45,6 +45,12 @@ type Table struct {
 // 表名不能包含分隔符SPLIT("-")，否则返回nil
 // 每次项目启动都会重新创建，或通过json转换为Table结构体
 func TableNew(name string) (*Table, error) {
+	if storage.KVDb == nil {
+		_, err := storage.OpenDefaultDb("./kvdb")
+		if err != nil {
+			return nil, err
+		}
+	}
 	tb := &Table{
 		name:    name,
 		fields:  make(map[string]any),
@@ -306,7 +312,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 			return 0, err
 		}
 	}
-	fmt.Printf("Insert BatchContainer.Len(): %v\n", BatchContainer.Len())
+	//fmt.Printf("Insert BatchContainer.Len(): %v\n", BatchContainer.Len())
 	return currentID, nil
 }
 
@@ -396,7 +402,7 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	if len(batchs) == 0 { //用户未手动控制事务，自动提交
 		t.kvStore.WriteBatch(batch)
 	}
-	fmt.Printf("Delete BatchContainer.Len(): %v\n", BatchContainer.Len())
+	//fmt.Printf("Delete BatchContainer.Len(): %v\n", BatchContainer.Len())
 	return nil
 }
 
@@ -479,7 +485,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 			return err
 		}
 	}
-	fmt.Printf("Update BatchContainer.Len(): %v\n", BatchContainer.Len())
+	//fmt.Printf("Update BatchContainer.Len(): %v\n", BatchContainer.Len())
 	return nil
 }
 

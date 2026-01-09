@@ -116,9 +116,9 @@ func TestTableSearchComparisonOperators(t *testing.T) {
 
 			// Collect results
 			var results []int
-			records := iter.GerRecords(true)
+			records := iter.GetRecords(true)
 			if records != nil {
-				for _, record := range records.records {
+				for _, record := range records.Select() {
 					if id, ok := record["id"].(int); ok {
 						results = append(results, id)
 					}
@@ -228,9 +228,9 @@ func TestTableSearchComparisonOperatorsWithAgeField(t *testing.T) {
 
 			// Collect results
 			var results []int
-			records := iter.GerRecords(true)
+			records := iter.GetRecords(true)
 			if records != nil {
-				for _, record := range records.records {
+				for _, record := range records.Select() {
 					if id, ok := record["id"].(int); ok {
 						results = append(results, id)
 					}

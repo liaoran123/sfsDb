@@ -52,10 +52,10 @@ func TestTableKeyGenerationDebug(t *testing.T) {
 	fmt.Println("Debug: Scanning all keys in the table...")
 	iter := table.Search(&map[string]any{"id": 1}) // Use Like to get all
 	if iter != nil {
-		records := iter.GerRecords(true)
+		records := iter.GetRecords(true)
 		if records != nil {
-			fmt.Printf("Found %d records\n", len(records.records))
-			for i, record := range records.records {
+			fmt.Printf("Found %d records\n", len(records.Select()))
+			for i, record := range records.Select() {
 				fmt.Printf("Record %d: %v\n", i, record)
 			}
 		}

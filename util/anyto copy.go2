@@ -149,11 +149,7 @@ func AnyToBytes(v any) []byte {
 	case complex128:
 		return []byte(strconv.FormatComplex(val, 'f', 6, 128))
 	case bool:
-		if val {
-			return []byte{1}
-		}
-		return []byte{0}
-		//return []byte(strconv.FormatBool(val)) //return []byte(strconv.FormatBool(val))
+		return []byte(strconv.FormatBool(val))
 	case string:
 		return []byte(val)
 	case time.Time:

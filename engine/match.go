@@ -24,10 +24,14 @@ type AND struct {
 	rule bool
 }
 
-func ANDNew(data map[any]bool, rule bool) *AND {
+func NewAND(fields []string, data map[any]bool, rule ...bool) *AND {
+	if len(rule) == 0 {
+		rule = append(rule, true)
+	}
 	return &AND{
-		data: data,
-		rule: rule,
+		fields: fields,
+		data:   data,
+		rule:   rule[0],
 	}
 }
 

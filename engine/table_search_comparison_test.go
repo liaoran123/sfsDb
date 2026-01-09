@@ -86,6 +86,8 @@ func TestTableSearchComparisonOperatorsSimple(t *testing.T) {
 
 			// Search with the specified operator
 			iter := table.Search(&searchData, tc.operator)
+			defer iter.Release()
+
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for operator %s", tc.operator)
 			}
@@ -93,9 +95,9 @@ func TestTableSearchComparisonOperatorsSimple(t *testing.T) {
 
 			// Collect results by iterating through records
 			var count int
-			records := iter.GerRecords(true)
+			records := iter.GetRecords(true)
 			if records != nil {
-				count = len(records.records)
+				count = len(records.Select())
 			}
 
 			// Verify results
@@ -141,6 +143,7 @@ func TestTableSearchDefaultOperator(t *testing.T) {
 	// Test default operator (should be Like)
 	searchData := map[string]any{"id": 1}
 	iter := table.Search(&searchData) // No operator specified - should use default Like
+	defer iter.Release()
 	if iter == nil {
 		t.Fatalf("Search returned nil iterator for default operator")
 	}
@@ -148,9 +151,9 @@ func TestTableSearchDefaultOperator(t *testing.T) {
 
 	// Collect results
 	var count int
-	records := iter.GerRecords(true)
+	records := iter.GetRecords(true)
 	if records != nil {
-		count = len(records.records)
+		count = len(records)
 	}
 
 	// With Like operator, we should find all records since we're searching for id=1 as a prefix

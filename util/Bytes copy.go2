@@ -157,17 +157,16 @@ func (b Bytes) Time() time.Time {
 // 根据i的类型转换为对应的类型
 // 只有字符串和整型可以进行排序，故除整型外，其他类型都返回i.(string)
 func (b Bytes) ToAny(i any) any {
+	sv := b.String()
 	switch v := i.(type) {
 	case int:
 		return b.Int()
 	case bool:
-		return b.Bool()
-		/*
-			if b.String() == "true" {
-				return true
-			}
-			return false
-		*/
+		sv = b.String()
+		if sv == "true" {
+			return true
+		}
+		return false
 	case int8:
 		return b.Int8()
 	case uint8:
@@ -190,27 +189,27 @@ func (b Bytes) ToAny(i any) any {
 		return b.Time()
 	/*
 		case time.Time:
-				tm, _ := time.Parse(time.DateTime, b.String())
+				tm, _ := time.Parse(time.DateTime, sv)
 				return time.Date(tm.Year(), tm.Month(), tm.Day(), tm.Hour(), tm.Minute(), tm.Second(), tm.Nanosecond(), time.Local)
 
 	*/
 	case float32:
-		f, _ := strconv.ParseFloat(b.String(), 32)
+		f, _ := strconv.ParseFloat(sv, 32)
 		return float32(f)
 	case float64:
-		f, _ := strconv.ParseFloat(b.String(), 64)
+		f, _ := strconv.ParseFloat(sv, 64)
 		return f
 	case complex64:
 		c, _ := strconv.ParseComplex(strconv.FormatComplex(complex128(v), 'f', -1, 64), 64)
 		return complex64(c)
 	case complex128:
-		c, _ := strconv.ParseComplex(b.String(), 128)
+		c, _ := strconv.ParseComplex(sv, 128)
 		return c
 	default: //默认使用json解析
 		var v2 any
 		err := json.Unmarshal(b, &v2)
 		if err != nil {
-			return b.String()
+			return sv
 		}
 		return v2
 	}

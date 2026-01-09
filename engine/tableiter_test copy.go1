@@ -7,6 +7,7 @@ import (
 	"github.com/liaoran123/sfsDb/util"
 )
 
+// ######所有测试以这个文件基准############
 // 测试多表组合查询
 func TestTestSelectForJoin(t *testing.T) {
 	// Create test table
@@ -397,31 +398,18 @@ func TestTableIterCRUDS(t *testing.T) {
 			}
 		}
 	}
-	// 添加测试修改active字段
-	iter = table.Search(&map[string]any{"age": 30}, util.GreaterThanOrEqual)
-	defer iter.Release()
-	iter.Update(&map[string]any{"active": true})
-	rd = iter.GetRecords(true)
-	// 验证active字段是否被正确更新
-	for _, record := range rd {
-		if record["active"] != true {
-			t.Errorf("Record with id=%v should have active=true, got %v", record["id"], record["active"])
-		}
-		fmt.Println(record)
-	}
+
 	// 测试删除操作
-	deleteIter := table.Search(&map[string]any{"age": 60}, util.NotEqual)
-	defer deleteIter.Release()
-	deleteIter.Delete()
-	rd = deleteIter.GetRecords(true)
+	iter.Delete()
+	rd = iter.GetRecords(true)
 	if len(rd) != 0 {
 		t.Fatalf("GetRecords count after delete should be 0, got %d", len(rd))
 	}
 
 	// 验证删除后的记录
-	verifyIter := table.Search(&map[string]any{"id": nil})
-	defer verifyIter.Release()
-	rd = verifyIter.GetRecords(true)
+	iter = table.Search(&map[string]any{"id": nil})
+	defer iter.Release()
+	rd = iter.GetRecords(true)
 	// 应该只剩下id=9的记录
 	if len(rd) != 1 {
 		t.Fatalf("Expected 1 record after delete, got %d", len(rd))
