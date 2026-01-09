@@ -27,7 +27,7 @@ sfsDb 是一个轻量级嵌入式数据库，专注于提供高性能、灵活�
 
 ```bash
 # 通过 Go 模块安装
-go get github.com/liaoran123/sfsdb
+go get github.com/liaoran123/sfsDb
 ```
 
 ### 基本使用
