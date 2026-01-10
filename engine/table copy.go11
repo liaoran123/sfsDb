@@ -57,9 +57,29 @@ func TableNew(name string) (*Table, error) {
 		kvStore: storage.KVDb,
 	}
 	tb.indexs = NewIndexs(&tb.fields)
-	tb.id = tb.getSysNameId(name, true) //tb.getSysId("sys-tbid")
-	//tb.setSysId("sys-tb-id", tb.id+1)
+	tb.id = tb.getSysId("sys-tbid")
+	tb.setSysId("sys-tbid", tb.id+1)
 	return tb, nil
+}
+
+func (t *Table) CreateIndex(index Index) error {
+	idxid := t.getSysId("sys-idxid")
+	err := t.indexs.createIndex(index, idxid)
+	if err != nil {
+		return err
+	}
+	t.setSysId("sys-idxid", idxid+1)
+	return nil
+}
+func (t *Table) GetPrimaryKey() PrimaryKey {
+	pk := t.indexs.getPrimaryKey()
+	if pk == nil {
+		//没有主键，需要创建一个默认主键
+		pk, _ = DefaultPrimaryKeyNew("id")
+		pk.AddFields("id")
+		t.CreateIndex(pk)
+	}
+	return pk
 }
 
 // 专为表和索引自动增值id设置
@@ -74,48 +94,6 @@ func (t *Table) getSysId(key string) uint8 {
 }
 func (t *Table) setSysId(key string, id uint8) {
 	t.kvStore.Put([]byte(key), []byte{id})
-}
-func (t *Table) getSysNameId(name string, istb bool) (r uint8) {
-	pfx := "tb"
-	if !istb {
-		pfx = "idx"
-	}
-	name = fmt.Sprintf("%s-%s", pfx, name)
-
-	key := fmt.Sprintf("sys-%s-id", name)
-
-	id, err := t.kvStore.Get([]byte(key))
-	if err == nil {
-		r = uint8(id[0])
-	} else {
-		key = fmt.Sprintf("sys-%s-id", pfx)
-		r = t.getSysId(key)
-		t.setSysId(key, r+1)
-		// 存储生成的ID，确保下次创建同名表或索引时使用相同的ID
-		nameKey := fmt.Sprintf("sys-%s-id", name)
-		t.setSysId(nameKey, r)
-	}
-	return r
-}
-
-func (t *Table) CreateIndex(index Index) error {
-	idxid := t.getSysNameId(index.Name(), false)
-	err := t.indexs.createIndex(index, idxid)
-	if err != nil {
-		return err
-	}
-	//t.setSysId("sys-idx-id", idxid+1)
-	return nil
-}
-func (t *Table) GetPrimaryKey() PrimaryKey {
-	pk := t.indexs.getPrimaryKey()
-	if pk == nil {
-		//没有主键，需要创建一个默认主键
-		pk, _ = DefaultPrimaryKeyNew("id")
-		pk.AddFields("id")
-		t.CreateIndex(pk)
-	}
-	return pk
 }
 
 // 设置表id

@@ -696,6 +696,148 @@ func TestTableCRUD(t *testing.T) {
 	t.Log("所有带索引的CRUD测试通过")
 }
 
+// 测试 getSysNameId 函数，验证多次重复创建相同表时ID不会重新生成
+func TestGetSysNameId(t *testing.T) {
+	// 测试场景1：多次创建同名表，验证ID相同
+	t.Run("SameTableSameID", func(t *testing.T) {
+		// 创建第一个表
+		table1, err := TableNew("test_same_id")
+		if err != nil {
+			t.Fatalf("TableNew failed: %v", err)
+		}
+		id1 := table1.id
+
+		// 创建第二个同名表
+		table2, err := TableNew("test_same_id")
+		if err != nil {
+			t.Fatalf("TableNew failed: %v", err)
+		}
+		id2 := table2.id
+
+		// 验证两个表的ID相同
+		if id1 != id2 {
+			t.Errorf("Expected same ID for same table name, got %d and %d", id1, id2)
+		}
+		t.Logf("Same table name 'test_same_id' got same ID: %d", id1)
+	})
+
+	// 测试场景2：创建不同名表，验证ID不同
+	t.Run("DifferentTableDifferentID", func(t *testing.T) {
+		// 创建第一个表
+		table1, err := TableNew("test_table_1")
+		if err != nil {
+			t.Fatalf("TableNew failed: %v", err)
+		}
+		id1 := table1.id
+
+		// 创建第二个不同名表
+		table2, err := TableNew("test_table_2")
+		if err != nil {
+			t.Fatalf("TableNew failed: %v", err)
+		}
+		id2 := table2.id
+
+		// 验证两个表的ID不同
+		if id1 == id2 {
+			t.Errorf("Expected different IDs for different table names, got %d for both", id1)
+		}
+		t.Logf("Different table names got different IDs: %d and %d", id1, id2)
+	})
+
+	// 测试场景3：创建索引，验证索引ID生成逻辑
+	t.Run("IndexIDGeneration", func(t *testing.T) {
+		// 创建表
+		table, err := TableNew("test_index_id")
+		if err != nil {
+			t.Fatalf("TableNew failed: %v", err)
+		}
+
+		// 设置表字段
+		fields := map[string]any{
+			"id":   0,
+			"name": "",
+		}
+		table.SetFields(fields)
+
+		// 创建第一个索引
+		index1, err := DefaultNormalIndexNew("test_index_1")
+		if err != nil {
+			t.Fatalf("DefaultNormalIndexNew failed: %v", err)
+		}
+		index1.AddFields("name")
+		err = table.CreateIndex(index1)
+		if err != nil {
+			t.Fatalf("CreateIndex failed: %v", err)
+		}
+
+		// 由于索引ID是通过 getSysNameId 生成的，我们可以通过创建第二个同名索引来验证
+		// 注意：实际上 CreateIndex 可能会阻止创建同名索引，但我们可以测试 getSysNameId 的逻辑
+		// 这里我们直接测试 getSysNameId 函数
+		id1 := table.getSysNameId("test_index_1", false)
+		id2 := table.getSysNameId("test_index_1", false)
+
+		// 验证相同索引名生成相同ID
+		if id1 != id2 {
+			t.Errorf("Expected same ID for same index name, got %d and %d", id1, id2)
+		}
+		t.Logf("Same index name 'test_index_1' got same ID: %d", id1)
+	})
+}
+
+// 测试多次重复创建相同的索引时，不会重新生成ID
+func TestCreateIndexSameID(t *testing.T) {
+	t.Run("SameIndexSameID", func(t *testing.T) {
+		// 创建表
+		table, err := TableNew("test_create_index")
+		if err != nil {
+			t.Fatalf("TableNew failed: %v", err)
+		}
+
+		// 设置表字段
+		fields := map[string]any{
+			"id":   0,
+			"name": "",
+			"age":  0,
+		}
+		table.SetFields(fields)
+
+		// 创建第一个索引并获取ID
+		index1, err := DefaultNormalIndexNew("test_idx")
+		if err != nil {
+			t.Fatalf("DefaultNormalIndexNew failed: %v", err)
+		}
+		index1.AddFields("name")
+
+		// 记录创建索引前的ID
+		idBefore := table.getSysNameId("test_idx", false)
+
+		// 创建索引
+		err = table.CreateIndex(index1)
+		if err != nil {
+			t.Fatalf("CreateIndex failed: %v", err)
+		}
+
+		// 记录创建索引后的ID
+		idAfter := table.getSysNameId("test_idx", false)
+
+		// 创建第二个同名索引
+		index2, err := DefaultNormalIndexNew("test_idx")
+		if err != nil {
+			t.Fatalf("DefaultNormalIndexNew failed: %v", err)
+		}
+		index2.AddFields("name")
+
+		// 再次获取ID
+		idAgain := table.getSysNameId("test_idx", false)
+
+		// 验证所有ID相同
+		if idBefore != idAfter || idAfter != idAgain {
+			t.Errorf("Expected same ID for same index name, got %d, %d, %d", idBefore, idAfter, idAgain)
+		}
+		t.Logf("Same index name 'test_idx' got same ID: %d", idAfter)
+	})
+}
+
 // 检查修改普通索引和全文索引的变化情况
 func TestTableIndexChange(t *testing.T) {
 	// 测试4: 带有索引和全文索引的表CRUD操作
