@@ -38,7 +38,7 @@ type Store interface {
 	GetBatch() Batch
 
 	// WriteBatch 执行批量操作
-	WriteBatch(batch Batch) error
+	WriteBatch(batch Batch, put ...bool) error
 
 	// Iterator 创建迭代器
 	Iterator(start, limit []byte) Iterator

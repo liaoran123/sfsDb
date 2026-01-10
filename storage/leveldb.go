@@ -127,7 +127,7 @@ func (s *LevelDBStore) GetBatch() Batch {
 	//从sync.Pool 中获取一个Batch对象
 	return LdbBatchPool.Get().(*leveldb.Batch)
 }
-func (s *LevelDBStore) WriteBatch(batch Batch) error {
+func (s *LevelDBStore) WriteBatch(batch Batch, put ...bool) error {
 	// 确保ldb是*leveldb.DB类型
 	db, ok := s.ldb.(*leveldb.DB)
 	if !ok {
@@ -138,7 +138,10 @@ func (s *LevelDBStore) WriteBatch(batch Batch) error {
 		return err
 	}
 	batch.(*leveldb.Batch).Reset()
-	LdbBatchPool.Put(batch.(*leveldb.Batch))
+	// 是否需要将batch放回对象池，默认是true
+	if len(put) == 0 || put[0] {
+		LdbBatchPool.Put(batch.(*leveldb.Batch))
+	}
 	return nil
 }
 

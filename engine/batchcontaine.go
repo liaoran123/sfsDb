@@ -7,7 +7,9 @@ import (
 	"github.com/liaoran123/sfsDb/util"
 )
 
-type BatchContainer struct {
+// 该结构不支持并发操作，需要外部确保并发安全
+// 只是对全局batch进行并发控制，防止多个goroutine同时操作batch
+type batchContainer struct {
 	indexs          *Indexs          // 索引集合
 	values          map[uint8][]byte // 操作值集合
 	kvStore         storage.Store
@@ -18,11 +20,11 @@ type BatchContainer struct {
 	mu              sync.Mutex // 互斥锁，用于并发安全
 }
 
-func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore storage.Store) *BatchContainer {
+func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore storage.Store) *batchContainer {
 	if batch == nil {
 		batch = storage.KVDb.GetBatch()
 	}
-	return &BatchContainer{
+	return &batchContainer{
 		indexs:          indexs,
 		batch:           batch,
 		tbid:            tbid,
@@ -36,7 +38,7 @@ func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore 
 		},
 	}
 }
-func (c *BatchContainer) Add(key []byte, ValueMapKey uint8) {
+func (c *batchContainer) Add(key []byte, ValueMapKey uint8) {
 	//默认规则主键值values[0]为nil，则是Delete；否则是Put
 	if c.values[0] == nil {
 		c.batch.Delete(key)
@@ -46,19 +48,20 @@ func (c *BatchContainer) Add(key []byte, ValueMapKey uint8) {
 	c.len++
 }
 
-func (c *BatchContainer) SetValue(key uint8, val []byte) error {
+func (c *batchContainer) SetValue(key uint8, val []byte) error {
 	c.values[key] = val
 	return nil
 }
 
 // get value by key
-func (c *BatchContainer) GetValue(key uint8) []byte {
+func (c *batchContainer) GetValue(key uint8) []byte {
 	return c.values[key]
 }
 
 // 添加/删除记录操作
 // 添加时，key值已经存在的field值，value中会过滤掉，不重复添加。
-func (c *BatchContainer) Operation(fieldsBytes *map[string][]byte, existFields ...string) {
+func (c *batchContainer) Operation(fieldsBytes *map[string][]byte, existFields ...string) {
+	// batch并发安全，防止多个goroutine同时操作
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	pkValue := c.indexs.getPrimaryKey().JoinValue(fieldsBytes, c.tbid)
@@ -94,21 +97,19 @@ func (c *BatchContainer) Operation(fieldsBytes *map[string][]byte, existFields .
 		c.len = 0
 	}
 }
-func (c *BatchContainer) Len() int {
+func (c *batchContainer) Len() int {
 	return c.len
 }
-func (c *BatchContainer) Commit() error {
-	err := c.kvStore.WriteBatch(c.batch)
+func (c *batchContainer) Commit() error {
+	err := c.kvStore.WriteBatch(c.batch, false)
 	if err != nil {
 		return err
 	}
-	//WriteBatch已经put回对象池，这里需要重新获取一个batch
-	c.batch = c.kvStore.GetBatch()
 	return nil
 }
 
 // 设置提交阀值，避免批量操作 too many operations in a single batch
-func (c *BatchContainer) SetCommitThreshold(threshold int) {
+func (c *batchContainer) SetCommitThreshold(threshold int) {
 	//对于 LevelDB 批量操作的提交阈值，合理范围通常在 1000-10000 之间
 	if threshold <= 0 || threshold > 10000 {
 		threshold = 1000
