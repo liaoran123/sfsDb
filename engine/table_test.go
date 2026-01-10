@@ -39,7 +39,7 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultFullTextIndexNew 失败: %v", err)
 	}
-	//全文索引正常情况下必须带上主键，否则后面的关键词都被覆盖，失去全文索引的意义。
+	//全文索引正常情况下必须在前或后带上全量主键，否则后面的关键词都被覆盖，失去全文索引的意义。
 	fullText.AddFields("content", "mid", "secNo")
 	//指定content为全文索引字段，长度为5
 	//如果没有指定，则等同一般索引

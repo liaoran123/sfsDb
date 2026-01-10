@@ -50,6 +50,12 @@ func main() {
 	// 1. 初始化数据库
 	fmt.Println("\n1. 初始化数据库")
 	storage.OpenDefaultDb("./advanced_example_db")
+	/*
+	_, err := OpenDefaultDb("./advanced_example_db")
+	if err != nil {
+		panic(err)
+	}
+	*/
 	defer storage.CloseDb()
 
 	// 2. 创建文章表（使用组合主键）
