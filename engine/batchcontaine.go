@@ -1,0 +1,117 @@
+package engine
+
+import (
+	"sync"
+
+	"github.com/liaoran123/sfsDb/storage"
+	"github.com/liaoran123/sfsDb/util"
+)
+
+type BatchContainer struct {
+	indexs          *Indexs          // 索引集合
+	values          map[uint8][]byte // 操作值集合
+	kvStore         storage.Store
+	batch           storage.Batch
+	tbid            uint8      //表ID
+	len             int        // 操作数量
+	commitThreshold int        //提交阀值
+	mu              sync.Mutex // 互斥锁，用于并发安全
+}
+
+func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore storage.Store) *BatchContainer {
+	if batch == nil {
+		batch = storage.KVDb.GetBatch()
+	}
+	return &BatchContainer{
+		indexs:          indexs,
+		batch:           batch,
+		tbid:            tbid,
+		commitThreshold: 1000,
+		kvStore:         kvStore,
+		//values3个nil值，key分别为0,1,2
+		values: map[uint8][]byte{
+			0: nil, //主键值
+			1: nil, //普通索引值
+			2: nil, //全文索引值
+		},
+	}
+}
+func (c *BatchContainer) Add(key []byte, ValueMapKey uint8) {
+	//默认规则主键值values[0]为nil，则是Delete；否则是Put
+	if c.values[0] == nil {
+		c.batch.Delete(key)
+	} else {
+		c.batch.Put(key, c.values[ValueMapKey])
+	}
+	c.len++
+}
+
+func (c *BatchContainer) SetValue(key uint8, val []byte) error {
+	c.values[key] = val
+	return nil
+}
+
+// get value by key
+func (c *BatchContainer) GetValue(key uint8) []byte {
+	return c.values[key]
+}
+
+// 添加/删除记录操作
+// 添加时，key值已经存在的field值，value中会过滤掉，不重复添加。
+func (c *BatchContainer) Operation(fieldsBytes *map[string][]byte, existFields ...string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	pkValue := c.indexs.getPrimaryKey().JoinValue(fieldsBytes, c.tbid)
+	c.Add(pkValue, 0) //添加主键记录key=pkValue,value=record
+
+	//添加/删除普通索引key=indexValues,value=pkValue
+	for _, Normal := range c.indexs.GetNormalIndexs() {
+		indexValue := Normal.JoinValue(fieldsBytes, c.tbid, existFields...)
+		if indexValue == nil {
+			continue
+		}
+		c.Add(append([]byte{}, indexValue...), 1) //添加普通索引key=indexValues,value=pkValue
+	}
+	/*
+		//添加/删除全文索引key=joinValue,value=t.primaryKey.ID()
+		全文索引的特殊性，在正常情况下必须带上主键，否则后面的关键词都被覆盖，失去全文索引的意义。
+		故而系统为了减少大量的字段值重复储存，全文索引的 value值设置 为 nil 。
+		查询时，在key值里提取出主键值还原value值。
+	*/
+	for _, FullText := range c.indexs.GetFullTextIndexs() {
+		joinValues := FullText.JoinFullValues(fieldsBytes, c.tbid, existFields...)
+		defer util.PutBytesArray(joinValues)
+		for _, joinValue := range joinValues {
+			if joinValue == nil {
+				continue
+			}
+			c.Add(append([]byte{}, joinValue...), 2) //添加全文索引key=joinValue,value=t.primaryKey.ID()
+		}
+	}
+	// 检查是否达到提交阈值
+	if c.commitThreshold > 0 && c.len >= c.commitThreshold {
+		c.Commit()
+		c.len = 0
+	}
+}
+func (c *BatchContainer) Len() int {
+	return c.len
+}
+func (c *BatchContainer) Commit() error {
+	err := c.kvStore.WriteBatch(c.batch)
+	if err != nil {
+		return err
+	}
+	//WriteBatch已经put回对象池，这里需要重新获取一个batch
+	c.batch = c.kvStore.GetBatch()
+	return nil
+}
+
+// 设置提交阀值，避免批量操作 too many operations in a single batch
+func (c *BatchContainer) SetCommitThreshold(threshold int) {
+	//对于 LevelDB 批量操作的提交阈值，合理范围通常在 1000-10000 之间
+	if threshold <= 0 || threshold > 10000 {
+		threshold = 1000
+	}
+	c.commitThreshold = threshold
+}
