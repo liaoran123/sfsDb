@@ -281,11 +281,8 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 	count := 0
 	loop := 0
 	var end []byte
-	var key, value []byte
 	for {
-		key = t.iter.Key()
-		value = t.iter.Value()
-		end = t.JumpRange(key, t.jumpRanges, esc)
+		end = t.JumpRange(t.iter.Key(), t.jumpRanges, esc)
 		if end != nil {
 			// 跳跃到区间的结束位置
 			t.iter.Seek(end)
@@ -293,7 +290,7 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 				break
 			}
 		}
-		if t.Match(key, value, t.match) {
+		if t.Match(t.iter.Key(), t.iter.Value(), t.match) {
 			if loop < page.Start {
 				loop++
 				if !t.move[esc]() {
@@ -301,7 +298,7 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 				}
 				continue
 			}
-			rd = t.ParseRecord(key, value)
+			rd = t.ParseRecord(t.iter.Key(), t.iter.Value())
 			if rd == nil { //删除记录后，数据为空，但是迭代器依然存在，只是返回nil。
 				loop++
 				if !t.move[esc]() {

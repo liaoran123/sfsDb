@@ -282,28 +282,15 @@ func (t *Table) FieldsToBytes(fields *map[string]any) *map[string][]byte {
 
 // 插入记录
 func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (currentID int, err error) {
-	// 检查参数
 	if t.fields == nil {
 		return 0, fmt.Errorf("表 '%s' 未设置字段和类型", t.name)
 	}
-	if fields == nil {
-		return 0, fmt.Errorf("fields cannot be nil")
-	}
-
 	//当前自动增值的值
 	currentID = -1
-
-	//获取主键字段
-	primaryFields := t.GetPrimaryKey().GetFields()
-	if len(primaryFields) == 0 {
-		return 0, fmt.Errorf("表 '%s' 没有设置主键", t.name)
-	}
-
 	//是否支持默认自动增值主键，单主键并且主键字段名为"id"
-	pklen := len(primaryFields)
-	pkfield := primaryFields[0]
+	pklen := len(t.GetPrimaryKey().GetFields())
+	pkfield := t.GetPrimaryKey().GetFields()[0]
 	supportDefault := pklen == 1 && pkfield == "id"
-
 	if supportDefault {
 		// 检查是否提供了主键字段
 		//使用默认自动增值主键时，不需要提供主键字段，系统自动生成
@@ -315,33 +302,25 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 			if (*fields)[pkfield] == nil {
 				currentID = t.GetAutoInc()
 				(*fields)[pkfield] = currentID
+			} else { //提供了主键字段，且值不为nil，转换为int类型
+				currentID = int((*fields)[pkfield].(int))
 			}
 		}
 	}
-
 	// 检查字段类型是否匹配
 	if err = t.CheckType(fields); err != nil {
-		return -1, err
+		return 0, err
 	}
-	currentID = (*fields)[pkfield].(int)
-	//currentID = util.AnyToInt((*fields)[pkfield])
 	// 转换字段为字节数组
 	fieldsBytes := t.FieldsToBytes(fields)
-
 	var batch storage.Batch
 	//是否用户手动控制事务
+	//useBatch := len(batchs) > 0
 	if len(batchs) > 0 { //用户手动控制事务
 		batch = batchs[0]
-		if batch == nil {
-			return -1, fmt.Errorf("batch cannot be nil")
-		}
 	} else {
 		batch = t.kvStore.GetBatch()
-		if batch == nil {
-			return -1, fmt.Errorf("failed to get batch")
-		}
 	}
-
 	record := t.FormatRecord(fieldsBytes)
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
 	BatchContainer.SetValue(0, record)                               //添加主键value=record
@@ -349,14 +328,12 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	//添加全文索引key=joinValue,value=nil
 	BatchContainer.Operation(fieldsBytes)
 	//t.Operation(fieldsBytes, batch, BatchContainer)
-
 	if len(batchs) == 0 {
 		// 提交批量操作
 		if err = t.kvStore.WriteBatch(batch); err != nil {
-			return -1, err
+			return 0, err
 		}
 	}
-
 	//fmt.Printf("Insert BatchContainer.Len(): %v\n", BatchContainer.Len())
 	return currentID, nil
 }

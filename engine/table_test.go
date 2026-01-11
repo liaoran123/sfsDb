@@ -838,6 +838,102 @@ func TestCreateIndexSameID(t *testing.T) {
 	})
 }
 
+// 测试 Insert 函数的参数验证和错误处理
+func TestTableInsertValidation(t *testing.T) {
+	t.Run("InsertWithNilFields", func(t *testing.T) {
+		// 创建表
+		table, err := TableNew("test_insert_validation")
+		if err != nil {
+			t.Fatalf("TableNew failed: %v", err)
+		}
+
+		// 设置表字段
+		fields := map[string]any{
+			"id":   0,
+			"name": "",
+		}
+		table.SetFields(fields)
+
+		// 测试 nil fields 参数
+		_, err = table.Insert(nil)
+		if err == nil {
+			t.Errorf("Expected error for nil fields, got nil")
+		}
+		t.Logf("Expected error for nil fields, got: %v", err)
+	})
+
+	t.Run("InsertWithoutFields", func(t *testing.T) {
+		// 创建表
+		table, err := TableNew("test_insert_no_fields")
+		if err != nil {
+			t.Fatalf("TableNew failed: %v", err)
+		}
+
+		// 不设置表字段，直接插入
+		testFields := map[string]any{
+			"id":   1,
+			"name": "test",
+		}
+		_, err = table.Insert(&testFields)
+		if err == nil {
+			t.Errorf("Expected error for table without fields, got nil")
+		}
+		t.Logf("Expected error for table without fields, got: %v", err)
+	})
+
+	t.Run("InsertWithInvalidPrimaryKeyType", func(t *testing.T) {
+		// 创建表
+		table, err := TableNew("test_insert_invalid_pk")
+		if err != nil {
+			t.Fatalf("TableNew failed: %v", err)
+		}
+
+		// 设置表字段
+		fields := map[string]any{
+			"id":   0,
+			"name": "",
+		}
+		table.SetFields(fields)
+
+		// 测试无效的主键类型
+		testFields := map[string]any{
+			"id":   "not an integer", // 无效的主键类型
+			"name": "test",
+		}
+		_, err = table.Insert(&testFields)
+		if err == nil {
+			t.Errorf("Expected error for invalid primary key type, got nil")
+		}
+		t.Logf("Expected error for invalid primary key type, got: %v", err)
+	})
+
+	t.Run("InsertWithNilBatch", func(t *testing.T) {
+		// 创建表
+		table, err := TableNew("test_insert_nil_batch")
+		if err != nil {
+			t.Fatalf("TableNew failed: %v", err)
+		}
+
+		// 设置表字段
+		fields := map[string]any{
+			"id":   0,
+			"name": "",
+		}
+		table.SetFields(fields)
+
+		// 测试 nil batch
+		testFields := map[string]any{
+			"id":   1,
+			"name": "test",
+		}
+		_, err = table.Insert(&testFields, nil)
+		if err == nil {
+			t.Errorf("Expected error for nil batch, got nil")
+		}
+		t.Logf("Expected error for nil batch, got: %v", err)
+	})
+}
+
 // 检查修改普通索引和全文索引的变化情况
 func TestTableIndexChange(t *testing.T) {
 	// 测试4: 带有索引和全文索引的表CRUD操作

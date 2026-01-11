@@ -57,7 +57,9 @@ type Batch interface {
 
 	// Delete 添加delete操作
 	Delete(key []byte)
-	// Commit 提交批量操作
+
+	// Len 获取批量操作数量
+	Len() int
 
 	// Reset 重置批量操作
 	Reset()

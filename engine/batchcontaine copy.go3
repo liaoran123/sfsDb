@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"sync"
-
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
@@ -10,14 +8,14 @@ import (
 // 该结构不支持并发操作，需要外部确保并发安全
 // 只是对全局batch进行并发控制，防止多个goroutine同时操作batch
 type batchContainer struct {
-	indexs          *Indexs          // 索引集合
-	values          map[uint8][]byte // 操作值集合
-	kvStore         storage.Store
-	batch           storage.Batch
-	tbid            uint8      //表ID
-	len             int        // 操作数量
-	commitThreshold int        //提交阀值
-	mu              sync.Mutex // 互斥锁，用于并发安全
+	indexs  *Indexs          // 索引集合
+	values  map[uint8][]byte // 操作值集合
+	kvStore storage.Store
+	batch   storage.Batch
+	tbid    uint8 //表ID
+	len     int   // 操作数量
+	//commitThreshold int        //提交阀值
+	//mu              sync.Mutex // 互斥锁，用于并发安全
 }
 
 func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore storage.Store) *batchContainer {
@@ -25,11 +23,11 @@ func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore 
 		batch = storage.KVDb.GetBatch()
 	}
 	return &batchContainer{
-		indexs:          indexs,
-		batch:           batch,
-		tbid:            tbid,
-		commitThreshold: 1000,
-		kvStore:         kvStore,
+		indexs: indexs,
+		batch:  batch,
+		tbid:   tbid,
+		//commitThreshold: 1000,
+		kvStore: kvStore,
 		//values3个nil值，key分别为0,1,2
 		values: map[uint8][]byte{
 			0: nil, //主键值
@@ -62,8 +60,6 @@ func (c *batchContainer) GetValue(key uint8) []byte {
 // 添加时，key值已经存在的field值，value中会过滤掉，不重复添加。
 func (c *batchContainer) Operation(fieldsBytes *map[string][]byte, existFields ...string) {
 	// batch并发安全，防止多个goroutine同时操作
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	pkValue := c.indexs.getPrimaryKey().JoinValue(fieldsBytes, c.tbid)
 	c.Add(pkValue, 0) //添加主键记录key=pkValue,value=record
 
@@ -91,11 +87,7 @@ func (c *batchContainer) Operation(fieldsBytes *map[string][]byte, existFields .
 			c.Add(append([]byte{}, joinValue...), 2) //添加全文索引key=joinValue,value=t.primaryKey.ID()
 		}
 	}
-	// 检查是否达到提交阈值
-	if c.commitThreshold > 0 && c.len >= c.commitThreshold {
-		c.Commit()
-		c.len = 0
-	}
+
 }
 func (c *batchContainer) Len() int {
 	return c.len
@@ -106,13 +98,4 @@ func (c *batchContainer) Commit() error {
 		return err
 	}
 	return nil
-}
-
-// 设置提交阀值，避免批量操作 too many operations in a single batch
-func (c *batchContainer) SetCommitThreshold(threshold int) {
-	//对于 LevelDB 批量操作的提交阈值，合理范围通常在 1000-10000 之间
-	if threshold <= 0 || threshold > 10000 {
-		threshold = 1000
-	}
-	c.commitThreshold = threshold
 }

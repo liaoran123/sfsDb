@@ -207,12 +207,7 @@ func (bi *BaseIndex) MatchFields(fields ...string) bool {
 // fields []string, value []byte, 顺序必须相同
 func (bi *BaseIndex) Parse(primaryFields []string, value []byte) *map[string][]byte {
 	// 解析索引值
-	var indexValues [][]byte
-	if len(primaryFields) > 1 { //组合主键需要Split
-		indexValues = util.Bytes(value).Split()
-	} else { //单主键，则是直接赋值
-		indexValues = [][]byte{value}
-	}
+	indexValues := util.Bytes(value).Split()
 	//判断indexValues是否与fields长度相同
 	if len(indexValues) != len(primaryFields) {
 		return nil
