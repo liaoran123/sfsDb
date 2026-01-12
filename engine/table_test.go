@@ -335,7 +335,7 @@ func TestTableSearch(t *testing.T) {
 			for _, item := range records.Select("name", "age", "description") {
 				fmt.Printf("搜索:%v -》 records: %v\n", fields["description"], item)
 			}
-			if records[0][table.GetPrimaryKey().GetFields()[0]] != data[1]["id"] {
+			if records[0]["id"] != data[1]["id"] {
 				fmt.Printf("查询结果可能是多个: %v\n。但是测试并没有错误。", records)
 				//t.Errorf("全文索引搜索 description 包含Bob的记录错误，期望: %v, 实际: %v", data[1]["id"], records[0][table.GetPrimaryKey().GetFields()[0]])
 			}

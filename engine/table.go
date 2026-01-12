@@ -390,7 +390,7 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 		buf.WriteString(SPLIT)
 	}
 	//删除最后一个分隔符
-	//buf.Truncate(buf.Len() - 1)
+	buf.Truncate(buf.Len() - 1)
 	return buf.Bytes()
 }
 

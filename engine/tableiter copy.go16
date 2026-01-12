@@ -101,7 +101,8 @@ func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	return fieldsBytes
 }
 
-func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd Record) {
+func (t *TableIter) ParseRecord(k, v []byte) (rd Record) {
+	fieldsBytes := t.ParseBytes(k, v)
 	if fieldsBytes == nil {
 		return nil
 	}
@@ -119,7 +120,7 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd Record) {
 			return nil
 		}
 		//通过主键解析记录
-		trd := pk.Parse(t.table.GetFieldsName(), pktylen, byrecord)
+		trd := pk.Parse(pk.GetFields(), pktylen, byrecord)
 		if trd == nil {
 			return nil
 		}
@@ -176,12 +177,14 @@ func (t *TableIter) JumpRange(key []byte, jumpRanges []storage.Iterator, esc boo
 // 如果不符合，返回false
 常见sql场景，f in (1,2,3) 或  and 等操作
 */
-func (t *TableIter) Match(rd *map[string]any, match []Match) bool {
+func (t *TableIter) Match(k, v []byte, match []Match) bool {
 	if len(match) == 0 {
 		return true //不需要匹配
 	}
 	for _, m := range match {
-		if !m.Match(rd) {
+		fieldsBytes := t.ParseBytes(k, v)
+		idxrd := t.table.RecordByteToAny(fieldsBytes)
+		if !m.Match(idxrd) {
 			return false
 		}
 	}
@@ -278,8 +281,7 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 		return
 	}
 	var rd Record
-	var rdany *map[string]any
-	var fieldsBytes *map[string][]byte
+
 	page := PageNew(limit...)
 	count := 0
 	loop := 0
@@ -296,9 +298,7 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 				break
 			}
 		}
-		fieldsBytes = t.ParseBytes(key, value)
-		rdany = t.table.RecordByteToAny(fieldsBytes)
-		if t.Match(rdany, t.match) {
+		if t.Match(key, value, t.match) {
 			if loop < page.Start {
 				loop++
 				if !t.move[esc]() {
@@ -306,7 +306,7 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 				}
 				continue
 			}
-			rd = t.ParseRecord(fieldsBytes)
+			rd = t.ParseRecord(key, value)
 			if rd == nil { //删除记录后，数据为空，但是迭代器依然存在，只是返回nil。
 				loop++
 				if !t.move[esc]() {

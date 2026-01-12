@@ -10,7 +10,7 @@ import (
 // 测试多表组合查询
 func TestTestSelectForJoin(t *testing.T) {
 	// Create test table
-	table1, err := TableNew("test_search_comprehensive")
+	table1, err := TableNew("test_search_comprehensive1")
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	}
 
 	// Create test table
-	table2, err := TableNew("test_search_comprehensive")
+	table2, err := TableNew("test_search_comprehensive2")
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	}
 
 	// Create test table
-	table3, err := TableNew("test_search_comprehensive")
+	table3, err := TableNew("test_search_comprehensive3")
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}

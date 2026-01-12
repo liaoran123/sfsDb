@@ -271,17 +271,15 @@ func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields 
 // 与func (t *Table) FormatRecord(fieldsBytes *map[string][]byte, FilterFields ...string) (r []byte)相对应
 // 主键索引值格式，记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
 // Parse(fields []string, value []byte)
-// fields表字段，必须全量匹配，否则无法解析。value=-field1-value1-field2-value2-...-fieldN-valueN-
+// tablefields表字段，必须全量匹配，否则无法解析。value=-field1-value1-field2-value2-...-fieldN-valueN-
 // 反格式化
-func (dpk *DefaultPrimaryKey) Parse(fields []string, pkfieldTypeLen *map[string]uint8, value []byte) *map[string][]byte { //pkfieldTypeLen无用
-	if len(fields) == 0 {
-		fields = dpk.fields
+func (dpk *DefaultPrimaryKey) Parse(tablefields []string, pkfieldTypeLen *map[string]uint8, value []byte) *map[string][]byte { //pkfieldTypeLen无用
+	if len(tablefields) == 0 {
+		return nil
 	}
-	fspos := getFieldPos(fields, value)
+	fspos := getFieldPos(tablefields, value)
 	//根据索引位置，切分value值
-	//fsvalue := make([][]byte, len(fspos))
-	//根据索引位置，切分value值
-	//根据格式：bs={-field1-value1-field2-value2,...,-fieldN-valueN-} 分解bs的字段名和值
+	//根据格式：bs={-field1-value1-field2-value2,...,-fieldN-valueN-} 分解的字段名和值
 	pos := 0
 	pos1 := 0
 	for i := range fspos {
@@ -295,7 +293,7 @@ func (dpk *DefaultPrimaryKey) Parse(fields []string, pkfieldTypeLen *map[string]
 		//pos += pos1
 	}
 	//根据格式：bs={-field1-value1-field2-value2,...,-fieldN-valueN-} 分解bs的字段名和值
-	fieldsBytes := make(map[string][]byte, len(fields))
+	fieldsBytes := make(map[string][]byte, len(tablefields))
 	for _, f := range fspos {
 		//截取-field1-value1-的value
 		after, ok := bytes.CutPrefix(f.value, []byte(SPLIT+f.field+SPLIT))
