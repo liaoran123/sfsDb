@@ -239,6 +239,28 @@ func (b Bytes) Escape(sp ...byte) []byte {
 	return buffer.Bytes()
 }
 
+/*
+// 对数据进行转义，左右括号进行转义，遇到括号时,重复写入两次,作为转义
+func (b Bytes) Escape() []byte {
+	//如果 b==SPLIT,则无需转义
+	if bytes.Equal(b, []byte(SPLIT)) {
+		return b
+	}
+	blen := len(b)
+	var buffer bytes.Buffer
+	split := SPLIT[0]
+	for i := range blen {
+		c := b[i]
+		switch c {
+		case split:
+			buffer.Write([]byte{split, split}) // 遇到分隔符时，重复写入两次
+		default:
+			buffer.WriteByte(c)
+		}
+	}
+	return buffer.Bytes()
+}
+*/
 // 反转义
 func (b Bytes) UnEscape(sp ...byte) []byte {
 	var split byte
@@ -266,6 +288,28 @@ func (b Bytes) UnEscape(sp ...byte) []byte {
 	return buffer.Bytes()
 }
 
+/*
+func (b Bytes) UnEscape() []byte {
+	blen := len(b)
+	var buffer bytes.Buffer
+	split := SPLIT[0]
+	for i := 0; i < len(b); i++ {
+		c := b[i]
+		if i+1 < blen {
+			switch c {
+			case split:
+				if b[i+1] == split { //连续2个分隔符，表示数据中有分隔符
+					buffer.WriteByte(split) //只需添加1个分隔符到数据中
+					i++                     //跳过下一个分隔符
+					continue
+				}
+			}
+		}
+		buffer.WriteByte(c)
+	}
+	return buffer.Bytes()
+}
+*/
 // 对数据进行转义，左右括号进行转义，遇到括号时,重复写入两次,作为转义
 func (b Bytes) Escapes(splits ...byte) []byte {
 	//如果 b==SPLIT,则无需转义

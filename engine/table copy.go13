@@ -8,6 +8,7 @@ import (
 	"log"
 	"maps"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -178,7 +179,6 @@ func (t *Table) SetFields(fields map[string]any) error {
 	return nil
 }
 
-/*
 // 修改字段名
 func (t *Table) ReFieldName(oldName, newName string) error {
 	//检查新字段名是否包含分隔符
@@ -198,7 +198,7 @@ func (t *Table) ReFieldName(oldName, newName string) error {
 	delete(t.fields, oldName)
 	return nil
 }
-*/
+
 // 获取自动增值的值
 func (t *Table) AutoValue() int {
 	if t.counter.Get() == 0 {
@@ -238,15 +238,6 @@ func (t *Table) GetAllFields() map[string]any {
 	return result
 }
 
-// 获取所有字段名
-func (t *Table) GetFieldsName() []string {
-	result := make([]string, 0, len(t.fields))
-	for field := range t.fields {
-		result = append(result, field)
-	}
-	return result
-}
-
 // 检查类型是否匹配
 func (t *Table) CheckType(fields *map[string]any) error {
 	for field, value := range *fields {
@@ -255,6 +246,7 @@ func (t *Table) CheckType(fields *map[string]any) error {
 		if exists {
 			// 检查类型是否匹配
 			//主键是nil使用自动增值，其他字段是nil，使用默认值。
+			//if field == t.primaryKey.GetFields()[0] && t.primaryKey.GetFields()[0] == "id" && value == nil {
 			if value == nil {
 				continue
 			}
@@ -370,64 +362,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 }
 
 // 格式化记录
-// fieldsBytes必须是与t.fields相同的字段
-func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
-	var buf bytes.Buffer
-	var fname []byte
-	var value []byte
-	//记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
-	buf.WriteString(SPLIT)
-	for field, val := range *fieldsBytes {
-		fname = []byte(field)
-		buf.Write(fname)
-		buf.WriteString(SPLIT)
-		if t.GetEscapeField(field) {
-			value = t.Escape(val)
-		} else {
-			value = val
-		}
-		buf.Write(value)
-		buf.WriteString(SPLIT)
-	}
-	//删除最后一个分隔符
-	//buf.Truncate(buf.Len() - 1)
-	return buf.Bytes()
-}
-
-// Escape()
-// 记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
-// 值包含-fieldname-时，需要转义，即加一个空格- fieldname-。这样可以避免与字段名冲突，反转义时去掉空格。
-func (t *Table) Escape(b []byte) []byte {
-	for field := range t.fields {
-		b = bytes.ReplaceAll(b, []byte(SPLIT+field+SPLIT), []byte(SPLIT+" "+field+" "+SPLIT))
-	}
-	return b
-}
-
-// UnEscape()
-// 记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
-// 值包含-fieldname-时，需要转义，即加一个空格- fieldname-。这样可以避免与字段名冲突，反转义时去掉空格。
-func (t *Table) UnEscape(b []byte) []byte {
-	for field := range t.fields {
-		b = bytes.ReplaceAll(b, []byte(SPLIT+" "+field+" "+SPLIT), []byte(SPLIT+field+SPLIT))
-	}
-	return b
-}
-
-// 需要转义的字段
-// 字符串类型的字段和-1需要转义。-1是json字符串的key，需要转义
-func (t *Table) GetEscapeField(field string) bool {
-	typ, exist := t.GetField(field)
-	if exist {
-		typE := util.GetTypeEnum(typ)
-		if typE == util.TypeString || field == "-1" {
-			return true
-		}
-	}
-	return false
-}
-
-/*
+// 過濾存在的字段
 func (t *Table) FormatRecord(fieldsBytes *map[string][]byte, FilterFields ...string) (r []byte) {
 	var buf bytes.Buffer
 	var value []byte
@@ -448,26 +383,7 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte, FilterFields ...str
 	return buf.Bytes()
 }
 
-
-// 反格式化记录
-// 记录格式：field1-value1-field2-value2-...-fieldN-valueN-
-func (t *Table) ParseRecord(record []byte) *map[string][]byte {
-	if record == nil || t.fields == nil {
-		return nil
-	}
-	bs := util.Bytes(record).Split()
-	fields := make(map[string][]byte, len(bs))
-	field := ""
-	rdlen := len(bs) / 2
-	for i := range rdlen {
-		field = string(bs[i*2])
-		fields[field] = bs[i*2+1]
-	}
-	return &fields
-}
-
-
-
+// 反序列化记录
 func (t *Table) ParseRecord(record []byte) *map[string][]byte {
 	if record == nil || t.fields == nil {
 		return nil
@@ -485,7 +401,6 @@ func (t *Table) ParseRecord(record []byte) *map[string][]byte {
 	}
 	return &fields
 }
-*/
 
 // *map[string][]byte ==> *map[string]any
 // 与FieldsToBytes相反
@@ -497,13 +412,12 @@ func (t *Table) RecordByteToAny(value *map[string][]byte) *map[string]any {
 	return &fields
 }
 
-/*
 // 反序列化记录，并且将字段值转换为对应的类型
 func (t *Table) ParseRecordValue(record []byte) *map[string]any {
 	value := t.ParseRecord(record)
 	return t.RecordByteToAny(value)
 }
-*/
+
 // 删除记录
 func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	if t.fields == nil {
@@ -527,8 +441,7 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	}
 	//反序列化记录，并且将字段值转换为对应的类型
 	//fieldsBytes := t.ParseRecord(record)
-	pk := t.GetPrimaryKey()
-	fieldsBytes := pk.Parse(pk.GetFields(), pk.GetfieldTypeLen(&t.fields), record)
+	fieldsBytes := t.GetPrimaryKey().Parse(nil, record)
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
 	BatchContainer.Operation(fieldsBytes)
 	if len(batchs) == 0 { //用户未手动控制事务，自动提交
@@ -590,8 +503,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	}
 	//反序列化记录，并且将字段值转换为对应的类型
 	//fieldsBytes := t.ParseRecord(record)
-	pk := t.GetPrimaryKey()
-	fieldsBytes := pk.Parse(pk.GetFields(), pk.GetfieldTypeLen(&t.fields), record)
+	fieldsBytes := t.GetPrimaryKey().Parse(nil, record)
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
 	//删除
 	BatchContainer.Operation(fieldsBytes, updateFields...)

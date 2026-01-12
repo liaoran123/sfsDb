@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"slices"
 	"strconv"
 	"time"
 )
@@ -217,6 +216,7 @@ func (b Bytes) ToAny(i any) any {
 	}
 }
 
+/*
 // 对数据进行转义，左右括号进行转义，遇到括号时,重复写入两次,作为转义
 func (b Bytes) Escape(sp ...byte) []byte {
 	var split byte
@@ -359,3 +359,4 @@ func (b Bytes) Split(sp ...byte) [][]byte {
 
 	return rs
 }
+*/

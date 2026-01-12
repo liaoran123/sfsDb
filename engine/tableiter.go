@@ -86,14 +86,17 @@ func (t *TableIter) SetSelects(fields ...string) {
 // 主键得到整个记录值,其他索引得到主键ID值
 func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	var fieldsBytes *map[string][]byte
+	pk := t.table.GetPrimaryKey()
+	pktylen := pk.GetfieldTypeLen(&t.table.fields)
 	switch t.index.(type) {
 	case FullTextIndex:
 		//全文索引时，value值为空，需要从key中提取主键
-		fieldsBytes = t.index.Parse(t.table.GetPrimaryKey().GetFields(), k)
+		fieldsBytes = t.index.Parse(pk.GetFields(), pktylen, k)
 	case PrimaryKey:
-		fieldsBytes = t.index.Parse(nil, v)
+		fieldsBytes = t.index.Parse(t.table.GetFieldsName(), pktylen, v)
+
 	default:
-		fieldsBytes = t.index.Parse(t.table.GetPrimaryKey().GetFields(), v)
+		fieldsBytes = t.index.Parse(pk.GetFields(), pktylen, v)
 	}
 	return fieldsBytes
 }
@@ -108,14 +111,16 @@ func (t *TableIter) ParseRecord(k, v []byte) (rd Record) {
 		rd = Record(*t.table.RecordByteToAny(fieldsBytes))
 	default: //其他二级索引通过Parse得到的是主键ID值，需要回表才能得到记录。
 		// 拼接主键前缀和索引值，得到主键key
-		pfx := t.table.GetPrimaryKey().JoinValue(fieldsBytes, t.table.id)
+		pk := t.table.GetPrimaryKey()
+		pktylen := pk.GetfieldTypeLen(&t.table.fields)
+		pfx := pk.JoinValue(fieldsBytes, t.table.id)
 		// 回表读取完整记录
 		byrecord := t.table.ReadByBytes(pfx)
 		if byrecord == nil {
 			return nil
 		}
 		//通过主键解析记录
-		trd := t.table.GetPrimaryKey().Parse(nil, byrecord)
+		trd := pk.Parse(pk.GetFields(), pktylen, byrecord)
 		if trd == nil {
 			return nil
 		}

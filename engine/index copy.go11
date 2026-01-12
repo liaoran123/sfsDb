@@ -95,6 +95,11 @@ func (bi *BaseIndex) Prefix(tbid uint8) []byte {
 	return []byte{byte(tbid), SPLIT[0], byte(bi.id)}
 }
 
+/*
+func (bi *BaseIndex) Prefix(tbname string) []byte {
+	return JoinAndToBytes(tbname, bi.name)
+}
+*/
 // 存在某个字段
 func exist(fields []string, existFields ...string) bool {
 	if len(existFields) == 0 {
@@ -113,6 +118,7 @@ func exist(fields []string, existFields ...string) bool {
 // 所有拼接数据都要进行转义
 // 添加匹配字段功能
 func Join(fieldsBytes *map[string][]byte, fields []string) []byte {
+
 	var Value bytes.Buffer
 	for _, fit := range fields {
 		if v, ok := (*fieldsBytes)[fit]; ok {
@@ -130,6 +136,22 @@ func Join(fieldsBytes *map[string][]byte, fields []string) []byte {
 	return Value.Bytes()
 }
 
+/*
+	func (bi *BaseIndex) JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte {
+		if !exist(bi.fields, existFields...) {
+			return nil
+		}
+		var Value bytes.Buffer
+		//表id和索引id拼接
+		bpxf := bi.Prefix(tbid) //[]byte{byte(tbid), SPLIT[0], byte(bi.id)}
+		Value.Write(util.Bytes(bpxf))
+		Value.Write([]byte(SPLIT))
+
+		Value.Write(Join(fieldsBytes, bi.fields))
+		//fmt.Printf("Value: %s\n", Value.String())
+		return Value.Bytes()
+	}
+*/
 func (bi *BaseIndex) JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte {
 	if !exist(bi.fields, existFields...) {
 		return nil
@@ -165,6 +187,18 @@ func MatchFields(fields []string, existFields ...string) bool {
 	return count == len(existFields)
 }
 
+/*
+	func MatchFields(fields []string, existFields ...string) bool {
+		count := 0
+		for _, fit := range fields {
+			//判断是否存在切片中
+			if slices.Contains(existFields, fit) {
+				count++
+			}
+		}
+		return count == len(existFields) //兼容匹配，主键字段可以少于索引字段
+	}
+*/
 func (bi *BaseIndex) MatchFields(fields ...string) bool {
 	return MatchFields(bi.fields, fields...)
 }
@@ -175,22 +209,14 @@ func (bi *BaseIndex) MatchFields(fields ...string) bool {
 func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) *map[string][]byte {
 	// 解析索引值
 	pflen := 0
-	pklen := len(primaryFields)
 	for _, fit := range primaryFields {
 		if len, ok := (*pkfieldTypeLen)[fit]; ok {
-			if len == 0 && pklen > 1 { // 组合主键时，主键类型的长度未指定，无法解析主键值。
-				panic("主键类型的长度未指定")
-			}
 			pflen += int(len) + 1 //每个字段之间用分隔符隔开
 		}
 	}
 	pflen -= 1 //最后一个分隔符不需要计算
 	val := value[len(value)-pflen:]
-	fieldsBytes := make(map[string][]byte, pklen)
-	if pklen == 1 { // 单主键时，直接返回值。 这段代码是必须的，在单主键情况下，不需要进行复杂的解析。而且单主键支持非固定长度类型，也可以正常解析。
-		fieldsBytes[primaryFields[0]] = val
-		return &fieldsBytes
-	}
+	fieldsBytes := make(map[string][]byte, len(primaryFields))
 	var fieldTypeLen uint8
 	pos := 0
 	// value=fval1+SPLIT+fval2+SPLIT+...+fieldn
@@ -209,15 +235,17 @@ type PrimaryKey interface {
 	Index
 	// 设置主键ID
 	GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte
+	SetfieldTypeLen(field string, len uint8) error
 	GetfieldTypeLen(tablefields *map[string]any) *map[string]uint8
 }
 
 // ------------------------------------------
 // 默认主键索引
-// 组合主键时只支持固定长度的类型的组合。
+// 主键只支持固定长度的类型。
 // 字符串类型，必须指定长度。否则无法解析或存在转义问题导致bug。
 type DefaultPrimaryKey struct {
-	BaseIndex // 嵌入基础索引
+	fieldTypeLen map[string]uint8 // 字段类型长度。
+	BaseIndex                     // 嵌入基础索引
 }
 
 func DefaultPrimaryKeyNew(name string) (*DefaultPrimaryKey, error) {
@@ -225,6 +253,7 @@ func DefaultPrimaryKeyNew(name string) (*DefaultPrimaryKey, error) {
 		BaseIndex: BaseIndex{
 			name: name,
 		},
+		fieldTypeLen: make(map[string]uint8),
 	}
 	if err := dpk.SetName(name); err != nil {
 		return nil, err
@@ -232,20 +261,27 @@ func DefaultPrimaryKeyNew(name string) (*DefaultPrimaryKey, error) {
 	return dpk, nil
 }
 
+// 完善SetfieldTypeLen方法，添加字段初始化逻辑
+func (dpk *DefaultPrimaryKey) SetfieldTypeLen(field string, len uint8) error {
+	if len == 0 {
+		return errors.New("field type length must be greater than 0")
+	}
+	dpk.fieldTypeLen[field] = len
+	return nil
+}
+
 // 获取主键字段的总长度
-// 组合主键时只支持固定长度的类型的组合。
+// 主键只支持固定长度的类型。
 // 字符串类型，必须指定长度。否则无法解析或存在转义问题导致bug。
 func (dpk *DefaultPrimaryKey) GetfieldTypeLen(tablefields *map[string]any) *map[string]uint8 {
-	r := make(map[string]uint8)
 	flen := 0
 	for _, fit := range dpk.fields {
 		if val, ok := (*tablefields)[fit]; ok {
-			//固定长度类型，系统字段提取，字符串类型需要注册指定长度util.RegisterTypeSize。
-			flen = util.TypeSize(val)
-			r[fit] = uint8(flen)
+			flen = util.TypeSize(val) //固定长度类型，系统字段提取，字符串类型需要手动指定长度
+			dpk.fieldTypeLen[fit] = uint8(flen)
 		}
 	}
-	return &r
+	return &dpk.fieldTypeLen
 }
 
 // 過濾存在的字段
@@ -277,31 +313,25 @@ func (dpk *DefaultPrimaryKey) Parse(fields []string, pkfieldTypeLen *map[string]
 	if len(fields) == 0 {
 		fields = dpk.fields
 	}
-	fspos := getFieldPos(fields, value)
+	pos := getFieldPos(fields, value)
 	//根据索引位置，切分value值
-	//fsvalue := make([][]byte, len(fspos))
+	//fidx := make([][]byte, len(idxs))
 	//根据索引位置，切分value值
-	//根据格式：bs={-field1-value1-field2-value2,...,-fieldN-valueN-} 分解bs的字段名和值
-	pos := 0
-	pos1 := 0
-	for i := range fspos {
-		pos = fspos[i].index
-		if i < len(fspos)-1 {
-			pos1 = fspos[i+1].index
-			fspos[i].value = value[pos:pos1]
+	for i := range pos {
+		if i < len(pos)-1 {
+			pos[i].value = value[pos[i].index:pos[i+1].index]
 		} else {
-			fspos[i].value = value[pos:]
+			pos[i].value = value[pos[i].index:]
 		}
-		//pos += pos1
 	}
-	//根据格式：bs={-field1-value1-field2-value2,...,-fieldN-valueN-} 分解bs的字段名和值
+	//根据格式：bs={-field1-value1,-field2-value2,...,-fieldN-valueN-} 分解bs的字段名和值
 	fieldsBytes := make(map[string][]byte, len(fields))
-	for _, f := range fspos {
+	for _, f := range pos {
 		//截取-field1-value1-的value
 		after, ok := bytes.CutPrefix(f.value, []byte(SPLIT+f.field+SPLIT))
 		if ok {
-			//f.value = after[:(*pkfieldTypeLen)[f.field]]
-			fieldsBytes[f.field] = after
+			f.value = after[:(*pkfieldTypeLen)[f.field]]
+			fieldsBytes[f.field] = f.value
 		}
 	}
 	return &fieldsBytes

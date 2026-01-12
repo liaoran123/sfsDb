@@ -14,7 +14,7 @@ func AnyToStr(i any) string {
 	case int:
 		return strconv.Itoa(v)
 	case int64:
-		return strconv.FormatInt(v, 10)
+		return strconv.FormatInt(int64(v), 10)
 	case int32:
 		return strconv.FormatInt(int64(v), 10)
 	case int16:
@@ -53,115 +53,65 @@ func AnyToStr(i any) string {
 		return string(bytes)
 	}
 }
-
-// StrToAny 将字符串转换为指定类型的值，返回转换后的值和可能的错误
-func StrToAny(i string, t any) (any, error) {
+func StrToAny(i string, t any) any {
 	switch t.(type) {
 	case int:
-		v, err := strconv.Atoi(i)
-		if err != nil {
-			return 0, err
-		}
-		return v, nil
+		v, _ := strconv.Atoi(i)
+		return v
 	case int64:
-		v, err := strconv.ParseInt(i, 10, 64)
-		if err != nil {
-			return 0, err
-		}
-		return v, nil
+		v, _ := strconv.ParseInt(i, 10, 64)
+		return v
 	case int32:
-		v, err := strconv.ParseInt(i, 10, 32)
-		if err != nil {
-			return 0, err
-		}
-		return int32(v), nil
+		v, _ := strconv.ParseInt(i, 10, 32)
+		return int32(v)
 	case int16:
-		v, err := strconv.ParseInt(i, 10, 16)
-		if err != nil {
-			return 0, err
-		}
-		return int16(v), nil
+		v, _ := strconv.ParseInt(i, 10, 16)
+		return int16(v)
 	case int8:
-		v, err := strconv.ParseInt(i, 10, 8)
-		if err != nil {
-			return 0, err
-		}
-		return int8(v), nil
+		v, _ := strconv.ParseInt(i, 10, 8)
+		return int8(v)
 	case uint:
-		v, err := strconv.ParseUint(i, 10, intSize)
-		if err != nil {
-			return 0, err
-		}
-		return uint(v), nil
+		v, _ := strconv.ParseUint(i, 10, intSize)
+		return uint(v)
 	case uint64:
-		v, err := strconv.ParseUint(i, 10, 64)
-		if err != nil {
-			return 0, err
-		}
-		return v, nil
+		v, _ := strconv.ParseUint(i, 10, 64)
+		return v
 	case uint32:
-		v, err := strconv.ParseUint(i, 10, 32)
-		if err != nil {
-			return 0, err
-		}
-		return uint32(v), nil
+		v, _ := strconv.ParseUint(i, 10, 32)
+		return uint32(v)
 	case uint16:
-		v, err := strconv.ParseUint(i, 10, 16)
-		if err != nil {
-			return 0, err
-		}
-		return uint16(v), nil
+		v, _ := strconv.ParseUint(i, 10, 16)
+		return uint16(v)
 	case uint8:
-		v, err := strconv.ParseUint(i, 10, 8)
-		if err != nil {
-			return 0, err
-		}
-		return uint8(v), nil
+		v, _ := strconv.ParseUint(i, 10, 8)
+		return uint8(v)
 	case time.Time:
-		v, err := time.Parse(time.DateTime, i)
-		if err != nil {
-			return time.Time{}, err
-		}
+		v, _ := time.Parse(time.DateTime, i)
 		// 使用本地时区，与AnyToStr函数保持一致
-		return time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), v.Nanosecond(), time.Local), nil
+		return time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), v.Nanosecond(), time.Local)
 	case bool:
-		v, err := strconv.ParseBool(i)
-		if err != nil {
-			return false, err
-		}
-		return v, nil
+		v, _ := strconv.ParseBool(i)
+		return v
 	case float64:
-		v, err := strconv.ParseFloat(i, 64)
-		if err != nil {
-			return 0, err
-		}
-		return v, nil
+		v, _ := strconv.ParseFloat(i, 64)
+		return v
 	case float32:
-		v, err := strconv.ParseFloat(i, 32)
-		if err != nil {
-			return 0, err
-		}
-		return float32(v), nil
+		v, _ := strconv.ParseFloat(i, 32)
+		return float32(v)
 	case complex64:
-		v, err := strconv.ParseComplex(i, 64)
-		if err != nil {
-			return 0, err
-		}
-		return complex64(v), nil
+		v, _ := strconv.ParseComplex(i, 64)
+		return complex64(v)
 	case complex128:
-		v, err := strconv.ParseComplex(i, 128)
-		if err != nil {
-			return 0, err
-		}
-		return v, nil
+		v, _ := strconv.ParseComplex(i, 128)
+		return v
 	case string:
-		return i, nil
+		return i
 	default: //默认使用反序列化json
 		err := json.Unmarshal([]byte(i), t)
 		if err != nil {
-			return i, err
+			return i
 		}
-		return t, nil
+		return t
 	}
 }
 
@@ -184,11 +134,6 @@ func AnyToBytes(v any) []byte {
 		return Int32ToBytes(val, EndianOrder)
 	case int64:
 		return Int64ToBytes(val, EndianOrder)
-	case uint:
-		if intSize == 32 {
-			return Uint32ToBytes(uint32(val), EndianOrder)
-		}
-		return Uint64ToBytes(uint64(val), EndianOrder)
 	case uint16:
 		return Uint16ToBytes(val, EndianOrder)
 	case uint32:

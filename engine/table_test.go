@@ -1164,3 +1164,75 @@ func TestTableIndexChange(t *testing.T) {
 	iter.Release()
 
 }
+
+// TestTableSearch 测试表遍历数据和Search方法的功能
+func TestIntEscape(t *testing.T) {
+	// 创建测试表
+	table, err := TableNew("test_int_escape")
+	if err != nil {
+		t.Fatalf("TableNew 失败: %v", err)
+	}
+	if table == nil {
+		t.Fatal("TableNew 失败")
+	}
+	// 必须先为表预设字段和数据类型
+	fields := map[string]any{"id": 0, "name": "", "age": uint8(0), "description": ""}
+	table.SetFields(fields)
+
+	PrimaryKeys, err := DefaultPrimaryKeyNew("pk")
+	if err != nil {
+		t.Fatalf("DefaultPrimaryKeyNew 失败: %v", err)
+	}
+	PrimaryKeys.AddFields("id")    //创建一个id的组合主键
+	table.CreateIndex(PrimaryKeys) //将组合主键设置到表中
+
+	// 插入测试数据
+	data := []map[string]any{
+		{"id": 1, "name": "六月", "age": uint8(45), "description": "123"},
+		{"id": 2, "name": "Bob", "age": uint8(30), "description": "Bob is a product manager"},
+		{"id": 3, "name": "Charlie", "age": uint8(45), "description": "Charlie is1 a designer"},
+	}
+	for _, item := range data {
+		fields := table.GetAllFields()
+		fields["id"] = item["id"]
+		fields["name"] = item["name"]
+		fields["age"] = item["age"]
+		fields["description"] = item["description"]
+		_, err := table.Insert(&fields)
+		if err != nil {
+			t.Fatalf("插入测试数据失败: %v", err)
+		}
+
+	}
+	//测试遍历表所有kv
+
+	fmt.Println("-----------------")
+	// 测试遍历表所有数据
+	t.Run("ForData", func(t *testing.T) {
+		// 使用ForData方法遍历所有数据
+		dataIter := table.ForData()
+		rs := dataIter.GetRecords(true)
+		for _, item := range rs {
+			fmt.Printf("records: %v\n", item)
+		}
+	})
+	fmt.Println("-----------------")
+
+	//打开所有记录
+	t.Run("SearchAll", func(t *testing.T) {
+		// 第一次搜索，缓存结果
+		fields := map[string]any{
+			"id": nil, // id=nil或空，将获取所有表记录
+		}
+		dataIter := table.Search(&fields)
+		defer dataIter.Release()
+		if dataIter.iter == nil {
+			t.Fatalf("Search 失败")
+		}
+		//defer dataIter.Release()
+		records := dataIter.GetRecords(true)
+		for i, item := range records.Select() {
+			fmt.Printf("item %d: %v\n", i, item)
+		}
+	})
+}
