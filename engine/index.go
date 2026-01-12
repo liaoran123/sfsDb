@@ -176,10 +176,12 @@ func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]ui
 	// 解析索引值
 	pflen := 0
 	pklen := len(primaryFields)
+	//组合主键，并且存在不定长类型
+	hasVarLen := false
 	for _, fit := range primaryFields {
 		if len, ok := (*pkfieldTypeLen)[fit]; ok {
 			if len == 0 && pklen > 1 { // 组合主键时，主键类型的长度未指定，无法解析主键值。
-				panic("主键类型的长度未指定")
+				hasVarLen = true
 			}
 			pflen += int(len) + 1 //每个字段之间用分隔符隔开
 		}
@@ -191,14 +193,22 @@ func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]ui
 		fieldsBytes[primaryFields[0]] = val
 		return &fieldsBytes
 	}
-	var fieldTypeLen uint8
-	pos := 0
-	// value=fval1+SPLIT+fval2+SPLIT+...+fieldn
-	//获取每个字段的值，fval1,fval2,...,fieldn
-	for _, fit := range primaryFields {
-		fieldTypeLen += (*pkfieldTypeLen)[fit]
-		fieldsBytes[fit] = val[pos:fieldTypeLen]
-		pos = int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
+	if !hasVarLen { // 组合主键，且所有字段都是固定长度类型。则根据字段长度解析。
+		var fieldTypeLen uint8
+		pos := 0
+		// value=fval1+SPLIT+fval2+SPLIT+...+fieldn
+		//获取每个字段的值，fval1,fval2,...,fieldn
+		for _, fit := range primaryFields {
+			fieldTypeLen += (*pkfieldTypeLen)[fit]
+			fieldsBytes[fit] = val[pos:fieldTypeLen]
+			pos = int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
+		}
+	} else { // 组合主键，且存在不定长类型。则根据分隔符解析。
+		vs := util.Bytes(value).Split()
+		vs = vs[:pklen]
+		for i, fit := range primaryFields {
+			fieldsBytes[fit] = vs[i]
+		}
 	}
 	return &fieldsBytes
 }
@@ -208,7 +218,7 @@ func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]ui
 type PrimaryKey interface {
 	Index
 	// 设置主键ID
-	GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte
+	GetID(fieldsBytes *map[string][]byte, tablefields *map[string]any, existFields ...string) []byte
 	GetfieldTypeLen(tablefields *map[string]any) *map[string]uint8
 }
 
@@ -250,6 +260,39 @@ func (dpk *DefaultPrimaryKey) GetfieldTypeLen(tablefields *map[string]any) *map[
 
 // 過濾存在的字段
 // 系統設計爲過濾key存在的字段不在value中儲存。
+func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, tablefields *map[string]any, existFields ...string) []byte {
+	var Value bytes.Buffer
+	for i, fit := range dpk.fields {
+		if slices.Contains(existFields, fit) {
+			continue
+		}
+		existVar := false //是否存在不定长类型
+		fieldlen := len(dpk.fields)
+		if fieldlen > 1 { //组合主键
+			fieldTypeLen := dpk.GetfieldTypeLen(tablefields)
+			for _, flen := range *fieldTypeLen {
+				if flen == 0 { // 组合主键，且存在不定长类型。
+					existVar = true
+					break
+				}
+			}
+		}
+		if v, ok := (*fieldsBytes)[fit]; ok {
+			if !existVar { //组合主键,不存在不定长类型，直接写入值。
+				Value.Write(v)
+			} else { //组合主键,存在不定长类型，需要转义。
+				v = util.Bytes(v).Escape()
+				Value.Write(v)
+			}
+			if i < fieldlen-1 {
+				Value.Write([]byte(SPLIT))
+			}
+		}
+	}
+	return Value.Bytes()
+}
+
+/*
 func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte {
 	var Value bytes.Buffer
 	for i, fit := range dpk.fields {
@@ -266,7 +309,7 @@ func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields 
 	}
 	return Value.Bytes()
 }
-
+*/
 // 解析函数，将索引的value转换为主键map值
 // 与func (t *Table) FormatRecord(fieldsBytes *map[string][]byte, FilterFields ...string) (r []byte)相对应
 // 主键索引值格式，记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
@@ -298,7 +341,6 @@ func (dpk *DefaultPrimaryKey) Parse(tablefields []string, pkfieldTypeLen *map[st
 		//截取-field1-value1-的value
 		after, ok := bytes.CutPrefix(f.value, []byte(SPLIT+f.field+SPLIT))
 		if ok {
-			//f.value = after[:(*pkfieldTypeLen)[f.field]]
 			fieldsBytes[f.field] = after
 		}
 	}

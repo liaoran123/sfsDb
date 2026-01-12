@@ -14,4 +14,4 @@
 /test.out
 
 # 数据库文件
-/resdb/db/
+/engine/KVDB
