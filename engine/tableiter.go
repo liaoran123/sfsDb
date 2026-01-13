@@ -86,17 +86,23 @@ func (t *TableIter) SetSelects(fields ...string) {
 // 主键得到整个记录值,其他索引得到主键ID值
 func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	var fieldsBytes *map[string][]byte
+	var err error
+
 	pk := t.table.GetPrimaryKey()
 	pktylen := pk.GetfieldTypeLen(&t.table.fields)
 	switch t.index.(type) {
 	case FullTextIndex:
 		//全文索引时，value值为空，需要从key中提取主键
-		fieldsBytes = t.index.Parse(pk.GetFields(), pktylen, k)
+		fieldsBytes, err = t.index.Parse(pk.GetFields(), pktylen, k)
 	case PrimaryKey:
-		fieldsBytes = t.index.Parse(t.table.GetFieldsName(), pktylen, v)
+		fieldsBytes, err = t.index.Parse(t.table.GetFieldsName(), pktylen, v)
 
 	default:
-		fieldsBytes = t.index.Parse(pk.GetFields(), pktylen, v)
+		fieldsBytes, err = t.index.Parse(pk.GetFields(), pktylen, v)
+
+	}
+	if err != nil {
+		return nil
 	}
 	return fieldsBytes
 }
@@ -119,8 +125,8 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd Record) {
 			return nil
 		}
 		//通过主键解析记录
-		trd := pk.Parse(t.table.GetFieldsName(), pktylen, byrecord)
-		if trd == nil {
+		trd, err := pk.Parse(t.table.GetFieldsName(), pktylen, byrecord)
+		if err != nil || trd == nil {
 			return nil
 		}
 		//转换为记录 ： *map[string][]byte ==> *map[string]any

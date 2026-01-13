@@ -3,7 +3,6 @@ package engine
 import (
 	"bytes"
 	"errors"
-	"log"
 	"slices"
 
 	"github.com/liaoran123/sfsDb/util"
@@ -35,7 +34,7 @@ type Index interface {
 	MatchFields(fields ...string) bool
 	// 解析kv的value值，返回字段值map
 	// 主键索引解析出记录。其他索引解析出主键值。因为支持组合主键，需要解析。
-	Parse(fields []string, pkfieldTypeLen *map[string]uint8, value []byte) *map[string][]byte
+	Parse(fields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error)
 }
 
 // ------------------------------------------
@@ -174,14 +173,14 @@ func (bi *BaseIndex) MatchFields(fields ...string) bool {
 // value=fval1+SPLIT+fval2+SPLIT+...+fieldn
 // fields []string, value []byte, 顺序必须相同
 // pkfieldTypeLen，按照定长截取字段值。
-func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) *map[string][]byte {
+func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error) {
 	pflen := 0
 	pklen := len(primaryFields)
 	for _, fit := range primaryFields {
 		if len, ok := (*pkfieldTypeLen)[fit]; ok {
 			if len == 0 && pklen > 1 { // 组合主键时，主键类型的长度未指定，无法解析主键值。
-				//中断程序
-				panic("使用可变长度类型作为组合主键，需要注册指定长度。")
+				//返回错误
+				return nil, errors.New("使用可变长度类型作为组合主键，需要注册指定长度。")
 			}
 			pflen += int(len) + 1 //每个字段之间用分隔符隔开
 		}
@@ -191,7 +190,7 @@ func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]ui
 	fieldsBytes := make(map[string][]byte, pklen)
 	if pklen == 1 { // 单主键时，直接返回值。 这段代码是必须的，在单主键情况下，不需要进行复杂的解析。而且单主键支持非固定长度类型，也可以正常解析。
 		fieldsBytes[primaryFields[0]] = val
-		return &fieldsBytes
+		return &fieldsBytes, nil
 	}
 
 	var fieldTypeLen uint8
@@ -204,7 +203,7 @@ func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]ui
 		pos = int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
 	}
 
-	return &fieldsBytes
+	return &fieldsBytes, nil
 }
 
 // ------------------------------------------
@@ -295,9 +294,9 @@ func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields 
 // Parse(fields []string, value []byte)
 // tablefields表字段，必须全量匹配，否则无法解析。value=-field1-value1-field2-value2-...-fieldN-valueN-
 // 反格式化
-func (dpk *DefaultPrimaryKey) Parse(tablefields []string, pkfieldTypeLen *map[string]uint8, value []byte) *map[string][]byte { //pkfieldTypeLen无用
+func (dpk *DefaultPrimaryKey) Parse(tablefields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error) { //pkfieldTypeLen无用
 	if len(tablefields) == 0 {
-		return nil
+		return nil, errors.New("DefaultPrimaryKey Parse error: tablefields is empty")
 	}
 	fspos := getFieldPos(tablefields, value)
 	//根据索引位置，切分value值
@@ -323,7 +322,7 @@ func (dpk *DefaultPrimaryKey) Parse(tablefields []string, pkfieldTypeLen *map[st
 			fieldsBytes[f.field] = after
 		}
 	}
-	return &fieldsBytes
+	return &fieldsBytes, nil
 }
 
 // 获取字段在value中对应的位置，从小到大排序
@@ -450,13 +449,13 @@ func DefaultFullTextIndexNew(name string) (*DefaultFullTextIndex, error) {
 	}
 	return dfi, nil
 }
-func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) *map[string][]byte {
+func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error) {
 	//检测primaryFields在全文索引的前面还是后面
 	idx := slices.Index(dfi.fields, primaryFields[0])
 	//全文索引必须在前面或后面全量加上主键字段（单或多主键），否则全文索引不成立。
 	if idx == -1 {
-		log.Printf("DefaultFullTextIndex Parse error: primaryFields %v not in fields %v\n全文索引必须在前面或后面全量加上主键字段（单或多主键），否则全文索引不成立。", primaryFields, dfi.fields)
-		return nil
+		//返回错误
+		return nil, errors.New("DefaultFullTextIndex Parse error: primaryFields not in fields\n全文索引必须在前面或后面全量加上主键字段（单或多主键），否则全文索引不成立。")
 	}
 	pflen := 0
 	pklen := len(primaryFields)
@@ -480,7 +479,7 @@ func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *m
 	fieldsBytes := make(map[string][]byte, pklen)
 	if pklen == 1 { // 单主键时，直接返回值。 这段代码是必须的，在单主键情况下，不需要进行复杂的解析。而且单主键支持非固定长度类型，也可以正常解析。
 		fieldsBytes[primaryFields[0]] = val
-		return &fieldsBytes
+		return &fieldsBytes, nil
 	}
 
 	var fieldTypeLen uint8
@@ -493,7 +492,7 @@ func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *m
 		pos = int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
 	}
 
-	return &fieldsBytes
+	return &fieldsBytes, nil
 
 }
 

@@ -528,7 +528,10 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	//反序列化记录，并且将字段值转换为对应的类型
 	//fieldsBytes := t.ParseRecord(record)
 	pk := t.GetPrimaryKey()
-	fieldsBytes := pk.Parse(pk.GetFields(), pk.GetfieldTypeLen(&t.fields), record)
+	fieldsBytes, err := pk.Parse(pk.GetFields(), pk.GetfieldTypeLen(&t.fields), record)
+	if err != nil {
+		return err
+	}
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
 	BatchContainer.Operation(fieldsBytes)
 	if len(batchs) == 0 { //用户未手动控制事务，自动提交
@@ -591,7 +594,10 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	//反序列化记录，并且将字段值转换为对应的类型
 	//fieldsBytes := t.ParseRecord(record)
 	pk := t.GetPrimaryKey()
-	fieldsBytes := pk.Parse(pk.GetFields(), pk.GetfieldTypeLen(&t.fields), record)
+	fieldsBytes, err := pk.Parse(pk.GetFields(), pk.GetfieldTypeLen(&t.fields), record)
+	if err != nil {
+		return err
+	}
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
 	//删除
 	BatchContainer.Operation(fieldsBytes, updateFields...)
