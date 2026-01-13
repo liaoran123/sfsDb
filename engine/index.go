@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"errors"
+	"log"
 	"slices"
 
 	"github.com/liaoran123/sfsDb/util"
@@ -172,16 +173,15 @@ func (bi *BaseIndex) MatchFields(fields ...string) bool {
 // 将索引的value值转换为主键map值
 // value=fval1+SPLIT+fval2+SPLIT+...+fieldn
 // fields []string, value []byte, 顺序必须相同
+// pkfieldTypeLen，按照定长截取字段值。
 func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) *map[string][]byte {
-	// 解析索引值
 	pflen := 0
 	pklen := len(primaryFields)
-	//组合主键，并且存在不定长类型
-	hasVarLen := false
 	for _, fit := range primaryFields {
 		if len, ok := (*pkfieldTypeLen)[fit]; ok {
 			if len == 0 && pklen > 1 { // 组合主键时，主键类型的长度未指定，无法解析主键值。
-				hasVarLen = true
+				//中断程序
+				panic("使用可变长度类型作为组合主键，需要注册指定长度。")
 			}
 			pflen += int(len) + 1 //每个字段之间用分隔符隔开
 		}
@@ -193,23 +193,17 @@ func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]ui
 		fieldsBytes[primaryFields[0]] = val
 		return &fieldsBytes
 	}
-	if !hasVarLen { // 组合主键，且所有字段都是固定长度类型。则根据字段长度解析。
-		var fieldTypeLen uint8
-		pos := 0
-		// value=fval1+SPLIT+fval2+SPLIT+...+fieldn
-		//获取每个字段的值，fval1,fval2,...,fieldn
-		for _, fit := range primaryFields {
-			fieldTypeLen += (*pkfieldTypeLen)[fit]
-			fieldsBytes[fit] = val[pos:fieldTypeLen]
-			pos = int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
-		}
-	} else { // 组合主键，且存在不定长类型。则根据分隔符解析。
-		vs := util.Bytes(value).Split()
-		vs = vs[:pklen]
-		for i, fit := range primaryFields {
-			fieldsBytes[fit] = vs[i]
-		}
+
+	var fieldTypeLen uint8
+	pos := 0
+	// value=fval1+SPLIT+fval2+SPLIT+...+fieldn
+	//获取每个字段的值，fval1,fval2,...,fieldn
+	for _, fit := range primaryFields {
+		fieldTypeLen += (*pkfieldTypeLen)[fit]
+		fieldsBytes[fit] = val[pos:fieldTypeLen]
+		pos = int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
 	}
+
 	return &fieldsBytes
 }
 
@@ -218,7 +212,7 @@ func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]ui
 type PrimaryKey interface {
 	Index
 	// 设置主键ID
-	GetID(fieldsBytes *map[string][]byte, tablefields *map[string]any, existFields ...string) []byte
+	GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte
 	GetfieldTypeLen(tablefields *map[string]any) *map[string]uint8
 }
 
@@ -260,30 +254,15 @@ func (dpk *DefaultPrimaryKey) GetfieldTypeLen(tablefields *map[string]any) *map[
 
 // 過濾存在的字段
 // 系統設計爲過濾key存在的字段不在value中儲存。
-func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, tablefields *map[string]any, existFields ...string) []byte {
+func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte {
 	var Value bytes.Buffer
+	fieldlen := len(dpk.fields)
 	for i, fit := range dpk.fields {
 		if slices.Contains(existFields, fit) {
 			continue
 		}
-		existVar := false //是否存在不定长类型
-		fieldlen := len(dpk.fields)
-		if fieldlen > 1 { //组合主键
-			fieldTypeLen := dpk.GetfieldTypeLen(tablefields)
-			for _, flen := range *fieldTypeLen {
-				if flen == 0 { // 组合主键，且存在不定长类型。
-					existVar = true
-					break
-				}
-			}
-		}
 		if v, ok := (*fieldsBytes)[fit]; ok {
-			if !existVar { //组合主键,不存在不定长类型，直接写入值。
-				Value.Write(v)
-			} else { //组合主键,存在不定长类型，需要转义。
-				v = util.Bytes(v).Escape()
-				Value.Write(v)
-			}
+			Value.Write(v)
 			if i < fieldlen-1 {
 				Value.Write([]byte(SPLIT))
 			}
@@ -471,34 +450,53 @@ func DefaultFullTextIndexNew(name string) (*DefaultFullTextIndex, error) {
 	}
 	return dfi, nil
 }
-
-/*
-// 将索引的value转换为主键map值
-//全文索引正常情况下必须带上主键，否则后面的关键词都被覆盖，失去全文索引的意义。
-创建组合全文索示例：
-
-	fullText.AddFields("content", "mid", "secNo") //"mid", "secNo" 为组合主键
-	fullText.AddFields("description", "id") //"id" 为单主键
-
-通过JoinFullValues拼接后大概如下：
-content-mid-secNo = content-1-2
-description-id = description-1
-
-GetPrimaryBytes函数是提取
-content-mid-secNo = content-1-2 ==> mid = 1, secNo = 2
-description-id = description-1 ==> id = 1
-
-func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, tablefields *map[string]any, value []byte) *map[string][]byte {
-	ks := util.Bytes(value).Split() //分解并反转义
-	fieldlen := len(primaryFields)
-	ks = ks[len(ks)-fieldlen:] //与其他索引不同的地方就是要key值提取。其他索引的值就是value，不用提取。
-	fieldsBytes := make(map[string][]byte, fieldlen)
-	for i, k := range ks { //重新拼接
-		fieldsBytes[primaryFields[i]] = k
+func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) *map[string][]byte {
+	//检测primaryFields在全文索引的前面还是后面
+	idx := slices.Index(dfi.fields, primaryFields[0])
+	//全文索引必须在前面或后面全量加上主键字段（单或多主键），否则全文索引不成立。
+	if idx == -1 {
+		log.Printf("DefaultFullTextIndex Parse error: primaryFields %v not in fields %v\n全文索引必须在前面或后面全量加上主键字段（单或多主键），否则全文索引不成立。", primaryFields, dfi.fields)
+		return nil
 	}
+	pflen := 0
+	pklen := len(primaryFields)
+	for _, fit := range primaryFields {
+		if len, ok := (*pkfieldTypeLen)[fit]; ok {
+			if len == 0 && pklen > 1 { // 组合主键时，主键类型的长度未指定，无法解析主键值。
+				//中断程序
+				panic("使用可变长度类型作为组合主键，需要注册指定长度。")
+			}
+			pflen += int(len) + 1 //每个字段之间用分隔符隔开
+		}
+	}
+	pflen -= 1 //最后一个分隔符不需要计算
+	var val []byte
+	//如果primaryFields在全文索引的前面。
+	if idx == 0 { //需要判断前面或后面，取值不同，其他与基类逻辑一样。
+		val = value[len(dfi.Prefix(0)):pflen]
+	} else { //如果primaryFields在全文索引的后面，调用基类解析主键值。
+		val = value[len(value)-pflen:]
+	}
+	fieldsBytes := make(map[string][]byte, pklen)
+	if pklen == 1 { // 单主键时，直接返回值。 这段代码是必须的，在单主键情况下，不需要进行复杂的解析。而且单主键支持非固定长度类型，也可以正常解析。
+		fieldsBytes[primaryFields[0]] = val
+		return &fieldsBytes
+	}
+
+	var fieldTypeLen uint8
+	pos := 0
+	// value=fval1+SPLIT+fval2+SPLIT+...+fieldn
+	//获取每个字段的值，fval1,fval2,...,fieldn
+	for _, fit := range primaryFields {
+		fieldTypeLen += (*pkfieldTypeLen)[fit]
+		fieldsBytes[fit] = val[pos:fieldTypeLen]
+		pos = int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
+	}
+
 	return &fieldsBytes
+
 }
-*/
+
 // 指定那个字段是全文索引字段，以及索引长度
 func (dfi *DefaultFullTextIndex) SetFullField(field string, len int) error {
 	//len限制为3-11个字符

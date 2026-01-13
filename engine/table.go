@@ -352,8 +352,8 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 
 	record := t.FormatRecord(fieldsBytes)
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
-	BatchContainer.SetValue(0, record)                                          //添加主键value=record
-	BatchContainer.SetValue(1, t.GetPrimaryKey().GetID(fieldsBytes, &t.fields)) //添加普通索引value=GetPrimaryKey().GetID()
+	BatchContainer.SetValue(0, record)                               //添加主键value=record
+	BatchContainer.SetValue(1, t.GetPrimaryKey().GetID(fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
 	//添加全文索引key=joinValue,value=nil
 	BatchContainer.Operation(fieldsBytes)
 	//t.Operation(fieldsBytes, batch, BatchContainer)
@@ -608,8 +608,8 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	}
 	//设置新值添加
 	record = t.FormatRecord(fieldsBytes)
-	BatchContainer.SetValue(0, record)                                          //添加主键value=record
-	BatchContainer.SetValue(1, t.GetPrimaryKey().GetID(fieldsBytes, &t.fields)) //添加普通索引value=GetPrimaryKey().GetID()
+	BatchContainer.SetValue(0, record)                               //添加主键value=record
+	BatchContainer.SetValue(1, t.GetPrimaryKey().GetID(fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
 	//添加全文索引key=joinValue,value=nil
 	BatchContainer.Operation(fieldsBytes, updateFields...)
 	//提交事务
