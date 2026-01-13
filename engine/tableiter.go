@@ -107,6 +107,7 @@ func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	return fieldsBytes
 }
 
+// 记录未进行反转义，可能性极低，暂时不处理。
 func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd Record) {
 	if fieldsBytes == nil {
 		return nil
