@@ -1,7 +1,5 @@
 package engine
 
-import "fmt"
-
 // 根据TableIter回传的key,value所有能得到的field的值，进行所需匹配
 type Match interface {
 	//fields *map[string]any接收迭代器传回的值进行匹配
@@ -37,18 +35,7 @@ func NewAND(fields []string, data map[any]bool, rule ...bool) *AND {
 
 //由于data map[any]bool,any只能是一个值，所以规定，fields 大于1,则需要将fields *map[string]any中的合并值转换为字符串，再进行匹配
 func (b *AND) mergeFields(fields *map[string]any) (r any) {
-	if len(b.fields) > 1 {
-		r = ""
-		for _, f := range b.fields {
-			//用分隔符SPLIT将fields中的值合并为一个字符串
-			r = r.(string) + fmt.Sprintf("%v", (*fields)[f]) + SPLIT
-		}
-		// 去掉最后一个分隔符
-		r = r.(string)[:len(r.(string))-1]
-	} else {
-		r = (*fields)[b.fields[0]]
-	}
-	return r
+	return MergeFields(b.fields, fields)
 }
 func (b *AND) Match(fields *map[string]any) bool {
 	if fields == nil || len(*fields) == 0 {

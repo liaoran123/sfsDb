@@ -2,11 +2,11 @@ package engine
 
 import (
 	"bytes"
-	"fmt"
 	"maps"
 	"sync"
 
 	"github.com/liaoran123/sfsDb/storage"
+	"github.com/liaoran123/sfsDb/util"
 )
 
 type TableIter struct {
@@ -355,31 +355,35 @@ func (t *TableIter) ForExport(esc bool, export Export) {
 		}
 	}
 }
-func MergeFields(fns []string, fields *map[string]any) (r any) {
-	if len(fns) > 1 {
-		r = ""
-		for _, f := range fns {
-			//用分隔符SPLIT将fields中的值合并为一个字符串
-			r = r.(string) + fmt.Sprintf("%v", (*fields)[f]) + SPLIT
-		}
-		// 去掉最后一个分隔符
-		r = r.(string)[:len(r.(string))-1]
-	} else {
-		r = (*fields)[fns[0]]
-	}
-	return r
-}
 
 // 提取主键值
 // if len(fields) == 0 ，默认是提取主键值，主键也可以是组合主键
 // 单主键则返回原始值，组合主键则返回拼接的字符串
 func (t *TableIter) GetPrimaryKeys(k, v []byte, fields ...string) (r any) {
 	fbs := t.ParseBytes(k, v)
-	fany := t.table.RecordByteToAny(fbs)
 	if len(fields) == 0 {
 		fields = t.table.GetPrimaryKey().GetFields()
 	}
-	r = MergeFields(fields, fany)
+	//提取对应的值
+	val := make(map[string][]byte, len(fields))
+	for _, f := range fields {
+		if v, ok := (*fbs)[f]; ok {
+			val[f] = v
+		}
+	}
+	isComposite := len(fields) > 1
+	if isComposite {
+		//组合主键,则将所有字段值拼接起来为字符串
+		r = ""
+		for _, f := range val {
+			r = r.(string) + string(f) + SPLIT
+		}
+		// 去掉最后一个分隔符
+		r = r.(string)[:len(r.(string))-1]
+	} else {
+		// 单主键，直接转换为对应类型
+		r = util.Bytes((*fbs)[fields[0]]).ToAny(t.table.fields[fields[0]])
+	}
 	return
 }
 

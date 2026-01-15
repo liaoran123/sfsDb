@@ -198,9 +198,9 @@ func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]ui
 	// value=fval1+SPLIT+fval2+SPLIT+...+fieldn
 	//获取每个字段的值，fval1,fval2,...,fieldn
 	for _, fit := range primaryFields {
-		fieldTypeLen += (*pkfieldTypeLen)[fit]
-		fieldsBytes[fit] = val[pos:fieldTypeLen]
-		pos = int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
+		fieldTypeLen = (*pkfieldTypeLen)[fit]
+		fieldsBytes[fit] = val[pos : pos+int(fieldTypeLen)]
+		pos += int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
 	}
 
 	return &fieldsBytes, nil
@@ -473,7 +473,7 @@ func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *m
 	//如果primaryFields在全文索引的前面。
 	if idx == 0 { //需要判断前面或后面，取值不同，其他与基类逻辑一样。
 		val = value[len(dfi.Prefix(0)):pflen]
-	} else { //如果primaryFields在全文索引的后面，调用基类解析主键值。
+	} else { //如果primaryFields在全文索引的后面，与基类方法一样。
 		val = value[len(value)-pflen:]
 	}
 	fieldsBytes := make(map[string][]byte, pklen)
@@ -487,9 +487,9 @@ func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *m
 	// value=fval1+SPLIT+fval2+SPLIT+...+fieldn
 	//获取每个字段的值，fval1,fval2,...,fieldn
 	for _, fit := range primaryFields {
-		fieldTypeLen += (*pkfieldTypeLen)[fit]
-		fieldsBytes[fit] = val[pos:fieldTypeLen]
-		pos = int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
+		fieldTypeLen = (*pkfieldTypeLen)[fit]
+		fieldsBytes[fit] = val[pos : pos+int(fieldTypeLen)]
+		pos += int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
 	}
 
 	return &fieldsBytes, nil
