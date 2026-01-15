@@ -198,9 +198,9 @@ func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]ui
 	// value=fval1+SPLIT+fval2+SPLIT+...+fieldn
 	//获取每个字段的值，fval1,fval2,...,fieldn
 	for _, fit := range primaryFields {
-		fieldTypeLen += (*pkfieldTypeLen)[fit]
-		fieldsBytes[fit] = val[pos:fieldTypeLen]
-		pos = int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
+		fieldTypeLen = (*pkfieldTypeLen)[fit]
+		fieldsBytes[fit] = val[pos : pos+int(fieldTypeLen)]
+		pos += int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
 	}
 
 	return &fieldsBytes, nil
@@ -487,9 +487,9 @@ func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *m
 	// value=fval1+SPLIT+fval2+SPLIT+...+fieldn
 	//获取每个字段的值，fval1,fval2,...,fieldn
 	for _, fit := range primaryFields {
-		fieldTypeLen += (*pkfieldTypeLen)[fit]
-		fieldsBytes[fit] = val[pos:fieldTypeLen]
-		pos = int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
+		fieldTypeLen = (*pkfieldTypeLen)[fit]
+		fieldsBytes[fit] = val[pos : pos+int(fieldTypeLen)]
+		pos += int(fieldTypeLen) + 1 // 跳过分隔符，下一个字段的起始位置
 	}
 
 	return &fieldsBytes, nil
