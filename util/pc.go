@@ -5,11 +5,10 @@ import (
 	"strconv"
 )
 
-var EndianOrder = binary.BigEndian // 使用固定大端序
-
 // intSize 表示 int 类型的位数，32 或 64
 const intSize = strconv.IntSize
 
+var EndianOrder = binary.BigEndian // 使用固定大端序
 /*
 ### 实际应用场景
 在 SFSDB 项目中，使用固定大端序特别重要的场景包括：
@@ -24,6 +23,7 @@ const intSize = strconv.IntSize
 对于数据库系统这样需要长期稳定运行、可能跨平台部署的应用，使用固定的大端序是一个更为稳妥和前瞻性的选择。它提供了更好的兼容性、一致性和可维护性，为系统的长期发展奠定了坚实的基础。
 */
 /*
+该函数不能使用，自己的电脑系统都出现大小端不一致问题。
 // 判断大小端
 func Endian() binary.ByteOrder {
 	var i int = 0x1
