@@ -398,8 +398,9 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 // 记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
 // 值包含-fieldname-时，需要转义，即加一个空格- fieldname-。这样可以避免与字段名冲突，反转义时去掉空格。
 func (t *Table) Escape(b []byte) []byte {
+	//b,可能是字段名称，故而也需要转义，即加一个空格- fieldname -。这样可以避免与字段名冲突，反转义时去掉空格。
 	for field := range t.fields {
-		b = bytes.ReplaceAll(b, []byte(SPLIT+field+SPLIT), []byte(SPLIT+" "+field+" "+SPLIT))
+		b = bytes.ReplaceAll(b, []byte(field), []byte(" "+field+" "))
 	}
 	return b
 }
@@ -409,7 +410,7 @@ func (t *Table) Escape(b []byte) []byte {
 // 值包含-fieldname-时，需要转义，即加一个空格- fieldname-。这样可以避免与字段名冲突，反转义时去掉空格。
 func (t *Table) UnEscape(b []byte) []byte {
 	for field := range t.fields {
-		b = bytes.ReplaceAll(b, []byte(SPLIT+" "+field+" "+SPLIT), []byte(SPLIT+field+SPLIT))
+		b = bytes.ReplaceAll(b, []byte(" "+field+" "), []byte(field))
 	}
 	return b
 }
