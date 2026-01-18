@@ -8,7 +8,6 @@ import (
 	"log"
 	"maps"
 	"reflect"
-	"sort"
 	"strings"
 	"time"
 
@@ -378,20 +377,17 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 	var value []byte
 	//记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
 	buf.WriteString(SPLIT)
-	// 按照t.fields中的字段顺序来格式化记录，确保顺序一致
-	for field := range t.fields {
-		if val, ok := (*fieldsBytes)[field]; ok {
-			fname = []byte(field)
-			buf.Write(fname)
-			buf.WriteString(SPLIT)
-			if t.GetEscapeField(field) {
-				value = t.Escape(val)
-			} else {
-				value = val
-			}
-			buf.Write(value)
-			buf.WriteString(SPLIT)
+	for field, val := range *fieldsBytes {
+		fname = []byte(field)
+		buf.Write(fname)
+		buf.WriteString(SPLIT)
+		if t.GetEscapeField(field) {
+			value = t.Escape(val)
+		} else {
+			value = val
 		}
+		buf.Write(value)
+		buf.WriteString(SPLIT)
 	}
 	//删除最后一个分隔符
 	buf.Truncate(buf.Len() - 1)
@@ -402,106 +398,21 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 // 记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
 // 值包含-fieldname-时，需要转义，即加一个空格- fieldname -。这样可以避免与字段名冲突，反转义时去掉空格。
 func (t *Table) Escape(b []byte) []byte {
-	if len(b) == 0 || len(t.fields) == 0 {
-		return b
-	}
-
-	// 预编译字段信息，按长度降序排序，避免嵌套替换问题
-	type fieldInfo struct {
-		pattern     []byte
-		replacement []byte
-	}
-
-	fields := make([]fieldInfo, 0, len(t.fields))
+	//b,可能是字段名称，故而也需要转义，即加一个空格- fieldname -。这样可以避免与字段名冲突，反转义时去掉空格。
 	for field := range t.fields {
-		pattern := []byte(field)
-		replacement := []byte(" " + field + " ")
-		fields = append(fields, fieldInfo{pattern, replacement})
+		b = bytes.ReplaceAll(b, []byte(field), []byte(" "+field+" "))
 	}
-
-	// 按模式长度降序排序
-	sort.Slice(fields, func(i, j int) bool {
-		return len(fields[i].pattern) > len(fields[j].pattern)
-	})
-
-	// 使用 bytes.Buffer 构建结果，预分配足够空间
-	var buf bytes.Buffer
-	buf.Grow(len(b) * 2)
-
-	// 单次遍历 b，查找并替换所有字段名
-	for i := 0; i < len(b); {
-		matched := false
-		for _, field := range fields {
-			if i+len(field.pattern) <= len(b) && bytes.Equal(b[i:i+len(field.pattern)], field.pattern) {
-				// 找到匹配的字段名，替换为转义后的形式
-				buf.Write(field.replacement)
-				i += len(field.pattern)
-				matched = true
-				break
-			}
-		}
-
-		if !matched {
-			// 没有匹配到任何字段名，直接写入当前字节
-			buf.WriteByte(b[i])
-			i++
-		}
-	}
-
-	return buf.Bytes()
+	return b
 }
 
 // UnEscape()
 // 记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
 // 值包含-fieldname-时，需要转义，即加一个空格- fieldname -。这样可以避免与字段名冲突，反转义时去掉空格。
 func (t *Table) UnEscape(b []byte) []byte {
-	if len(b) == 0 || len(t.fields) == 0 {
-		return b
-	}
-
-	// 预编译字段信息，按长度降序排序
-	type fieldInfo struct {
-		pattern     []byte
-		replacement []byte
-	}
-
-	fields := make([]fieldInfo, 0, len(t.fields))
 	for field := range t.fields {
-		pattern := []byte(" " + field + " ")
-		replacement := []byte(field)
-		fields = append(fields, fieldInfo{pattern, replacement})
+		b = bytes.ReplaceAll(b, []byte(" "+field+" "), []byte(field))
 	}
-
-	// 按模式长度降序排序
-	sort.Slice(fields, func(i, j int) bool {
-		return len(fields[i].pattern) > len(fields[j].pattern)
-	})
-
-	// 使用 bytes.Buffer 构建结果，预分配足够空间
-	var buf bytes.Buffer
-	buf.Grow(len(b))
-
-	// 单次遍历 b，查找并替换所有转义后的字段名
-	for i := 0; i < len(b); {
-		matched := false
-		for _, field := range fields {
-			if i+len(field.pattern) <= len(b) && bytes.Equal(b[i:i+len(field.pattern)], field.pattern) {
-				// 找到匹配的转义字段名，替换为原始形式
-				buf.Write(field.replacement)
-				i += len(field.pattern)
-				matched = true
-				break
-			}
-		}
-
-		if !matched {
-			// 没有匹配到任何转义字段名，直接写入当前字节
-			buf.WriteByte(b[i])
-			i++
-		}
-	}
-
-	return buf.Bytes()
+	return b
 }
 
 // 需要转义的字段

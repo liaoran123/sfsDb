@@ -105,15 +105,14 @@ func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 		return nil
 	}
 	//反转义
-	for field := range t.table.fields {
+	for field, val := range *fieldsBytes {
 		if t.table.GetEscapeField(field) {
-			(*fieldsBytes)[field] = t.table.UnEscape((*fieldsBytes)[field])
+			(*fieldsBytes)[field] = t.table.UnEscape(val)
 		}
 	}
 	return fieldsBytes
 }
 
-// 记录未进行反转义，可能性极低，暂时不处理。
 func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd Record) {
 	if fieldsBytes == nil {
 		return nil
