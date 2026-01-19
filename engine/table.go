@@ -762,7 +762,11 @@ func (t *Table) FieldsToBytesNil(fields *map[string]any) *map[string][]byte {
 	return &result
 }
 
+// util.ComparisonOperator>6则不支持，需要使用MultiFieldMatch struct
 func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
+	if len(ops) > 6 {
+		return nil
+	}
 	var field []string
 	for k := range *fields {
 		//判断字段是否在表中
