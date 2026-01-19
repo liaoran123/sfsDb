@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"slices"
-	"sort"
 
 	"github.com/liaoran123/sfsDb/util"
 )
@@ -271,6 +270,24 @@ func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields 
 	return Value.Bytes()
 }
 
+/*
+func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte {
+	var Value bytes.Buffer
+	for i, fit := range dpk.fields {
+		if slices.Contains(existFields, fit) {
+			continue
+		}
+		fieldlen := len(dpk.fields)
+		if v, ok := (*fieldsBytes)[fit]; ok {
+			Value.Write(v)
+			if i < fieldlen-1 {
+				Value.Write([]byte(SPLIT))
+			}
+		}
+	}
+	return Value.Bytes()
+}
+*/
 // 解析函数，将索引的value转换为主键map值
 // 与func (t *Table) FormatRecord(fieldsBytes *map[string][]byte, FilterFields ...string) (r []byte)相对应
 // 主键索引值格式，记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
@@ -281,17 +298,29 @@ func (dpk *DefaultPrimaryKey) Parse(tablefields []string, pkfieldTypeLen *map[st
 	if len(tablefields) == 0 {
 		return nil, errors.New("DefaultPrimaryKey Parse error: tablefields is empty")
 	}
-	//记录格式：field1:value1-field2:value2-...-fieldN:valueN
-	sort.Strings(tablefields)
-	vals := util.Bytes(value).Split()
-	if len(vals) != len(tablefields) {
-		return nil, errors.New("DefaultPrimaryKey Parse error: value is not valid")
+	fspos := getFieldPos(tablefields, value)
+	//根据索引位置，切分value值
+	//根据格式：bs={-field1-value1-field2-value2,...,-fieldN-valueN-} 分解的字段名和值
+	pos := 0
+	pos1 := 0
+	for i := range fspos {
+		pos = fspos[i].index
+		if i < len(fspos)-1 {
+			pos1 = fspos[i+1].index
+			fspos[i].value = value[pos:pos1]
+		} else {
+			fspos[i].value = value[pos:]
+		}
+		//pos += pos1
 	}
+	//根据格式：bs={-field1-value1-field2-value2,...,-fieldN-valueN-} 分解bs的字段名和值
 	fieldsBytes := make(map[string][]byte, len(tablefields))
-	var val []byte
-	for i, fs := range tablefields {
-		val = vals[i]
-		fieldsBytes[fs] = val[len(fs)+1:]
+	for _, f := range fspos {
+		//截取-field1-value1-的value
+		after, ok := bytes.CutPrefix(f.value, []byte(SPLIT+f.field+SPLIT))
+		if ok {
+			fieldsBytes[f.field] = after
+		}
 	}
 	return &fieldsBytes, nil
 }

@@ -475,30 +475,31 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 	var buf bytes.Buffer
 	var fname []byte
-	orderedFields := t.GetFieldsName()
-	// 对字段进行排序，确保每次调用生成相同顺序的记录
-	sort.Strings(orderedFields)
-	//记录格式：field1:	value1-field2:value2-...-fieldN:valueN
+	var value []byte
+	//记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
+	buf.WriteString(SPLIT)
 	// 按照t.fields中的字段顺序来格式化记录，确保顺序一致
-	for _, field := range orderedFields {
+	for field := range t.fields {
 		if val, ok := (*fieldsBytes)[field]; ok {
 			fname = []byte(field)
-			buf.Write(util.Bytes(fname).Escape())
-			buf.WriteString(":")
-			buf.Write(util.Bytes(val).Escape())
+			buf.Write(fname)
+			buf.WriteString(SPLIT)
+			if t.GetEscapeField(field) {
+				value = t.Escape(val)
+			} else {
+				value = val
+			}
+			buf.Write(value)
 			buf.WriteString(SPLIT)
 		}
 	}
 	//删除最后一个分隔符
-	if buf.Len() > 0 {
-		buf.Truncate(buf.Len() - 1)
-	}
+	buf.Truncate(buf.Len() - 1)
 	return buf.Bytes()
 }
 
-/*
 // Escape()
-// 记录格式：-field1:value1-field2:value2-...-fieldN:valueN-
+// 记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
 // 值包含-fieldname-时，需要转义，即加一个空格- fieldname -。这样可以避免与字段名冲突，反转义时去掉空格。
 func (t *Table) Escape(b []byte) []byte {
 	if len(b) == 0 || len(t.fields) == 0 {
@@ -616,7 +617,7 @@ func (t *Table) GetEscapeField(field string) bool {
 	return false
 }
 
-
+/*
 func (t *Table) FormatRecord(fieldsBytes *map[string][]byte, FilterFields ...string) (r []byte) {
 	var buf bytes.Buffer
 	var value []byte
@@ -679,10 +680,6 @@ func (t *Table) ParseRecord(record []byte) *map[string][]byte {
 // *map[string][]byte ==> *map[string]any
 // 与FieldsToBytes相反
 func (t *Table) RecordByteToAny(value *map[string][]byte) *map[string]any {
-	// 检查参数
-	if value == nil || t.fields == nil {
-		return nil
-	}
 	fields := make(map[string]any, len(*value))
 	for field, val := range *value {
 		fields[field] = util.Bytes(val).ToAny(t.fields[field])

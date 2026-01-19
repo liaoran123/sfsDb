@@ -104,6 +104,12 @@ func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	if err != nil {
 		return nil
 	}
+	//反转义
+	for field, val := range *fieldsBytes {
+		if t.table.GetEscapeField(field) {
+			(*fieldsBytes)[field] = t.table.UnEscape(val)
+		}
+	}
 	return fieldsBytes
 }
 
