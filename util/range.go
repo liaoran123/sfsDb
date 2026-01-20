@@ -19,12 +19,6 @@ const (
 	LessThanOrEqual
 	// Like 类似于SQL LIKE操作
 	Like
-	// Prefix 前缀匹配
-	Prefix
-	// Suffix 后缀匹配
-	Suffix
-	// Contains 包含匹配
-	Contains
 )
 
 // String 返回比较操作符的字符串表示
@@ -44,12 +38,7 @@ func (op ComparisonOperator) String() string {
 		return "<="
 	case Like:
 		return "LIKE"
-	case Prefix:
-		return "PREFIX"
-	case Suffix:
-		return "SUFFIX"
-	case Contains:
-		return "CONTAINS"
+
 	default:
 		return "unknown"
 	}
@@ -206,15 +195,7 @@ func (h *RangeHelper) FromComparison(op ComparisonOperator, value []byte) *Range
 	case Like:
 		// 使用Prefix处理LIKE操作，仅支持前缀匹配
 		return h.Prefix(value)
-	case Prefix:
-		// 前缀匹配：[value, value+1字节的最大值)
-		return h.Prefix(value)
-	case Suffix:
-		// 后缀匹配：需要全库扫描，具体过滤在应用层处理
-		return FullScanRange
-	case Contains:
-		// 包含匹配：需要全库扫描，具体过滤在应用层处理
-		return FullScanRange
+
 	case NotEqual:
 		// 不等于操作使用全库扫描，具体过滤在应用层处理
 		// 或者调用FromComparisonNotEqual获取两个Range
