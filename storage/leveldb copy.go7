@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb"
@@ -38,18 +37,7 @@ func NewLevelDBStore(Path string, opts *opt.Options) (Store, error) {
 	}
 	ldb, err := leveldb.OpenFile(Path, opts)
 	if err != nil {
-		// 尝试修复损坏的数据库
-		ldb, err = leveldb.RecoverFile(Path, opts)
-		if err != nil {
-			// 修复失败，返回更详细的错误信息
-			return nil, NewError(fmt.Sprintf("数据库打开失败且修复失败: 打开错误: %v, 修复错误: %v", err, err))
-		}
-		// 修复成功，直接使用恢复后的数据库实例
-		return &LevelDBStore{
-			ldb:        ldb,
-			isSnapshot: false,
-			opts:       opts,
-		}, nil
+		return nil, err
 	}
 	return &LevelDBStore{
 		ldb:        ldb,

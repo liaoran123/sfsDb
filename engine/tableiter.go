@@ -5,8 +5,8 @@ import (
 	"maps"
 	"sync"
 
-	record "github.com/liaoran123/sfsDb/Record"
-	match "github.com/liaoran123/sfsDb/mach"
+	"github.com/liaoran123/sfsDb/match"
+	"github.com/liaoran123/sfsDb/record"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )

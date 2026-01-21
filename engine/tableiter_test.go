@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	match "github.com/liaoran123/sfsDb/mach"
+	"github.com/liaoran123/sfsDb/match"
 	"github.com/liaoran123/sfsDb/util"
 )
 
