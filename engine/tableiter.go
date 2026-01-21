@@ -5,6 +5,7 @@ import (
 	"maps"
 	"sync"
 
+	record "github.com/liaoran123/sfsDb/Record"
 	match "github.com/liaoran123/sfsDb/mach"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
@@ -23,7 +24,7 @@ type TableIter struct {
 }
 
 // 导出记录 ，用于流式处理删除修改记录操作等。
-type ExportRecord func(rd *Record) bool
+type ExportRecord func(rd *record.Record) bool
 
 // 导出函数
 type Export func(k, v []byte) bool
@@ -108,13 +109,13 @@ func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	return fieldsBytes
 }
 
-func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd Record) {
+func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Record) {
 	if fieldsBytes == nil {
 		return nil
 	}
 	switch t.index.(type) {
 	case PrimaryKey: //主键通过Parse直接得到的就是记录
-		rd = Record(*t.table.RecordByteToAny(fieldsBytes))
+		rd = record.Record(*t.table.RecordByteToAny(fieldsBytes))
 	default: //其他二级索引通过Parse得到的是主键ID值，需要回表才能得到记录。
 		// 拼接主键前缀和索引值，得到主键key
 		pk := t.table.GetPrimaryKey()
@@ -131,7 +132,7 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd Record) {
 			return nil
 		}
 		//转换为记录 ： *map[string][]byte ==> *map[string]any
-		rd = Record(*t.table.RecordByteToAny(trd))
+		rd = record.Record(*t.table.RecordByteToAny(trd))
 	}
 	return rd
 }
@@ -196,8 +197,8 @@ func (t *TableIter) Match(rd *map[string]any, match []match.Match) bool {
 }
 
 // 遍历迭代器返回解析后的记录
-func (t *TableIter) GetRecords(esc bool, limit ...int) (r Records) {
-	t.ExportRecord(func(rd *Record) bool {
+func (t *TableIter) GetRecords(esc bool, limit ...int) (r record.Records) {
+	t.ExportRecord(func(rd *record.Record) bool {
 		if len(*rd) == 0 { //删除记录后，数据为空，但是迭代器依然存在，只是返回空。
 			return true
 		}
@@ -209,7 +210,7 @@ func (t *TableIter) GetRecords(esc bool, limit ...int) (r Records) {
 }
 
 // 判断主键是否存在
-func (t *TableIter) hasPrimaryKey(rd Record) bool {
+func (t *TableIter) hasPrimaryKey(rd record.Record) bool {
 	pkfs := t.table.GetPrimaryKey().GetFields()
 	for _, f := range pkfs {
 		if _, ok := rd[f]; !ok {
@@ -224,7 +225,7 @@ func (t *TableIter) Delete(limit ...int) {
 	existpk := false
 	var rdMap map[string]any
 	var err error
-	t.ExportRecord(func(rd *Record) bool {
+	t.ExportRecord(func(rd *record.Record) bool {
 		//判断是否存在主键字段
 		if !existpk { //只需要判断一次，因为所有的记录字段是一样。
 			existpk = t.hasPrimaryKey(*rd)
@@ -248,7 +249,7 @@ func (t *TableIter) Update(fields *map[string]any, limit ...int) {
 	pkfs := t.table.GetPrimaryKey().GetFields()
 	var err error
 	var pkValues map[string]any
-	t.ExportRecord(func(rd *Record) bool {
+	t.ExportRecord(func(rd *record.Record) bool {
 		//判断是否存在主键字段
 		if !existpk { //只需要判断一次，因为所有的记录字段是一样。
 			existpk = t.hasPrimaryKey(*rd)
@@ -284,7 +285,7 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 	if !t.top[esc]() {
 		return
 	}
-	var rd Record
+	var rd record.Record
 	var rdany *map[string]any
 	var fieldsBytes *map[string][]byte
 	page := PageNew(limit...)
