@@ -12,6 +12,11 @@ func (t *Table) CreateIndex(index Index) error {
 	}
 	err = t.indexs.createIndex(index, idxid)
 	if err != nil {
+		// 回退ID
+		_, err = t.indexIDManager.GetPreviousID(index.Name())
+		if err != nil {
+			return err
+		}
 		return err
 	}
 	return nil
