@@ -48,7 +48,7 @@ func (b *AND) Match(fields *map[string]any) bool {
 }
 
 /*
-//复杂字段匹配使用 type FieldComparison struct 实现的接口
+//复杂字段匹配使用 match.FieldComparison struct 实现的接口
 //支持的比较操作符
 // Equal 等于 (=)
 	Equal ComparisonOperator = iota

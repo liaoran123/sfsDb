@@ -541,7 +541,7 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	//反序列化记录，并且将字段值转换为对应的类型
 	//fieldsBytes := t.ParseRecord(record)
 	pk := t.GetPrimaryKey()
-	fieldsBytes, err := pk.Parse(pk.GetFields(), pk.GetfieldTypeLen(&t.fields), record)
+	fieldsBytes, err := pk.Parse(t.GetFieldsName(), nil, record)
 	if err != nil {
 		return err
 	}
@@ -550,7 +550,7 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	if len(batchs) == 0 { //用户未手动控制事务，自动提交
 		t.kvStore.WriteBatch(batch)
 	}
-	//fmt.Printf("Delete BatchContainer.Len(): %v\n", BatchContainer.Len())
+	fmt.Printf("Delete BatchContainer.Len(): %v\n", BatchContainer.Len())
 	return nil
 }
 
@@ -607,7 +607,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	//反序列化记录，并且将字段值转换为对应的类型
 	//fieldsBytes := t.ParseRecord(record)
 	pk := t.GetPrimaryKey()
-	fieldsBytes, err := pk.Parse(pk.GetFields(), pk.GetfieldTypeLen(&t.fields), record)
+	fieldsBytes, err := pk.Parse(t.GetFieldsName(), nil, record)
 	if err != nil {
 		return err
 	}
@@ -637,7 +637,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 			return err
 		}
 	}
-	//fmt.Printf("Update BatchContainer.Len(): %v\n", BatchContainer.Len())
+	fmt.Printf("Update BatchContainer.Len(): %v\n", BatchContainer.Len())
 	return nil
 }
 

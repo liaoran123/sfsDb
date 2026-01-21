@@ -1,4 +1,4 @@
-package anymatch
+package match
 
 // ComparisonOperator 定义比较操作符枚举
 type ComparisonOperator int
