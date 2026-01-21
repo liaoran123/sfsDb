@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	match "github.com/liaoran123/sfsDb/mach"
 	"github.com/liaoran123/sfsDb/util"
 )
 
@@ -168,7 +169,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	fmt.Println("select table1.* from table1,table2 where table1.id=table2.id")
 	fmt.Println("---------------------------------------------")
 	map2 := iter2.Map()
-	mach := NewAND([]string{"id"}, map2)
+	mach := match.NewAND([]string{"id"}, map2)
 	iter1.SetMatch(mach)
 	rd4 := iter1.GetRecords(true)
 	if len(rd4) != 3 {
@@ -184,7 +185,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	// select table1.* from table1,table2 where table1.id!=table2.id
 	fmt.Println("select table1.* from table1,table2 where table1.id!=table2.id")
 	fmt.Println("---------------------------------------------")
-	mach1 := NewAND([]string{"id"}, map2, false)
+	mach1 := match.NewAND([]string{"id"}, map2, false)
 	iter1.SetMatch(mach1)
 	rd5 := iter1.GetRecords(true)
 	if len(rd5) != 2 {
@@ -201,7 +202,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	fmt.Println("select table1.* from table1,table2,table3 where table1.id=table2.id and table1.id=table3.id")
 	fmt.Println("---------------------------------------------")
 	map3 := iter3.Map()
-	mach2 := NewAND([]string{"id"}, map3)
+	mach2 := match.NewAND([]string{"id"}, map3)
 	iter1.SetMatch(mach, mach2)
 	rd6 := iter1.GetRecords(true)
 	if len(rd6) != 1 {
@@ -217,7 +218,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	// select table1.* from table1,table2,table3 where table1.id!=table2.id and table1.id!=table3.id
 	fmt.Println("select table1.* from table1,table2,table3 where table1.id!=table2.id and table1.id!=table3.id")
 	fmt.Println("---------------------------------------------")
-	mach3 := NewAND([]string{"id"}, map3, false)
+	mach3 := match.NewAND([]string{"id"}, map3, false)
 	iter1.SetMatch(mach1, mach3)
 	rd7 := iter1.GetRecords(true)
 	if len(rd7) != 2 {

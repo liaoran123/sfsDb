@@ -2,18 +2,19 @@ package engine
 
 import (
 	"bytes"
-	"fmt"
 	"maps"
 	"sync"
 
+	match "github.com/liaoran123/sfsDb/mach"
 	"github.com/liaoran123/sfsDb/storage"
+	"github.com/liaoran123/sfsDb/util"
 )
 
 type TableIter struct {
 	iter       storage.Iterator
 	jumpRanges []storage.Iterator
 	table      *Table
-	match      []Match
+	match      []match.Match
 	selects    []string
 	index      Index //搜索时使用的索引
 	move       map[bool]func() bool
@@ -73,7 +74,7 @@ func PageNew(No ...int) Page {
 func (t *TableIter) SetJumpRanges(jumpRanges ...storage.Iterator) {
 	t.jumpRanges = jumpRanges
 }
-func (t *TableIter) SetMatch(match ...Match) {
+func (t *TableIter) SetMatch(match ...match.Match) {
 	t.match = match
 }
 
@@ -182,7 +183,7 @@ func (t *TableIter) JumpRange(key []byte, jumpRanges []storage.Iterator, esc boo
 // 如果不符合，返回false
 常见sql场景，f in (1,2,3) 或  and 等操作
 */
-func (t *TableIter) Match(rd *map[string]any, match []Match) bool {
+func (t *TableIter) Match(rd *map[string]any, match []match.Match) bool {
 	if len(match) == 0 {
 		return true //不需要匹配
 	}
@@ -354,6 +355,8 @@ func (t *TableIter) ForExport(esc bool, export Export) {
 		}
 	}
 }
+
+/*
 func MergeFields(fns []string, fields *map[string]any) (r any) {
 	if len(fns) > 1 {
 		r = ""
@@ -368,7 +371,7 @@ func MergeFields(fns []string, fields *map[string]any) (r any) {
 	}
 	return r
 }
-
+*/
 // 提取主键值
 // if len(fields) == 0 ，默认是提取主键值，主键也可以是组合主键
 // 单主键则返回原始值，组合主键则返回拼接的字符串
@@ -378,7 +381,7 @@ func (t *TableIter) GetPrimaryKeys(k, v []byte, fields ...string) (r any) {
 	if len(fields) == 0 {
 		fields = t.table.GetPrimaryKey().GetFields()
 	}
-	r = MergeFields(fields, fany)
+	r = util.MergeFields(fields, fany)
 	return
 }
 
