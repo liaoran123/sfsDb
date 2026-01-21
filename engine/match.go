@@ -46,3 +46,28 @@ func (b *AND) Match(fields *map[string]any) bool {
 	//rule是判断，true为对应sql语句的 IN 或 AND ，false为NOT IN 或 OR。
 	return ok == b.rule
 }
+
+/*
+//复杂字段匹配使用 type FieldComparison struct 实现的接口
+//支持的比较操作符
+// Equal 等于 (=)
+	Equal ComparisonOperator = iota
+	// NotEqual 不等于 (!=)
+	NotEqual
+	// GreaterThan 大于 (>)
+	GreaterThan
+	// GreaterThanOrEqual 大于等于 (>=)
+	GreaterThanOrEqual
+	// LessThan 小于 (<)
+	LessThan
+	// LessThanOrEqual 小于等于 (<=)
+	LessThanOrEqual
+	// Like 类似于SQL LIKE操作
+	Like
+	// Prefix 前缀匹配
+	Prefix
+	// Suffix 后缀匹配
+	Suffix
+	// Contains 包含匹配
+	Contains
+*/

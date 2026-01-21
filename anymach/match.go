@@ -8,22 +8,22 @@ import (
 	"github.com/liaoran123/sfsDb/util"
 )
 
-// AnyMatch 结构体用于对 any 值进行比较操作
-type AnyMatch struct {
+// Values 结构体用于对 any 值进行比较操作
+type Values struct {
 	value any           // 要比较的值
 	typ   util.TypeEnum // 值的类型枚举
 }
 
-// NewAnyMatch 创建一个新的 AnyMatch 实例
-func NewAnyMatch(v any) AnyMatch {
-	return AnyMatch{
+// NewValues 创建一个新的 Values 实例
+func NewValues(v any) Values {
+	return Values{
 		value: v,
 		typ:   util.GetTypeEnum(v),
 	}
 }
 
 // Equal 检查两个值是否相等
-func (m AnyMatch) Equal(another any) bool {
+func (m Values) Equal(another any) bool {
 	// 处理 nil 情况
 	if m.value == nil && another == nil {
 		return true
@@ -42,32 +42,32 @@ func (m AnyMatch) Equal(another any) bool {
 }
 
 // NotEqual 检查两个值是否不相等
-func (m AnyMatch) NotEqual(another any) bool {
+func (m Values) NotEqual(another any) bool {
 	return !m.Equal(another)
 }
 
 // GreaterThan 检查当前值是否大于另一个值
-func (m AnyMatch) GreaterThan(another any) bool {
+func (m Values) GreaterThan(another any) bool {
 	return compareValues(m.value, another) > 0
 }
 
 // GreaterThanOrEqual 检查当前值是否大于等于另一个值
-func (m AnyMatch) GreaterThanOrEqual(another any) bool {
+func (m Values) GreaterThanOrEqual(another any) bool {
 	return compareValues(m.value, another) >= 0
 }
 
 // LessThan 检查当前值是否小于另一个值
-func (m AnyMatch) LessThan(another any) bool {
+func (m Values) LessThan(another any) bool {
 	return compareValues(m.value, another) < 0
 }
 
 // LessThanOrEqual 检查当前值是否小于等于另一个值
-func (m AnyMatch) LessThanOrEqual(another any) bool {
+func (m Values) LessThanOrEqual(another any) bool {
 	return compareValues(m.value, another) <= 0
 }
 
 // Prefix 检查当前值是否以前缀开头（仅适用于字符串类型）
-func (m AnyMatch) Prefix(prefix string) bool {
+func (m Values) Prefix(prefix string) bool {
 	if str, ok := m.value.(string); ok {
 		return strings.HasPrefix(str, prefix)
 	}
@@ -75,7 +75,7 @@ func (m AnyMatch) Prefix(prefix string) bool {
 }
 
 // Suffix 检查当前值是否以后缀结尾（仅适用于字符串类型）
-func (m AnyMatch) Suffix(suffix string) bool {
+func (m Values) Suffix(suffix string) bool {
 	if str, ok := m.value.(string); ok {
 		return strings.HasSuffix(str, suffix)
 	}
@@ -83,7 +83,7 @@ func (m AnyMatch) Suffix(suffix string) bool {
 }
 
 // Contains 检查当前值是否包含子字符串（仅适用于字符串类型）
-func (m AnyMatch) Contains(sub string) bool {
+func (m Values) Contains(sub string) bool {
 	if str, ok := m.value.(string); ok {
 		return strings.Contains(str, sub)
 	}
@@ -95,25 +95,25 @@ func (m AnyMatch) Contains(sub string) bool {
 //
 //	% - 匹配任意长度的字符串（包括空字符串）
 //	_ - 匹配单个字符
-func (m AnyMatch) Like(pattern string) bool {
+func (m Values) Like(pattern string) bool {
 	if str, ok := m.value.(string); ok {
 		// 使用正则表达式处理所有LIKE模式
 		// 替换所有%为.*，然后使用正则表达式匹配
 		// 注意：这是一个简单实现，没有处理转义字符
 		regexPattern := strings.ReplaceAll(pattern, "%", ".*")
-		AnyMatched, _ := regexp.MatchString(regexPattern, str)
-		return AnyMatched
+		Valuesed, _ := regexp.MatchString(regexPattern, str)
+		return Valuesed
 	}
 	return false
 }
 
 // Exists 检查当前值是否存在（非 nil）
-func (m AnyMatch) Exists() bool {
+func (m Values) Exists() bool {
 	return m.value != nil
 }
 
 // Compare 根据比较操作符进行比较
-func (m AnyMatch) Compare(op ComparisonOperator, another any) bool {
+func (m Values) Compare(op ComparisonOperator, another any) bool {
 	switch op {
 	case Equal:
 		return m.Equal(another)
