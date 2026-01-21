@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
@@ -27,13 +29,11 @@ type Table struct {
 		底层支持泛型，业务上则由自己定义规则。
 		默认固定一个id字段为自动增值，当值为nil时，使用counter自动增值。
 	*/
-	fields         map[string]any   // 字段映射，string为字段名，any为字段值
-	fieldsid       map[uint8]string // id到字段名的映射
-	indexs         *Indexs          // 索引集合
-	counter        AutoInt          // 自动增值计数器，使用自定义的AutoInt
-	kvStore        storage.Store
-	fieldIDManager *IDManager // 字段ID管理器
-	indexIDManager *IDManager // 索引ID管理器
+	fields   map[string]any   // 字段映射，string为字段名，any为字段值
+	fieldsid map[uint8]string // id到字段名的映射
+	indexs   *Indexs          // 索引集合
+	counter  AutoInt          // 自动增值计数器，使用自定义的AutoInt
+	kvStore  storage.Store
 }
 
 // 创建或获取一个表
@@ -50,38 +50,96 @@ func TableNew(name string) (*Table, error) {
 		kvStore: storage.KVDb,
 	}
 	tb.indexs = NewIndexs(&tb.fields)
-	if TableIDManager == nil {
-		TableIDManager = NewIDManager(tb.kvStore)
-	}
-	key := TableIDManager.GenerateTableKey(name)
-	id, err := TableIDManager.GetOrCreateID(key)
-	if err != nil {
-		return nil, err
-	}
-	tb.id = id //tb.getSysNameId(name, "tb") //tb.getSysId("sys-tbid")
+	tb.id = tb.getSysNameId(name, "tb") //tb.getSysId("sys-tbid")
 	return tb, nil
+}
+
+// 专为表和索引自动增值id设置
+// 最多能创建255个表，因为tbid键值为1字节。
+func (t *Table) getSysId(key string) uint8 {
+	id, err := t.kvStore.Get([]byte(key))
+	if err != nil {
+		id = []byte{0}
+	}
+	r := uint8(id[0])
+	return r
+}
+func (t *Table) setSysId(key string, id uint8) {
+	t.kvStore.Put([]byte(key), []byte{id})
+}
+
+// 获取或创建一个表或索引的ID
+func (t *Table) getSysNameId(name string, pfx string) (r uint8) {
+	name = fmt.Sprintf("%s-%s", pfx, name)
+	key := fmt.Sprintf("sys-%s-id", name)
+	id, err := t.kvStore.Get([]byte(key))
+	if err == nil {
+		r = uint8(id[0])
+	} else {
+		key = fmt.Sprintf("sys-%s-id", pfx)
+		r = t.getSysId(key)
+		t.setSysId(key, r+1)
+		// 存储生成的ID，确保下次创建同名表或索引时使用相同的ID
+		nameKey := fmt.Sprintf("sys-%s-id", name)
+		t.setSysId(nameKey, r)
+	}
+	return r
 }
 
 func (t *Table) GetId() uint8 {
 	return t.id
 }
 
+// 获取自动增值的值
+func (t *Table) GetAutoInc() int {
+	if t.counter.Get() == 0 {
+		t.InitAuto()
+	}
+	return int(t.counter.Increment())
+}
+
+// 初始化自动增值的值
+func (t *Table) InitAuto() {
+	maxValue := t.MaxAutoValue()
+	// MaxAutoValue现在直接返回int64类型
+	t.counter.Set(int(maxValue))
+}
+
+// 获取当前最大自动增值记录的主键值
+func (t *Table) MaxAutoValue() int {
+	fields := map[string]any{"id": nil} //id为nil时，全表扫描。
+	tableIter := t.Search(&fields)
+	defer tableIter.Release()
+	if tableIter == nil {
+		return 0
+	}
+	if !tableIter.Last() {
+		return 0
+	}
+	key := tableIter.Key() //取最后一个key值
+	rkey := key[len(t.GetPrimaryKey().Prefix(t.id))+1:]
+	var target any
+	// 如果主键字段为空，默认使用"id"
+	if len(t.GetPrimaryKey().GetFields()) == 0 || t.GetPrimaryKey().GetFields()[0] == "" {
+		target = 0
+	} else {
+		target = t.fields[t.GetPrimaryKey().GetFields()[0]]
+	}
+	r := util.Bytes(rkey).ToAny(target)
+	// 使用 reflect 包进行类型转换，更灵活地处理各种数值类型
+	return util.AnyToInt(r)
+
+}
+
 // 必须先为表预设字段和类型
 func (t *Table) SetFields(fields map[string]any) error {
-	t.fields = fields
-	t.fieldsid = make(map[uint8]string, len(t.fields))
-	if t.fieldIDManager == nil {
-		t.fieldIDManager = NewIDManager(t.kvStore)
-	}
-	var fkey string
-	for field := range t.fields {
-		fkey = t.fieldIDManager.GenerateFieldKey(t.id, field)
-		id, err := t.fieldIDManager.GetOrCreateID(fkey)
-		if err != nil {
-			return err
+	//检查fields，不能包含分隔符
+	for field := range fields {
+		if strings.Contains(field, SPLIT) {
+			return fmt.Errorf("字段名 '%s' 不能包含分隔符 '%s'", field, SPLIT)
 		}
-		t.fieldsid[id] = field
 	}
+	t.fields = fields
 	return nil
 }
 
@@ -178,25 +236,6 @@ func (t *Table) FieldsToBytes(fields *map[string]any) *map[string][]byte {
 // fieldsBytes必须是与t.fields相同的字段
 func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 	var buf bytes.Buffer
-	//记录格式：field1idvalue1-field2idvalue2-...-fieldNidvalueN
-	// 按照t.fields中的字段顺序来格式化记录，确保顺序一致
-	for id, field := range t.fieldsid {
-		if val, ok := (*fieldsBytes)[field]; ok {
-			buf.WriteByte(byte(id))
-			buf.Write(util.Bytes(val).Escape())
-			buf.WriteString(SPLIT)
-		}
-	}
-	//删除最后一个分隔符
-	if buf.Len() > 0 {
-		buf.Truncate(buf.Len() - 1)
-	}
-	return buf.Bytes()
-}
-
-/*
-func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
-	var buf bytes.Buffer
 	var fname []byte
 	orderedFields := t.GetFieldsName()
 	// 对字段进行排序，确保每次调用生成相同顺序的记录
@@ -218,7 +257,7 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 	}
 	return buf.Bytes()
 }
-*/
+
 // *map[string][]byte ==> *map[string]any
 // 与FieldsToBytes相反
 func (t *Table) RecordByteToAny(value *map[string][]byte) *map[string]any {

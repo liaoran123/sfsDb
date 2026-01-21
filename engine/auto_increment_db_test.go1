@@ -1,0 +1,114 @@
+package engine
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/liaoran123/sfsDb/storage"
+)
+
+// TestAutoIncrementDB 测试uint8自动增值功能
+func TestAutoIncrementDB(t *testing.T) {
+	// 初始化存储
+	kvStore, err := storage.OpenDefaultDb("./test_auto_increment")
+	if err != nil {
+		t.Fatalf("打开存储失败: %v", err)
+	}
+	defer storage.CloseDb()
+
+	// 创建AutoIncrementDB实例
+	adb := NewAutoIncrementDB(kvStore, "test_counter")
+
+	fmt.Println("===== 测试uint8自动增值功能 =====")
+
+	// 测试1: 初始状态获取ID
+	fmt.Println("\n1. 测试初始状态获取ID:")
+	id, err := adb.GetNextID()
+	if err != nil {
+		t.Fatalf("获取初始ID失败: %v", err)
+	}
+	fmt.Printf("   初始ID: %d\n", id)
+	if id != 1 {
+		t.Errorf("期望初始ID为1，实际为%d", id)
+	}
+
+	// 测试2: 连续获取多个ID
+	fmt.Println("\n2. 测试连续获取多个ID:")
+	for i := 0; i < 5; i++ {
+		id, err := adb.GetNextID()
+		if err != nil {
+			t.Fatalf("获取ID失败: %v", err)
+		}
+		fmt.Printf("   第%d个ID: %d\n", i+2, id)
+		if id != uint8(i+2) {
+			t.Errorf("期望ID为%d，实际为%d", i+2, id)
+		}
+	}
+
+	// 测试3: 获取当前计数器值
+	fmt.Println("\n3. 测试获取当前计数器值:")
+	currentID, err := adb.GetCurrentID()
+	if err != nil {
+		t.Fatalf("获取当前计数器值失败: %v", err)
+	}
+	fmt.Printf("   当前计数器值: %d\n", currentID)
+	if currentID != 6 {
+		t.Errorf("期望当前计数器值为6，实际为%d", currentID)
+	}
+
+	// 测试4: 重置计数器
+	fmt.Println("\n4. 测试重置计数器:")
+	if err := adb.Reset(); err != nil {
+		t.Fatalf("重置计数器失败: %v", err)
+	}
+	currentID, err = adb.GetCurrentID()
+	if err != nil {
+		t.Fatalf("重置后获取当前计数器值失败: %v", err)
+	}
+	fmt.Printf("   重置后计数器值: %d\n", currentID)
+	if currentID != 0 {
+		t.Errorf("期望重置后计数器值为0，实际为%d", currentID)
+	}
+
+	// 测试5: 重置后获取新ID
+	fmt.Println("\n5. 测试重置后获取新ID:")
+	id, err = adb.GetNextID()
+	if err != nil {
+		t.Fatalf("重置后获取ID失败: %v", err)
+	}
+	fmt.Printf("   重置后新ID: %d\n", id)
+	if id != 1 {
+		t.Errorf("期望重置后新ID为1，实际为%d", id)
+	}
+
+	fmt.Println("\n===== 测试完成 =====")
+}
+
+// TestAutoIncrementDBMaxValue 测试uint8自动增值达到最大值的情况
+func TestAutoIncrementDBMaxValue(t *testing.T) {
+	// 初始化存储
+	kvStore, err := storage.OpenDefaultDb("./test_auto_increment_max")
+	if err != nil {
+		t.Fatalf("打开存储失败: %v", err)
+	}
+	defer storage.CloseDb()
+
+	// 创建AutoIncrementDB实例
+	adb := NewAutoIncrementDB(kvStore, "test_counter_max")
+
+	fmt.Println("\n===== 测试uint8自动增值达到最大值 =====")
+
+	// 手动设置计数器为255
+	if err := kvStore.Put([]byte("test_counter_max"), []byte{255}); err != nil {
+		t.Fatalf("设置计数器为255失败: %v", err)
+	}
+
+	// 尝试获取下一个ID，应该失败
+	id, err := adb.GetNextID()
+	if err == nil {
+		t.Errorf("期望获取ID失败，但成功获取到ID: %d", id)
+	}
+	fmt.Printf("   达到最大值后获取ID: 错误信息 - %v\n", err)
+
+	fmt.Println("\n===== 最大值测试完成 =====")
+}

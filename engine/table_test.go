@@ -381,6 +381,85 @@ func TestTableSearch(t *testing.T) {
 }
 
 // 测试添加Table.Insert，删除Table.Delete，修改Table.Update，添加一条记录，通过主键进行修改和删除
+func TestTable_SetFields(t *testing.T) {
+	// 创建表
+	table, err := TableNew("test_table_SetFields")
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// 测试1: 正常设置字段
+	t.Log("测试1: 正常设置字段")
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"age":  0,
+	}
+
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
+
+	// 验证字段设置正确
+	if len(table.fields) != 3 {
+		t.Errorf("Expected 3 fields, got %d", len(table.fields))
+	}
+	if len(table.fieldsid) != 3 {
+		t.Errorf("Expected 3 fieldsid mappings, got %d", len(table.fieldsid))
+	}
+
+	// 验证每个字段都有对应的ID映射
+	for field := range fields {
+		found := false
+		for _, f := range table.fieldsid {
+			if f == field {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Field %s not found in fieldsid mapping", field)
+		}
+	}
+	fmt.Printf("table.fieldsid: %v\n", table.fieldsid)
+	// 测试3: 空字段映射
+	t.Log("测试3: 空字段映射")
+	emptyFields := map[string]any{}
+
+	err = table.SetFields(emptyFields)
+	if err != nil {
+		t.Errorf("Unexpected error for empty fields: %v", err)
+	}
+	if len(table.fields) != 0 {
+		t.Errorf("Expected 0 fields, got %d", len(table.fields))
+	}
+	if len(table.fieldsid) != 0 {
+		t.Errorf("Expected 0 fieldsid mappings, got %d", len(table.fieldsid))
+	}
+
+	// 测试4: 更新现有字段
+	t.Log("测试4: 更新现有字段")
+	updateFields := map[string]any{
+		"id":    0,
+		"name":  "",
+		"age":   0,
+		"email": "",
+	}
+
+	err = table.SetFields(updateFields)
+	if err != nil {
+		t.Fatalf("Failed to update fields: %v", err)
+	}
+
+	if len(table.fields) != 4 {
+		t.Errorf("Expected 4 fields after update, got %d", len(table.fields))
+	}
+	if len(table.fieldsid) != 4 {
+		t.Errorf("Expected 4 fieldsid mappings after update, got %d", len(table.fieldsid))
+	}
+}
+
 func TestTableCRUD(t *testing.T) {
 
 	// 创建表
@@ -396,8 +475,11 @@ func TestTableCRUD(t *testing.T) {
 		"age":  0,
 	}
 
-	// 设置表字段 - 逐个字段复制
-	maps.Copy(table.fields, fields)
+	// 设置表字段
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
 
 	// 测试1: 添加单条记录
 	t.Log("测试1: 添加单条记录")
@@ -744,10 +826,10 @@ func TestGetSysNameId(t *testing.T) {
 		t.Logf("Different table names got different IDs: %d and %d", id1, id2)
 	})
 
-	// 测试场景3：创建索引，验证索引ID生成逻辑
-	t.Run("IndexIDGeneration", func(t *testing.T) {
-		// 创建表
-		table, err := TableNew("test_index_id")
+	// 测试场景3：测试IDManager的ID生成逻辑
+	t.Run("IDManagerGeneration", func(t *testing.T) {
+		// 创建表并获取其IDManager
+		table, err := TableNew("test_id_manager")
 		if err != nil {
 			t.Fatalf("TableNew failed: %v", err)
 		}
@@ -759,28 +841,30 @@ func TestGetSysNameId(t *testing.T) {
 		}
 		table.SetFields(fields)
 
-		// 创建第一个索引
-		index1, err := DefaultNormalIndexNew("test_index_1")
-		if err != nil {
-			t.Fatalf("DefaultNormalIndexNew failed: %v", err)
-		}
-		index1.AddFields("name")
-		err = table.CreateIndex(index1)
-		if err != nil {
-			t.Fatalf("CreateIndex failed: %v", err)
+		// 验证fieldIDManager已正确初始化
+		if table.fieldIDManager == nil {
+			t.Fatalf("fieldIDManager is nil")
 		}
 
-		// 由于索引ID是通过 getSysNameId 生成的，我们可以通过创建第二个同名索引来验证
-		// 注意：实际上 CreateIndex 可能会阻止创建同名索引，但我们可以测试 getSysNameId 的逻辑
-		// 这里我们直接测试 getSysNameId 函数
-		id1 := table.getSysNameId("test_index_1", false)
-		id2 := table.getSysNameId("test_index_1", false)
+		// 测试IDManager的GetOrCreateID逻辑
+		// 生成字段键
+		fieldKey := table.fieldIDManager.GenerateFieldKey(table.id, "name")
+		id1, err := table.fieldIDManager.GetOrCreateID(fieldKey)
+		if err != nil {
+			t.Fatalf("GetOrCreateID failed: %v", err)
+		}
 
-		// 验证相同索引名生成相同ID
+		// 再次调用，应该返回相同ID
+		id2, err := table.fieldIDManager.GetOrCreateID(fieldKey)
+		if err != nil {
+			t.Fatalf("GetOrCreateID failed: %v", err)
+		}
+
+		// 验证相同键生成相同ID
 		if id1 != id2 {
-			t.Errorf("Expected same ID for same index name, got %d and %d", id1, id2)
+			t.Errorf("Expected same ID for same field key, got %d and %d", id1, id2)
 		}
-		t.Logf("Same index name 'test_index_1' got same ID: %d", id1)
+		t.Logf("Same field key got same ID: %d", id1)
 	})
 }
 
@@ -801,6 +885,11 @@ func TestCreateIndexSameID(t *testing.T) {
 		}
 		table.SetFields(fields)
 
+		// 确保indexIDManager已初始化
+		if table.indexIDManager == nil {
+			table.indexIDManager = NewIDManager(table.kvStore)
+		}
+
 		// 创建第一个索引并获取ID
 		index1, err := DefaultNormalIndexNew("test_idx")
 		if err != nil {
@@ -808,8 +897,12 @@ func TestCreateIndexSameID(t *testing.T) {
 		}
 		index1.AddFields("name")
 
-		// 记录创建索引前的ID
-		idBefore := table.getSysNameId("test_idx", false)
+		// 生成索引键并获取ID
+		indexKey := table.indexIDManager.GenerateIndexKey(table.id, "test_idx")
+		idBefore, err := table.indexIDManager.GetOrCreateID(indexKey)
+		if err != nil {
+			t.Fatalf("GetOrCreateID failed: %v", err)
+		}
 
 		// 创建索引
 		err = table.CreateIndex(index1)
@@ -817,8 +910,11 @@ func TestCreateIndexSameID(t *testing.T) {
 			t.Fatalf("CreateIndex failed: %v", err)
 		}
 
-		// 记录创建索引后的ID
-		idAfter := table.getSysNameId("test_idx", false)
+		// 再次获取ID
+		idAfter, err := table.indexIDManager.GetOrCreateID(indexKey)
+		if err != nil {
+			t.Fatalf("GetOrCreateID failed: %v", err)
+		}
 
 		// 创建第二个同名索引
 		index2, err := DefaultNormalIndexNew("test_idx")
@@ -828,7 +924,10 @@ func TestCreateIndexSameID(t *testing.T) {
 		index2.AddFields("name")
 
 		// 再次获取ID
-		idAgain := table.getSysNameId("test_idx", false)
+		idAgain, err := table.indexIDManager.GetOrCreateID(indexKey)
+		if err != nil {
+			t.Fatalf("GetOrCreateID failed: %v", err)
+		}
 
 		// 验证所有ID相同
 		if idBefore != idAfter || idAfter != idAgain {

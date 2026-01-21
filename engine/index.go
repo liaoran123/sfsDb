@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"slices"
-	"sort"
 
 	"github.com/liaoran123/sfsDb/util"
 )
@@ -35,7 +34,7 @@ type Index interface {
 	MatchFields(fields ...string) bool
 	// 解析kv的value值，返回字段值map
 	// 主键索引解析出记录。其他索引解析出主键值。因为支持组合主键，需要解析。
-	Parse(fields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error)
+	//Parse(fields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error)
 }
 
 // ------------------------------------------
@@ -214,6 +213,7 @@ type PrimaryKey interface {
 	// 设置主键ID
 	GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte
 	GetfieldTypeLen(tablefields *map[string]any) *map[string]uint8
+	Parse(fieldsid map[uint8]string, value []byte) (*map[string][]byte, error)
 }
 
 // ------------------------------------------
@@ -277,6 +277,21 @@ func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields 
 // Parse(fields []string, value []byte)
 // tablefields表字段，必须全量匹配，否则无法解析。value=-field1-value1-field2-value2-...-fieldN-valueN-
 // 反格式化
+func (dpk *DefaultPrimaryKey) Parse(fieldsid map[uint8]string, value []byte) (*map[string][]byte, error) {
+	if fieldsid == nil {
+		return nil, errors.New("DefaultPrimaryKey Parse error: fieldsid is nil")
+	}
+	vals := util.Bytes(value).Split()
+	fieldsBytes := make(map[string][]byte, len(vals))
+	var key string
+	for _, val := range vals {
+		key = fieldsid[val[0]]
+		fieldsBytes[key] = val[1:]
+	}
+	return &fieldsBytes, nil
+}
+
+/*
 func (dpk *DefaultPrimaryKey) Parse(tablefields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error) { //pkfieldTypeLen无用
 	if len(tablefields) == 0 {
 		return nil, errors.New("DefaultPrimaryKey Parse error: tablefields is empty")
@@ -295,7 +310,7 @@ func (dpk *DefaultPrimaryKey) Parse(tablefields []string, pkfieldTypeLen *map[st
 	}
 	return &fieldsBytes, nil
 }
-
+*/
 // 获取字段在value中对应的位置，从小到大排序
 // 主键索引值格式，记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
 type fieldidx struct {
@@ -360,6 +375,7 @@ type NormalIndex interface {
 
 	// 由于NormalIndex完全匹配index接口，所以需要一个Tag方法来区别是否是二级索引。
 	Tag() bool
+	Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error)
 }
 
 // ------------------------------------------
@@ -395,7 +411,7 @@ type FullTextIndex interface {
 	JoinFullValues(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) [][]byte
 	// 分词方法
 	Tokenize(nr string, ftlen int) (tokens []string)
-	//GetPrimaryBytes(primaryfields []string, FullTextKey []byte) *map[string][]byte
+	Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error)
 }
 
 // ------------------------------------------

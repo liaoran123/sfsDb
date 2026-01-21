@@ -1,0 +1,160 @@
+package engine
+
+import (
+	"fmt"
+	"strings"
+	"sync"
+
+	"github.com/liaoran123/sfsDb/storage"
+)
+
+// 常量定义
+const (
+	// IDMaxLimit ID的最大限制（1字节最多能创建255个ID）
+	IDMaxLimit = 255
+)
+
+/*
+IDManager 实现ID管理功能
+
+功能描述：
+1. 根据对象键（sys-table-name ,sys-tableid-idx-name，sys-tableid-field-name）读取已有ID
+2. 如果对象键不存在，则从对应类型的自动增长计数器（sys-table,sys-tableid-idx，sys-tableid-field）获取新ID
+3. 支持表、索引、字段等不同类型的ID管理
+4. 保证线程安全
+*/
+type IDManager struct {
+	kvStore     storage.Store // 用于持久化存储
+	mutex       sync.Mutex    // 并发锁，保护并发操作
+	ValueJoiner               // 嵌入值拼接器，用于生成系统ID键
+}
+
+// NewIDManager 创建一个新的ID管理器
+func NewIDManager(kvStore storage.Store) *IDManager {
+	return &IDManager{
+		kvStore:     kvStore,
+		ValueJoiner: ValueJoiner{},
+	}
+}
+
+// UpdateName 更新对象的名称，保持ID不变
+//
+// 参数：
+// - oldKey: 旧的对象键（如sys-table-oldName）
+// - newKey: 新的对象键（如sys-table-newName）
+//
+// 返回：
+// - error: 错误信息，如旧键不存在
+//
+// 功能流程：
+// 1. 从旧键中获取ID
+// 2. 删除旧键
+// 3. 将ID存储到新键
+// 4. 返回结果
+func (m *IDManager) UpdateName(oldKey string, newKey string) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	// 1. 从旧键中获取ID
+	idBytes, err := m.kvStore.Get([]byte(oldKey))
+	if err != nil {
+		return fmt.Errorf("旧键不存在: %s", oldKey)
+	}
+
+	// 2. 删除旧键
+	if err := m.kvStore.Delete([]byte(oldKey)); err != nil {
+		return fmt.Errorf("删除旧键失败: %v", err)
+	}
+
+	// 3. 将ID存储到新键
+	if err := m.kvStore.Put([]byte(newKey), idBytes); err != nil {
+		return fmt.Errorf("存储新键失败: %v", err)
+	}
+
+	return nil
+}
+
+// incrementCounter 递增计数器并生成新ID
+//
+// 参数：
+// - objTypeKey: 计数器类型键（如sys-table, sys-tableid-idx, sys-tableid-field）
+// - originalKey: 原始对象键（如sys-table-name, sys-tableid-idx-name）
+//
+// 返回：
+// - uint8: 生成的ID（0-255）
+// - error: 错误信息，如ID已达上限
+func (m *IDManager) incrementCounter(objTypeKey string, originalKey string) (uint8, error) {
+	// 获取当前计数器值
+	counterBytes, err := m.kvStore.Get([]byte(objTypeKey))
+	var counter uint8
+	if err != nil {
+		// 计数器不存在，初始化为0
+		counter = 0
+	} else {
+		// 解析计数器值
+		counter = uint8(counterBytes[0])
+	}
+
+	// 检查计数器是否已达上限
+	if counter >= IDMaxLimit {
+		return 0, fmt.Errorf("ID已达上限(%d)", IDMaxLimit)
+	}
+
+	// 生成新ID（使用当前计数器值）
+	newID := counter
+
+	// 递增计数器并存储
+	m.kvStore.Put([]byte(objTypeKey), []byte{counter + 1})
+
+	// 将生成的ID存储到原始key
+	m.kvStore.Put([]byte(originalKey), []byte{newID})
+
+	return newID, nil
+}
+
+/*
+GetOrCreateID 获取或创建基于名称和类型的ID
+
+参数：
+- name: 对象名称（如表名、索引名、字段名）
+- objType: 对象类型前缀（table-表，idx-索引，field-字段）
+
+返回：
+- uint8: 生成或获取的ID（0-255）
+- error: 错误信息，如ID已达上限
+
+功能流程：
+1. 尝试从对象key获取已存在的ID
+2. 如果ID存在，直接返回
+3. 如果ID不存在，从类型计数器获取当前值
+4. 检查ID是否已达上限
+5. 递增并存储计数器
+6. 将生成的ID存储到对象key
+7. 返回生成的ID
+*/
+func (m *IDManager) GetOrCreateID(key string) (uint8, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	// 1. 生成对象key并尝试获取已存在的ID
+	if id, err := m.kvStore.Get([]byte(key)); err == nil {
+		// ID已存在，直接返回
+		return uint8(id[0]), nil
+	}
+
+	// 2. ID不存在，生成新ID
+	/*
+		根据对象键（sys-table-name ,sys-tableid-idx-name，sys-tableid-field-name）读取已有ID
+		如果对象键不存在，则从对应类型的自动增长计数器（sys-table,sys-tableid-idx，sys-tableid-field）获取新ID
+	*/
+	//根据key=sys-table-name ,sys-tableid-idx-name，sys-tableid-field-name 截取对象类型
+	ks := strings.Split(key, "-")
+	objTypeKeySlice := ks[:len(ks)-1]
+	//objTypeKey=sys-table,sys-tableid-idx,sys-tableid-field
+
+	// 将objTypeKey切片转换为字符串键
+	objTypeKey := strings.Join(objTypeKeySlice, "-")
+
+	// 调用递增计数器方法生成新ID
+	return m.incrementCounter(objTypeKey, key)
+}

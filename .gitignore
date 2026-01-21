@@ -15,3 +15,4 @@
 
 # 数据库文件
 /engine/KVDB
+/engine/test_*

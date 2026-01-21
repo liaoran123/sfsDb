@@ -1,0 +1,225 @@
+package engine
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/liaoran123/sfsDb/storage"
+)
+
+// TestKeyValueManagerBasicOps 测试KeyValueManager的基本操作
+func TestKeyValueManagerBasicOps(t *testing.T) {
+	// 初始化存储
+	kvStore, err := storage.OpenDefaultDb("./test_key_value_manager_basic")
+	if err != nil {
+		t.Fatalf("打开存储失败: %v", err)
+	}
+	defer storage.CloseDb()
+
+	// 创建KeyValueManager实例
+	manager := NewKeyValueManager(kvStore)
+
+	fmt.Println("===== 测试KeyValueManager基本操作 =====")
+
+	// 测试1: 设置键值对
+	fmt.Println("\n1. 测试设置键值对:")
+	key := []byte("test_key")
+	value := []byte("test_value")
+	err = manager.Set(key, value)
+	if err != nil {
+		t.Fatalf("设置键值对失败: %v", err)
+	}
+	fmt.Printf("   设置成功: %s -> %s\n", key, value)
+
+	// 测试2: 获取键值对
+	fmt.Println("\n2. 测试获取键值对:")
+	retrievedValue, err := manager.Get(key)
+	if err != nil {
+		t.Fatalf("获取键值对失败: %v", err)
+	}
+	fmt.Printf("   获取成功: %s -> %s\n", key, retrievedValue)
+	if string(retrievedValue) != string(value) {
+		t.Errorf("获取的值与设置的值不一致，期望'%s'，实际'%s'", value, retrievedValue)
+	}
+
+	// 测试3: 检查键是否存在
+	fmt.Println("\n3. 测试检查键是否存在:")
+	exists, err := manager.Exists(key)
+	if err != nil {
+		t.Fatalf("检查键存在失败: %v", err)
+	}
+	fmt.Printf("   键 %s 存在: %v\n", key, exists)
+	if !exists {
+		t.Errorf("期望键 %s 存在，但实际不存在", key)
+	}
+
+	// 测试4: 检查不存在的键
+	fmt.Println("\n4. 测试检查不存在的键:")
+	nonExistentKey := []byte("non_existent_key")
+	exists, err = manager.Exists(nonExistentKey)
+	if err != nil {
+		t.Fatalf("检查键不存在失败: %v", err)
+	}
+	fmt.Printf("   键 %s 存在: %v\n", nonExistentKey, exists)
+	if exists {
+		t.Errorf("期望键 %s 不存在，但实际存在", nonExistentKey)
+	}
+
+	// 测试5: 删除键值对
+	fmt.Println("\n5. 测试删除键值对:")
+	err = manager.Delete(key)
+	if err != nil {
+		t.Fatalf("删除键值对失败: %v", err)
+	}
+	fmt.Printf("   删除成功: %s\n", key)
+
+	// 测试6: 验证键已删除
+	fmt.Println("\n6. 验证键已删除:")
+	retrievedValue, err = manager.Get(key)
+	if err == nil {
+		t.Errorf("期望获取已删除的键失败，但实际成功获取到值: %s", retrievedValue)
+	}
+	fmt.Printf("   获取已删除的键返回错误: %v\n", err)
+
+	// 测试7: 验证键不存在
+	exists, err = manager.Exists(key)
+	if err != nil {
+		t.Fatalf("检查已删除键存在失败: %v", err)
+	}
+	fmt.Printf("   键 %s 存在: %v\n", key, exists)
+	if exists {
+		t.Errorf("期望键 %s 不存在，但实际存在", key)
+	}
+
+	fmt.Println("\n===== 基本操作测试完成 =====")
+}
+
+// TestKeyValueManagerBatchOps 测试KeyValueManager的批量操作
+func TestKeyValueManagerBatchOps(t *testing.T) {
+	// 初始化存储
+	kvStore, err := storage.OpenDefaultDb("./test_key_value_manager_batch")
+	if err != nil {
+		t.Fatalf("打开存储失败: %v", err)
+	}
+	defer storage.CloseDb()
+
+	// 创建KeyValueManager实例
+	manager := NewKeyValueManager(kvStore)
+
+	fmt.Println("\n===== 测试KeyValueManager批量操作 =====")
+
+	// 测试1: 创建批量操作
+	fmt.Println("\n1. 测试创建批量操作:")
+	batch := manager.NewBatch()
+	if batch == nil {
+		t.Fatalf("创建批量操作失败")
+	}
+	fmt.Println("   创建批量操作成功")
+
+	// 测试2: 添加批量操作
+	fmt.Println("\n2. 测试添加批量操作:")
+	keys := [][]byte{[]byte("batch_key1"), []byte("batch_key2"), []byte("batch_key3")}
+	values := [][]byte{[]byte("batch_value1"), []byte("batch_value2"), []byte("batch_value3")}
+
+	for i := range keys {
+		batch.Set(keys[i], values[i])
+		fmt.Printf("   添加批量设置: %s -> %s\n", keys[i], values[i])
+	}
+
+	// 测试3: 执行批量操作
+	fmt.Println("\n3. 测试执行批量操作:")
+	err = manager.WriteBatch(batch)
+	if err != nil {
+		t.Fatalf("执行批量操作失败: %v", err)
+	}
+	fmt.Println("   执行批量操作成功")
+
+	// 测试4: 验证批量操作结果
+	fmt.Println("\n4. 验证批量操作结果:")
+	for i := range keys {
+		retrievedValue, err := manager.Get(keys[i])
+		if err != nil {
+			t.Fatalf("获取批量设置的键值对失败: %v", err)
+		}
+		fmt.Printf("   验证成功: %s -> %s\n", keys[i], retrievedValue)
+		if string(retrievedValue) != string(values[i]) {
+			t.Errorf("获取的值与设置的值不一致，期望'%s'，实际'%s'", values[i], retrievedValue)
+		}
+	}
+
+	// 测试5: 批量删除
+	fmt.Println("\n5. 测试批量删除:")
+	deleteBatch := manager.NewBatch()
+	for i := range keys {
+		deleteBatch.Delete(keys[i])
+		fmt.Printf("   添加批量删除: %s\n", keys[i])
+	}
+
+	// 执行批量删除
+	err = manager.WriteBatch(deleteBatch)
+	if err != nil {
+		t.Fatalf("执行批量删除失败: %v", err)
+	}
+	fmt.Println("   执行批量删除成功")
+
+	// 测试6: 验证批量删除结果
+	fmt.Println("\n6. 验证批量删除结果:")
+	for i := range keys {
+		retrievedValue, err := manager.Get(keys[i])
+		if err == nil {
+			t.Errorf("期望获取已删除的键失败，但实际成功获取到值: %s", retrievedValue)
+		}
+		fmt.Printf("   验证删除成功: %s 返回错误: %v\n", keys[i], err)
+	}
+
+	fmt.Println("\n===== 批量操作测试完成 =====")
+}
+
+// TestKeyValueManagerNilKeyHandling 测试KeyValueManager对nil键的处理
+func TestKeyValueManagerNilKeyHandling(t *testing.T) {
+	// 初始化存储
+	kvStore, err := storage.OpenDefaultDb("./test_key_value_manager_nil_key")
+	if err != nil {
+		t.Fatalf("打开存储失败: %v", err)
+	}
+	defer storage.CloseDb()
+
+	// 创建KeyValueManager实例
+	manager := NewKeyValueManager(kvStore)
+
+	fmt.Println("\n===== 测试KeyValueManager对nil键的处理 =====")
+
+	// 测试1: 设置nil键
+	fmt.Println("\n1. 测试设置nil键:")
+	err = manager.Set(nil, []byte("test_value"))
+	if err == nil {
+		t.Errorf("期望设置nil键失败，但实际成功")
+	}
+	fmt.Printf("   设置nil键返回错误: %v\n", err)
+
+	// 测试2: 获取nil键
+	fmt.Println("\n2. 测试获取nil键:")
+	_, err = manager.Get(nil)
+	if err == nil {
+		t.Errorf("期望获取nil键失败，但实际成功")
+	}
+	fmt.Printf("   获取nil键返回错误: %v\n", err)
+
+	// 测试3: 删除nil键
+	fmt.Println("\n3. 测试删除nil键:")
+	err = manager.Delete(nil)
+	if err == nil {
+		t.Errorf("期望删除nil键失败，但实际成功")
+	}
+	fmt.Printf("   删除nil键返回错误: %v\n", err)
+
+	// 测试4: 检查nil键是否存在
+	fmt.Println("\n4. 测试检查nil键是否存在:")
+	_, err = manager.Exists(nil)
+	if err == nil {
+		t.Errorf("期望检查nil键存在失败，但实际成功")
+	}
+	fmt.Printf("   检查nil键存在返回错误: %v\n", err)
+
+	fmt.Println("\n===== nil键处理测试完成 =====")
+}
