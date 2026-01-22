@@ -3,8 +3,8 @@ package engine
 
 import (
 	"fmt"
-	"maps"
 	"testing"
+	"time"
 
 	"github.com/liaoran123/sfsDb/util"
 )
@@ -461,9 +461,12 @@ func TestTable_SetFields(t *testing.T) {
 }
 
 func TestTableCRUD(t *testing.T) {
+	// 使用唯一表名，避免测试数据累积
+	tableName := fmt.Sprintf("test_table_CRUD_%d", time.Now().UnixNano())
+	tableWithIndexName := fmt.Sprintf("test_table_with_index_%d", time.Now().UnixNano())
 
 	// 创建表
-	table, err := TableNew("test_table_CRUD")
+	table, err := TableNew(tableName)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -574,7 +577,7 @@ func TestTableCRUD(t *testing.T) {
 	t.Log("\n测试4: 带有索引和全文索引的表CRUD操作")
 
 	// 创建带索引的表
-	tableWithIndex, err := TableNew("test_table_with_index")
+	tableWithIndex, err := TableNew(tableWithIndexName)
 	if err != nil {
 		t.Fatalf("Failed to create table with index: %v", err)
 	}
@@ -589,7 +592,21 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	// 设置表字段
-	maps.Copy(tableWithIndex.fields, indexFields)
+	err = tableWithIndex.SetFields(indexFields)
+	if err != nil {
+		t.Fatalf("Failed to set fields for table with index: %v", err)
+	}
+
+	// 创建主键索引
+	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	if err != nil {
+		t.Fatalf("Failed to create primary key index instance: %v", err)
+	}
+	pkIndex.AddFields("id")
+	err = tableWithIndex.CreateIndex(pkIndex)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
 
 	// 创建普通索引
 	// 创建标题索引
@@ -1038,8 +1055,11 @@ func TestTableIndexChange(t *testing.T) {
 	// 测试4: 带有索引和全文索引的表CRUD操作
 	//t.Log("\n测试4: 带有索引和全文索引的表CRUD操作")
 
+	// 使用唯一表名，避免测试数据累积
+	tableWithIndexName := fmt.Sprintf("test_table_with_index_Change_%d", time.Now().UnixNano())
+
 	// 创建带索引的表
-	tableWithIndex, err := TableNew("test_table_with_index_Change")
+	tableWithIndex, err := TableNew(tableWithIndexName)
 	if err != nil {
 		t.Fatalf("Failed to create table with index: %v", err)
 	}
@@ -1054,7 +1074,21 @@ func TestTableIndexChange(t *testing.T) {
 	}
 
 	// 设置表字段
-	maps.Copy(tableWithIndex.fields, indexFields)
+	err = tableWithIndex.SetFields(indexFields)
+	if err != nil {
+		t.Fatalf("Failed to set fields for table with index: %v", err)
+	}
+
+	// 创建主键索引
+	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	if err != nil {
+		t.Fatalf("Failed to create primary key index instance: %v", err)
+	}
+	pkIndex.AddFields("id")
+	err = tableWithIndex.CreateIndex(pkIndex)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
 
 	// 创建普通索引
 	// 创建标题索引
