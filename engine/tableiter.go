@@ -356,22 +356,6 @@ func (t *TableIter) ForExport(esc bool, export Export) {
 	}
 }
 
-/*
-func MergeFields(fns []string, fields *map[string]any) (r any) {
-	if len(fns) > 1 {
-		r = ""
-		for _, f := range fns {
-			//用分隔符SPLIT将fields中的值合并为一个字符串
-			r = r.(string) + fmt.Sprintf("%v", (*fields)[f]) + SPLIT
-		}
-		// 去掉最后一个分隔符
-		r = r.(string)[:len(r.(string))-1]
-	} else {
-		r = (*fields)[fns[0]]
-	}
-	return r
-}
-*/
 // 提取主键值
 // if len(fields) == 0 ，默认是提取主键值，主键也可以是组合主键
 // 单主键则返回原始值，组合主键则返回拼接的字符串
@@ -438,9 +422,16 @@ func (t *TableIter) Count() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	i := 0
-	for t.iter.Next() {
+
+	// 重置迭代器到开头
+	t.iter.First()
+
+	// 遍历计数
+	for t.iter.Valid() {
 		i++
+		t.iter.Next()
 	}
+
 	return i
 }
 func (t *TableIter) Release() {
