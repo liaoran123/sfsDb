@@ -153,6 +153,60 @@ for iter.First(); iter.Valid(); iter.Next() {
 }
 ```
 
+### 字段修改
+
+在sfsDb中，修改字段名称需要遵循特定的工作流，以确保ID管理器和索引的一致性。
+
+#### 字段修改工作流
+
+1. **调用 `UpdateFieldName`**：更新字段名称映射
+2. **调用 `SetFields`**：更新字段结构
+
+#### 示例代码
+
+```go
+// 假设我们已经创建了表并设置了初始字段
+// 现在需要将 "position" 字段重命名为 "job_title"
+
+// 1. 首先调用 UpdateFieldName 更新字段名称映射
+err = table.UpdateFieldName("position", "job_title")
+if err != nil {
+    panic(err)
+}
+
+// 2. 然后调用 SetFields 更新字段映射
+updatedFields := map[string]any{
+    "id":        0,
+    "name":      "",
+    "age":       0,
+    "email":     "",
+    "job_title": "", // 使用新的字段名
+}
+err = table.SetFields(updatedFields)
+if err != nil {
+    panic(err)
+}
+
+// 现在可以使用新的字段名进行操作
+newRecord := map[string]any{
+    "name":      "新员工",
+    "age":       25,
+    "email":     "new@example.com",
+    "job_title": "实习生", // 使用新的字段名
+}
+_, err = table.Insert(&newRecord)
+if err != nil {
+    panic(err)
+}
+```
+
+#### 注意事项
+
+- **必须遵循工作流**：跳过 `UpdateFieldName` 会导致系统将修改的字段视为新字段
+- **保持一致性**：确保 `SetFields` 中的新字段名与 `UpdateFieldName` 中的新字段名完全一致
+- **索引更新**：`UpdateFieldName` 会自动更新所有索引中的字段名，无需手动操作
+- **数据完整性**：修改字段名不会丢失现有数据，系统会自动维护映射关系
+
 ### 普通索引
 
 #### 创建普通索引

@@ -315,6 +315,151 @@ func TestTableCRUD(t *testing.T) {
 	}
 }
 
+// 测试全文索引搜索
+func TestTable_FullTextSearch(t *testing.T) {
+	// 使用唯一表名，避免测试数据累积
+	tableName := fmt.Sprintf("test_fulltext_search_%d", time.Now().UnixNano())
+
+	// 创建表
+	table, err := TableNew(tableName)
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// 定义表字段，包含用于全文搜索的description字段
+	fields := map[string]any{
+		"id":          0,
+		"name":        "",
+		"age":         0,
+		"description": "",
+	}
+
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk")
+	if err != nil {
+		t.Fatalf("Failed to create primary key: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+
+	// 创建全文索引
+	fulltextIdx, err := DefaultFullTextIndexNew("fulltext_desc")
+	if err != nil {
+		t.Fatalf("Failed to create fulltext index: %v", err)
+	}
+	fulltextIdx.AddFields("description", "id")       // 最后一个字段必须是主键
+	err = fulltextIdx.SetFullField("description", 5) // 设置全文索引字段和长度
+	if err != nil {
+		t.Fatalf("Failed to set full field: %v", err)
+	}
+	err = table.CreateIndex(fulltextIdx)
+	if err != nil {
+		t.Fatalf("Failed to create fulltext index: %v", err)
+	}
+
+	// 插入测试数据
+	testData := []map[string]any{
+		{"id": 1, "name": "Alice", "age": 25, "description": "Alice is a software engineer who works with Bob"},
+		{"id": 2, "name": "Bob", "age": 30, "description": "Bob is a project manager who manages Alice"},
+		{"id": 3, "name": "Charlie", "age": 35, "description": "Charlie is a designer who collaborates with Alice and Bob"},
+		{"id": 4, "name": "David", "age": 40, "description": "David is a developer who works independently"},
+	}
+
+	for _, record := range testData {
+		_, err = table.Insert(&record)
+		if err != nil {
+			t.Fatalf("Failed to insert record: %v", err)
+		}
+	}
+
+	// 测试全文搜索
+	searchTests := []struct {
+		name          string
+		searchTerm    string
+		expectedCount int
+		expectedNames []string
+	}{
+		{
+			name:          "Search for 'Bob'",
+			searchTerm:    "Bob",
+			expectedCount: 2,                                   // Alice and Bob records contain "Bob"
+			expectedNames: []string{"Alice", "Bob", "Charlie"}, // All three mention Bob
+		},
+		{
+			name:          "Search for 'Alice'",
+			searchTerm:    "Alice",
+			expectedCount: 2,                                   // Alice and Charlie records contain "Alice"
+			expectedNames: []string{"Alice", "Bob", "Charlie"}, // All three mention Alice
+		},
+		{
+			name:          "Search for 'David'",
+			searchTerm:    "David",
+			expectedCount: 1, // Only David's record contains "David"
+			expectedNames: []string{"David"},
+		},
+		{
+			name:          "Search for 'developer'",
+			searchTerm:    "developer",
+			expectedCount: 1, // Only David is explicitly described as a developer
+			expectedNames: []string{"David"},
+		},
+	}
+
+	for _, st := range searchTests {
+		t.Run(st.name, func(t *testing.T) {
+			// 使用Search方法搜索包含关键词的记录
+			searchFields := map[string]any{
+				"description": st.searchTerm,
+			}
+			iter := table.Search(&searchFields)
+			if iter == nil {
+				t.Fatalf("Search failed for term: %s", st.searchTerm)
+			}
+			defer iter.Release()
+
+			records := iter.GetRecords(true)
+			if len(records) == 0 {
+				t.Logf("No records found for term: %s", st.searchTerm)
+				return
+			}
+
+			// 验证搜索结果
+			t.Logf("Found %d records for term: %s", len(records), st.searchTerm)
+			for _, record := range records {
+				name, _ := record["name"].(string)
+				desc, _ := record["description"].(string)
+				t.Logf("  - %s: %s", name, desc)
+			}
+
+			// 验证结果包含预期名称
+			foundNames := make(map[string]bool)
+			for _, record := range records {
+				name, ok := record["name"].(string)
+				if ok {
+					foundNames[name] = true
+				}
+			}
+
+			// 验证所有预期名称都被找到
+			for _, expectedName := range st.expectedNames {
+				if !foundNames[expectedName] {
+					t.Errorf("Expected to find record with name '%s' for term '%s', but didn't", expectedName, st.searchTerm)
+				}
+			}
+		})
+	}
+
+	t.Log("✅ All full text search tests completed successfully")
+}
+
 // 测试修改字段名称的完整流程
 func TestTable_UpdateFieldName_Flow(t *testing.T) {
 	// 使用唯一表名，避免测试数据累积

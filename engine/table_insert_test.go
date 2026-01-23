@@ -7,7 +7,9 @@ import (
 
 // TestTableInsertWithAllTypes 测试插入各种数据类型
 func TestTableInsertWithAllTypes(t *testing.T) {
-	table, err := TableNew("test_insert_all_types")
+	// 使用唯一表名，确保测试之间相互隔离
+	tableName := "test_insert_all_types_" + time.Now().Format("20060102150405")
+	table, err := TableNew(tableName)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}

@@ -7,8 +7,9 @@ import (
 
 // TableSchema 是Table结构体的映射，用于序列化和反序列化
 // 包含Table的元数据，不包含运行时状态（如counter和kvStore）
-
 type TableSchema struct {
+	// 表ID
+	ID uint8 `json:"id"`
 	// 表名
 	Name string `json:"name"`
 
@@ -53,6 +54,7 @@ type IndexSchema struct {
 func (t *Table) ToSchema() *TableSchema {
 	// 创建Schema实例
 	schema := &TableSchema{
+		ID:      t.id,
 		Name:    t.GetName(),
 		Fields:  t.GetAllFields(),
 		Indexes: make([]IndexSchema, 0, len(t.indexs.GetAllIndexes())),
@@ -106,6 +108,9 @@ func FromSchema(schema *TableSchema) (*Table, error) {
 		return nil, err
 	}
 
+	// 设置表ID
+	table.id = schema.ID
+
 	// 设置字段
 	if err := table.SetFields(schema.Fields); err != nil {
 		return nil, err
@@ -147,8 +152,17 @@ func FromSchema(schema *TableSchema) (*Table, error) {
 		table.indexs.indexs = append(table.indexs.indexs, index)
 	}
 
+	// 检查是否存在主键索引
+	hasPrimaryKey := false
+	for _, idx := range table.indexs.indexs {
+		if _, ok := idx.(PrimaryKey); ok {
+			hasPrimaryKey = true
+			break
+		}
+	}
+
 	// 如果没有主键索引，创建默认主键索引
-	if len(table.indexs.indexs) == 0 {
+	if !hasPrimaryKey {
 		primaryKey, err := DefaultPrimaryKeyNew("pk")
 		if err != nil {
 			return nil, err

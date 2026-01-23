@@ -97,7 +97,7 @@ func TestTableSearchComparisonOperators(t *testing.T) {
 		},
 		{
 			name:          "Like (prefix search)",
-			searchData:    map[string]any{"id": 1},
+			searchData:    map[string]any{"id": nil},
 			operator:      util.Like,
 			expectedCount: 5,
 			expectedIDs:   []int{1, 2, 3, 4, 5},

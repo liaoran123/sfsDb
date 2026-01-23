@@ -9,10 +9,13 @@
 type Table struct {
     id   uint8  // 表id
     name string // 表名
-    fields map[string]any // 字段映射，string为字段名，any为字段值
-    indexs  *Indexs // 索引集合
-    counter AutoInt // 自动增值计数器
-    kvStore storage.Store
+    fields         map[string]any   // 字段映射，string为字段名，any为字段值
+    fieldsid       map[uint8]string // id到字段名的映射
+    indexs         *Indexs          // 索引集合
+    counter        AutoInt          // 自动增值计数器，使用自定义的AutoInt
+    kvStore        storage.Store
+    fieldIDManager *IDManager // 字段ID管理器
+    indexIDManager *IDManager // 索引ID管理器
 }
 ```
 
@@ -58,6 +61,7 @@ type Index interface {
 type PrimaryKey interface {
     Index
     GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte
+    Parse(fieldsid map[uint8]string, value []byte) (*map[string][]byte, error)
 }
 ```
 
@@ -92,11 +96,23 @@ func TableNew(name string) (*Table, error)
 ```go
 func (t *Table) SetFields(fields map[string]any) error
 ```
-- **功能**：为表预设字段和类型
+- **功能**：为表预设字段和类型，或更新现有字段映射
 - **参数**：
   - `fields`：字段映射，string为字段名，any为字段值
 - **返回值**：
   - `error`：错误信息
+
+#### UpdateFieldName
+```go
+func (t *Table) UpdateFieldName(oldfield string, newfield string) error
+```
+- **功能**：修改字段名称，更新ID管理器和索引中的字段名
+- **参数**：
+  - `oldfield`：旧字段名
+  - `newfield`：新字段名
+- **返回值**：
+  - `error`：错误信息
+- **说明**：修改字段名时，必须先调用此方法，然后再调用SetFields更新字段映射，否则系统会将修改的字段视为新字段，导致ID管理器和索引字段名不匹配
 
 #### GetAllFields
 ```go
@@ -256,6 +272,17 @@ func (rs Records) Difference(other ...Records) (rs2 Records)
 ```go
 func DefaultPrimaryKeyNew(name string) (*DefaultPrimaryKey, error)
 ```
+
+### NormalIndex
+普通索引接口，嵌入基础索引接口。
+
+```go
+type NormalIndex interface {
+    Index
+    // 将索引的value转换为主键map值
+    Tag() bool
+    Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error)
+}
 
 ### DefaultNormalIndex
 默认普通索引，二级索引。
@@ -711,24 +738,162 @@ if err != nil {
     panic(err)
 }
 
-// 插入带全文索引的记录
-contentRecord := map[string]any{
-    "id": 1,
-    "content": "这是一段测试文本，用于全文索引测试",
+// 插入测试数据
+// 准备多条测试记录用于全文搜索
+contentRecords := []map[string]any{
+    {"id": 1, "title": "软件工程师招聘", "content": "我们正在寻找优秀的软件工程师，熟悉Go语言和数据库设计"},
+    {"id": 2, "title": "产品经理职位", "content": "产品经理需要有良好的沟通能力和项目管理经验"},
+    {"id": 3, "title": "设计师需求", "content": "UI/UX设计师，精通Figma和用户体验设计原则"},
+    {"id": 4, "title": "数据分析师", "content": "数据分析师需要熟悉SQL和数据可视化工具"},
 }
-_, err = table.Insert(&contentRecord)
+
+for _, record := range contentRecords {
+    _, err = table.Insert(&record)
+    if err != nil {
+        panic(err)
+    }
+}
+
+// 全文搜索示例
+fmt.Println("=== 全文搜索示例 ===")
+
+// 搜索1: 查找包含"工程师"的记录
+fmt.Println("\n1. 搜索 '工程师':")
+search1 := map[string]any{"content": "工程师"}
+iter1 := table.Search(&search1)
+defer iter1.Release()
+for iter1.First(); iter1.Valid(); iter1.Next() {
+    record := table.ParseRecordValue(iter1.Value())
+    fmt.Printf("   - %s: %s\n", record["title"], record["content"])
+}
+
+// 搜索2: 查找包含"设计"的记录
+fmt.Println("\n2. 搜索 '设计':")
+search2 := map[string]any{"content": "设计"}
+iter2 := table.Search(&search2)
+defer iter2.Release()
+for iter2.First(); iter2.Valid(); iter2.Next() {
+    record := table.ParseRecordValue(iter2.Value())
+    fmt.Printf("   - %s: %s\n", record["title"], record["content"])
+}
+
+// 搜索3: 查找包含"数据"的记录
+fmt.Println("\n3. 搜索 '数据':")
+search3 := map[string]any{"content": "数据"}
+iter3 := table.Search(&search3)
+defer iter3.Release()
+for iter3.First(); iter3.Valid(); iter3.Next() {
+    record := table.ParseRecordValue(iter3.Value())
+    fmt.Printf("   - %s: %s\n", record["title"], record["content"])
+}
+```
+
+### 字段修改示例
+
+```go
+// 创建表
+userTable, err := engine.TableNew("employees")
 if err != nil {
     panic(err)
 }
 
-// 全文搜索
-searchContent := map[string]any{
-    "content": "测试",
+// 设置初始字段
+initialFields := map[string]any{
+    "id":       0,    // 自动增值主键
+    "name":     "",   // 字符串
+    "age":      0,    // 整数
+    "email":    "",   // 字符串
+    "position": "",   // 字符串
 }
-iter := table.Search(&searchContent)
-defer iter.Release()
-for iter.First(); iter.Valid(); iter.Next() {
-    record := table.ParseRecordValue(iter.Value())
-    fmt.Printf("全文搜索找到: %v\n", record)
+err = userTable.SetFields(initialFields)
+if err != nil {
+    panic(err)
+}
+
+// 插入测试数据
+emp1 := map[string]any{
+    "name":     "李四",
+    "age":      28,
+    "email":    "lisi@example.com",
+    "position": "开发工程师",
+}
+emp2 := map[string]any{
+    "name":     "王五",
+    "age":      35,
+    "email":    "wangwu@example.com",
+    "position": "项目经理",
+}
+_, err = userTable.Insert(&emp1)
+if err != nil {
+    panic(err)
+}
+_, err = userTable.Insert(&emp2)
+if err != nil {
+    panic(err)
+}
+
+fmt.Println("=== 字段修改前 ===")
+// 搜索修改前的记录
+iterBefore := userTable.Search(&map[string]any{"name": "李四"})
+defer iterBefore.Release()
+for iterBefore.First(); iterBefore.Valid(); iterBefore.Next() {
+    record := userTable.ParseRecordValue(iterBefore.Value())
+    fmt.Printf("修改前记录: %v\n", record)
+}
+
+// 字段修改流程：将 "position" 字段重命名为 "job_title"
+// 1. 首先调用 UpdateFieldName 更新字段名称映射
+fmt.Println("\n=== 执行字段修改 ===")
+err = userTable.UpdateFieldName("position", "job_title")
+if err != nil {
+    panic(err)
+}
+fmt.Println("已调用 UpdateFieldName 重命名字段")
+
+// 2. 然后调用 SetFields 更新字段映射
+updatedFields := map[string]any{
+    "id":        0,
+    "name":      "",
+    "age":       0,
+    "email":     "",
+    "job_title": "", // 使用新的字段名
+}
+err = userTable.SetFields(updatedFields)
+if err != nil {
+    panic(err)
+}
+fmt.Println("已调用 SetFields 更新字段映射")
+
+// 验证字段修改后的数据
+fmt.Println("\n=== 字段修改后 ===")
+
+// 插入新记录，使用新的字段名
+emp3 := map[string]any{
+    "name":      "赵六",
+    "age":       32,
+    "email":     "zhaoliu@example.com",
+    "job_title": "产品经理", // 使用新的字段名
+}
+_, err = userTable.Insert(&emp3)
+if err != nil {
+    panic(err)
+}
+
+// 搜索所有记录，验证旧记录和新记录都能正确显示
+allIter := userTable.Search(nil)
+defer allIter.Release()
+for allIter.First(); allIter.Valid(); allIter.Next() {
+    record := userTable.ParseRecordValue(allIter.Value())
+    fmt.Printf("修改后记录: %v\n", record)
+}
+
+// 使用新的字段名进行搜索
+fmt.Println("\n=== 使用新字段名搜索 ===")
+searchByJob := map[string]any{"job_title": "经理"}
+jobIter := userTable.Search(&searchByJob)
+defer jobIter.Release()
+for jobIter.First(); jobIter.Valid(); jobIter.Next() {
+    record := userTable.ParseRecordValue(jobIter.Value())
+    fmt.Printf("职位包含'经理'的记录: %v\n", record)
 }
 ```
