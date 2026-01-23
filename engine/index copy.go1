@@ -16,7 +16,7 @@ type Index interface {
 	// 获取索引字段列表
 	GetFields() []string
 	Len() int
-	setId(id uint8)
+	SetId(id uint8)
 	GetId() uint8
 	Name() string
 	SetName(name string) error
@@ -56,7 +56,7 @@ func (bi *BaseIndex) SetName(name string) error {
 	return nil
 }
 
-func (bi *BaseIndex) setId(id uint8) {
+func (bi *BaseIndex) SetId(id uint8) {
 	bi.id = id
 }
 

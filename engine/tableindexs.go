@@ -6,14 +6,15 @@ func (t *Table) CreateIndex(index Index) error {
 	if t.indexIDManager == nil {
 		t.indexIDManager = NewIDManager(t.kvStore)
 	}
-	idxid, err := t.indexIDManager.GetOrCreateID(index.Name())
+	fkey := t.indexIDManager.GenerateIndexKey(t.id, index.Name())
+	idxid, err := t.indexIDManager.GetOrCreateID(fkey)
 	if err != nil {
 		return err
 	}
 	err = t.indexs.createIndex(index, idxid)
 	if err != nil {
 		// 回退ID
-		_, err = t.indexIDManager.GetPreviousID(index.Name())
+		_, err = t.indexIDManager.GetPreviousID(fkey)
 		if err != nil {
 			return err
 		}

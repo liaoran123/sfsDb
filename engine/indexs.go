@@ -64,7 +64,7 @@ func (i *Indexs) createIndex(index Index, idxid uint8) error {
 	}
 
 	// 添加索引
-	index.SetId(idxid)
+	index.setId(idxid)
 	i.indexs = append(i.indexs, index)
 	return nil
 }
@@ -178,4 +178,13 @@ func (i *Indexs) DeleteFields(field ...string) {
 	for _, index := range i.indexs {
 		index.DeleteFields(field...)
 	}
+}
+
+// 获取所有索引的名称和id映射
+func (i *Indexs) GetAllIndexNameIdMap() map[string]uint8 {
+	indexNameIdMap := make(map[string]uint8)
+	for _, index := range i.indexs {
+		indexNameIdMap[index.Name()] = index.GetId()
+	}
+	return indexNameIdMap
 }

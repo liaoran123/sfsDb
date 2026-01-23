@@ -140,6 +140,15 @@ func (t *Table) GetAllFields() map[string]any {
 	return result
 }
 
+// 获取所有字段名称和id映射
+func (t *Table) GetAllFieldNameIdMap() map[string]uint8 {
+	fieldNameIdMap := make(map[string]uint8, len(t.fieldsid))
+	for id, field := range t.fieldsid {
+		fieldNameIdMap[field] = uint8(id)
+	}
+	return fieldNameIdMap
+}
+
 // 获取所有字段名
 func (t *Table) GetFieldsName() []string {
 	result := make([]string, 0, len(t.fields))
@@ -212,31 +221,6 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 	return buf.Bytes()
 }
 
-/*
-func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
-	var buf bytes.Buffer
-	var fname []byte
-	orderedFields := t.GetFieldsName()
-	// 对字段进行排序，确保每次调用生成相同顺序的记录
-	sort.Strings(orderedFields)
-	//记录格式：field1:	value1-field2:value2-...-fieldN:valueN
-	// 按照t.fields中的字段顺序来格式化记录，确保顺序一致
-	for _, field := range orderedFields {
-		if val, ok := (*fieldsBytes)[field]; ok {
-			fname = []byte(field)
-			buf.Write(util.Bytes(fname).Escape())
-			buf.WriteString(":")
-			buf.Write(util.Bytes(val).Escape())
-			buf.WriteString(SPLIT)
-		}
-	}
-	//删除最后一个分隔符
-	if buf.Len() > 0 {
-		buf.Truncate(buf.Len() - 1)
-	}
-	return buf.Bytes()
-}
-*/
 // *map[string][]byte ==> *map[string]any
 // 与FieldsToBytes相反
 func (t *Table) RecordByteToAny(value *map[string][]byte) *map[string]any {
@@ -249,4 +233,9 @@ func (t *Table) RecordByteToAny(value *map[string][]byte) *map[string]any {
 		fields[field] = util.Bytes(val).ToAny(t.fields[field])
 	}
 	return &fields
+}
+
+// 获取所有索引的名称和id映射
+func (t *Table) GetAllIndexNameIdMap() map[string]uint8 {
+	return t.indexs.GetAllIndexNameIdMap()
 }
