@@ -1,6 +1,7 @@
 package match
 
 // 使用 FieldComparison.Match 进行比较操作
+// 主要是用于主键迭代器对于无索引字段的匹配。
 type FieldComparison struct {
 	fieldName   string             // 要比较的字段名
 	op          ComparisonOperator // 比较操作符

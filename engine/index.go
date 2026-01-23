@@ -18,12 +18,14 @@ type Index interface {
 	Len() int
 	SetId(id uint8)
 	GetId() uint8
-	// 获取索引前缀
 	Name() string
 	SetName(name string) error
+	//修改索引字段名称
+	UpdateFields(oldfields string, newfields string)
+	//删除索引字段
+	DeleteFields(field ...string)
 	//拼接前缀
 	Prefix(tbid uint8) []byte
-
 	//拼接值，不需要前缀
 	Join(fieldsBytes *map[string][]byte) []byte
 	//拼接前缀+值
@@ -77,6 +79,27 @@ func (bi *BaseIndex) GetFields() []string {
 func (bi *BaseIndex) AddFields(field ...string) {
 	bi.fields = append(bi.fields, field...)
 }
+
+// 修改索引字段名称
+func (bi *BaseIndex) UpdateFields(oldfields string, newfields string) {
+	// 替换字段名
+	for i := range bi.fields {
+		if bi.fields[i] == oldfields {
+			bi.fields[i] = newfields
+		}
+	}
+}
+
+// 删除索引字段
+func (bi *BaseIndex) DeleteFields(field ...string) {
+	for i := range bi.fields {
+		if bi.fields[i] == field[0] {
+			bi.fields = append(bi.fields[:i], bi.fields[i+1:]...)
+			break
+		}
+	}
+}
+
 func JoinAndToBytes(v ...string) []byte {
 	var Value bytes.Buffer
 	for i, fit := range v {
@@ -271,12 +294,14 @@ func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields 
 	return Value.Bytes()
 }
 
-// 解析函数，将索引的value转换为主键map值
-// 与func (t *Table) FormatRecord(fieldsBytes *map[string][]byte, FilterFields ...string) (r []byte)相对应
-// 主键索引值格式，记录格式：-field1-value1-field2-value2-...-fieldN-valueN-
+/*
+//
+// 与func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) 相对应
+// 主键索引值记录格式：field1idvalue1-field2idvalue2-...-fieldNidvalueN
 // Parse(fields []string, value []byte)
-// tablefields表字段，必须全量匹配，否则无法解析。value=-field1-value1-field2-value2-...-fieldN-valueN-
-// 反格式化
+// fieldsid  map[uint8]string // id到字段名的映射的关键作用在这里。第一个字节是字段id，后面是字段值。解析方法简单。
+*/
+// 反格式化，解析函数，将索引的value转换为记录对应的map[string][]byte
 func (dpk *DefaultPrimaryKey) Parse(fieldsid map[uint8]string, value []byte) (*map[string][]byte, error) {
 	if fieldsid == nil {
 		return nil, errors.New("DefaultPrimaryKey Parse error: fieldsid is nil")

@@ -197,7 +197,7 @@ func TestIDManager_UpdateName(t *testing.T) {
 
 	// 2. 更新名称
 	newKey := "sys-table-newname"
-	err = manager.UpdateName(oldKey, newKey)
+	err = manager.UpdateKey(oldKey, newKey)
 	if err != nil {
 		t.Fatalf("Failed to update name: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestIDManager_UpdateName(t *testing.T) {
 
 	// 5. 验证更新不存在的键会返回错误
 	nonExistentKey := "sys-table-nonexistent"
-	err = manager.UpdateName(nonExistentKey, "sys-table-new")
+	err = manager.UpdateKey(nonExistentKey, "sys-table-new")
 	if err == nil {
 		t.Error("Expected error when updating non-existent key, but got none")
 	}

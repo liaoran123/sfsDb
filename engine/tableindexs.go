@@ -98,39 +98,6 @@ func (t *Table) DropPrimaryKey() error {
 	return nil
 }
 
-// 获取最佳匹配索引，返回匹配度最高的索引
-func (t *Table) GetBestMatchIndex(fields ...string) Index {
-	// 优先匹配主键
-	pk := t.GetPrimaryKey()
-	if pk.MatchFields(fields...) {
-		return pk
-	}
-
-	// 然后匹配普通索引
-	normalIndexes := t.indexs.GetNormalIndexs()
-	for _, idx := range normalIndexes {
-		if idx.MatchFields(fields...) {
-			return idx
-		}
-	}
-
-	// 最后匹配全文索引
-	fullTextIndexes := t.indexs.GetFullTextIndexs()
-	for _, idx := range fullTextIndexes {
-		if idx.MatchFields(fields...) {
-			return idx
-		}
-	}
-
-	return nil
-}
-
-// 获取最佳匹配索引，并返回匹配结果
-func (t *Table) GetMatchIndexResult(fields ...string) (Index, bool) {
-	idx := t.GetBestMatchIndex(fields...)
-	return idx, idx != nil
-}
-
 // 匹配索引
 func (t *Table) MatchIndex(fields ...string) Index {
 	return t.indexs.MatchIndex(fields...)

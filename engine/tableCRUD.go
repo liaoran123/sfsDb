@@ -252,7 +252,7 @@ func (t *Table) FieldsToBytesNil(fields *map[string]any) *map[string][]byte {
 	return &result
 }
 
-// util.ComparisonOperator>6则不支持，需要使用MultiFieldMatch struct
+// 默认ComparisonOperator是like，前缀匹配功能
 func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
 	var field []string
 	for k := range *fields {

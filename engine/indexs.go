@@ -26,7 +26,8 @@ func NewIndexs(fields *map[string]any) *Indexs {
 	}
 }
 
-// 创建索引，检查字段必须存在表字段，索引名不能重复
+// 创建索引
+// 索引规则，1，索引名称唯一；2，索引字段不能完全相同；3，只能有一个PrimaryKey索引；4，字段必须存在表字段
 func (i *Indexs) createIndex(index Index, idxid uint8) error {
 	fields := index.GetFields()
 
@@ -44,20 +45,19 @@ func (i *Indexs) createIndex(index Index, idxid uint8) error {
 	}
 
 	indexName := index.Name()
+	//性能优化，一次遍历，执行3个功能 ：1，索引名称唯一；2，索引字段不能完全相同；3，只能有一个PrimaryKey索引；
 	for _, idx := range i.indexs {
-		// 检查索引名是否重复
+		// 检查索引名是否重复。1，索引名称唯一；
 		if idx.Name() == indexName {
 			return errors.New("index name \"" + indexName + "\" already exists")
 		}
-
-		// 检查主键是否重复
+		// 检查主键是否重复。3，只能有一个PrimaryKey索引；
 		if isNewPrimary {
 			if _, ok := idx.(PrimaryKey); ok {
 				return errors.New("primary key index already exists")
 			}
 		}
-
-		// 检查字段是否完全相同
+		// 检查字段是否完全相同。2，索引字段不能完全相同；
 		if slices.Equal(fields, idx.GetFields()) {
 			return errors.New("index with identical fields already exists")
 		}
@@ -164,4 +164,18 @@ func (i *Indexs) MatchIndex(fields ...string) Index {
 	}
 
 	return nil
+}
+
+// 修改所有包含字段名称的索引
+func (i *Indexs) UpdateFields(oldfields string, newfields string) {
+	for _, index := range i.indexs {
+		index.UpdateFields(oldfields, newfields)
+	}
+}
+
+// 删除所有包含字段的索引
+func (i *Indexs) DeleteFields(field ...string) {
+	for _, index := range i.indexs {
+		index.DeleteFields(field...)
+	}
 }

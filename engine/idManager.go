@@ -53,7 +53,7 @@ func NewIDManager(kvStore storage.Store) *IDManager {
 // 2. 删除旧键
 // 3. 将ID存储到新键
 // 4. 返回结果
-func (m *IDManager) UpdateName(oldKey string, newKey string) error {
+func (m *IDManager) UpdateKey(oldKey string, newKey string) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
