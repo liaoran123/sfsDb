@@ -760,7 +760,7 @@ func TestTableIter_Count(t *testing.T) {
 	t.Run("CountAllRecords", func(t *testing.T) {
 		iter := table.Search(&map[string]any{"id": nil})
 		defer iter.Release()
-
+		fmt.Printf("iter.QueryPerformance: %v\n", iter.QueryPerformance)
 		count := iter.Count()
 		if count != 5 {
 			t.Errorf("Expected count 5, got %d", count)
@@ -775,12 +775,14 @@ func TestTableIter_Count(t *testing.T) {
 			t.Fatalf("Failed to get full table iterator")
 		}
 		defer iter.Release()
+		fmt.Printf("iter.QueryPerformance: %v\n", iter.QueryPerformance)
 
 		// Set matcher to find active records
 		iter.SetMatch(match.NewFieldComparison("active", match.Equal, true))
 
 		// Get filtered records and count them
 		records := iter.GetRecords(true)
+		fmt.Printf("iter.QueryPerformance: %v\n", iter.QueryPerformance)
 		if len(records) != 3 {
 			t.Errorf("Expected 3 active records, got count %d", len(records))
 		}

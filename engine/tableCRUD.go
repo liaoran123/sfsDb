@@ -90,6 +90,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 }
 
 // 删除记录
+// fields *map[string]any 主键值，可能是组合主键
 func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	if t.fields == nil {
 		return fmt.Errorf("表 '%s' 未设置字段和类型", t.name)
@@ -140,6 +141,7 @@ func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 }
 
 // 更新记录，不支持修改主键字段
+// fields *map[string]any 主键值，可能是组合主键
 func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	if t.fields == nil {
 		return fmt.Errorf("表 '%s' 未设置字段和类型", t.name)

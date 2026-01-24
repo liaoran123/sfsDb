@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liaoran123/sfsDb/monitor"
 	"github.com/liaoran123/sfsDb/util"
 )
 
@@ -61,6 +62,11 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to insert record: %v", err)
 		}
+	}
+
+	// 验证索引计数器
+	if monitor.AtomicMap(monitor.AtomicIntDec).Get(table.id, pk.GetId()) != 3 {
+		t.Fatalf("Expected 3 records, got %d", monitor.AtomicMap(monitor.AtomicIntDec).Get(table.id, pk.GetId()))
 	}
 
 	// 测试搜索复合主键
@@ -282,7 +288,15 @@ func TestTableCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create secondary index: %v", err)
 	}
-
+	secondaryIndexage, err := DefaultNormalIndexNew("idx_age")
+	if err != nil {
+		t.Fatalf("Failed to create secondary index: %v", err)
+	}
+	secondaryIndexage.AddFields("age")
+	err = tableWithIndex.CreateIndex(secondaryIndexage)
+	if err != nil {
+		t.Fatalf("Failed to create secondary index: %v", err)
+	}
 	// 插入多条记录
 	for i := 1; i <= 5; i++ {
 		idxRecord := map[string]any{
@@ -297,9 +311,25 @@ func TestTableCRUD(t *testing.T) {
 			t.Fatalf("Failed to insert record %d: %v", i, err)
 		}
 	}
+	//遍历表
+	fditer := tableWithIndex.ForData()
+	defer fditer.Release()
+	fdrecords := fditer.GetRecords(true)
+	for _, record := range fdrecords {
+		fmt.Println(record)
+	}
+	//修改邮箱
+	updateRecord1 := map[string]any{
+		"id":    1,
+		"email": "user1.updated@example.com",
+	}
+	err = tableWithIndex.Update(&updateRecord1)
+	if err != nil {
+		t.Fatalf("Failed to update record: %v", err)
+	}
 
 	// 使用二级索引搜索
-	emailIter := tableWithIndex.Search(&map[string]any{"email": "user3@example.com"})
+	emailIter := tableWithIndex.Search(&map[string]any{"email": "user1.updated@example.com"})
 	if emailIter == nil {
 		t.Fatalf("Failed to search by email")
 	}
@@ -310,8 +340,25 @@ func TestTableCRUD(t *testing.T) {
 		t.Fatalf("Expected 1 record for email search, got %d", len(emailRecords))
 	}
 
-	if emailRecords[0]["id"] != 3 || emailRecords[0]["email"] != "user3@example.com" {
-		t.Fatalf("Expected record with id=3 and email=user3@example.com, got %v", emailRecords[0])
+	if emailRecords[0]["id"] != 1 || emailRecords[0]["email"] != "user1.updated@example.com" {
+		t.Fatalf("Expected record with id=1 and email=user1.updated@example.com, got %v", emailRecords[0])
+	}
+	//删除邮箱
+	err = tableWithIndex.Delete(&map[string]any{"id": 1})
+	if err != nil {
+		t.Fatalf("Failed to delete record: %v", err)
+	}
+	defer emailIter.Release()
+	//再次搜索邮箱
+	emailIter = tableWithIndex.Search(&map[string]any{"email": "user1.updated@example.com"})
+	if emailIter == nil {
+		t.Fatalf("Failed to search by email")
+	}
+	defer emailIter.Release()
+
+	emailRecords = emailIter.GetRecords(true)
+	if len(emailRecords) != 0 {
+		t.Fatalf("Expected 0 record for email search, got %d", len(emailRecords))
 	}
 }
 
