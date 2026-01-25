@@ -116,8 +116,17 @@ var LdbBatchPool = sync.Pool{
 
 // Batch 创建批量操作对象
 func (s *LevelDBStore) GetBatch() Batch {
-	// 从sync.Pool中获取一个Batch对象
-	// 即使在快照模式下也返回有效的Batch，WriteBatch会使用originalDB执行写操作
+	// 快照不支持批量操作
+	if s.isSnapshot {
+		return nil
+	}
+
+	// 确保ldb是*leveldb.DB类型
+	_, ok := s.ldb.(*leveldb.DB)
+	if !ok {
+		return nil
+	}
+	//从sync.Pool 中获取一个Batch对象
 	batch, ok := LdbBatchPool.Get().(*leveldb.Batch)
 	if !ok {
 		return nil
@@ -129,15 +138,20 @@ func (s *LevelDBStore) GetBatch() Batch {
 // batch: 批量操作对象
 // put: 是否将batch放回对象池，默认是true
 func (s *LevelDBStore) WriteBatch(batch Batch, put ...bool) error {
+	// 快照不支持写操作
+	if s.isSnapshot {
+		return NewError("snapshot does not support write operations")
+	}
+
 	// 检查batch是否为nil
 	if batch == nil {
 		return NewError("batch cannot be nil")
 	}
 
-	// 总是使用originalDB执行写操作，无论当前是否为快照模式
-	db := s.originalDB
-	if db == nil {
-		return NewError("originalDB is nil, cannot perform write operations")
+	// 确保ldb是*leveldb.DB类型
+	db, ok := s.ldb.(*leveldb.DB)
+	if !ok {
+		return NewError("invalid database type for write operations")
 	}
 
 	// 确保batch是*leveldb.Batch类型

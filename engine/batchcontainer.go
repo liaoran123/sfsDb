@@ -17,16 +17,22 @@ type batchContainer struct {
 }
 
 func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore storage.Store) *batchContainer {
+	// 确保batch不为nil
 	if batch == nil {
-		batch = storage.KVDb.GetBatch()
+		// 先检查kvStore是否为nil
+		if kvStore != nil {
+			batch = kvStore.GetBatch()
+		}
+		// 如果还是nil，创建一个新的batch
+		if batch == nil {
+			panic("failed to create batch")
+		}
 	}
 	return &batchContainer{
-		indexs: indexs,
-		batch:  batch,
-		tbid:   tbid,
-		//commitThreshold: 1000,
+		indexs:  indexs,
+		batch:   batch,
+		tbid:    tbid,
 		kvStore: kvStore,
-		//values3个nil值，key分别为0,1,2
 		values: map[uint8][]byte{
 			0: nil, //主键值
 			1: nil, //普通索引值
