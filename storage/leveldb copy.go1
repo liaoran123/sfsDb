@@ -22,7 +22,6 @@ type LevelDBGetter interface {
 // LevelDBStore LevelDB存储实现，支持快照功能
 type LevelDBStore struct {
 	ldb        LevelDBGetter // 可以是*leveldb.DB或*leveldb.Snapshot
-	originalDB *leveldb.DB   // 保存原始数据库实例，用于快照切换回数据库模式
 	isSnapshot bool          // 标记是否为快照
 	opts       *opt.Options
 }
@@ -48,14 +47,12 @@ func NewLevelDBStore(Path string, opts *opt.Options) (Store, error) {
 		// 修复成功，直接使用恢复后的数据库实例
 		return &LevelDBStore{
 			ldb:        ldb,
-			originalDB: ldb,
 			isSnapshot: false,
 			opts:       opts,
 		}, nil
 	}
 	return &LevelDBStore{
 		ldb:        ldb,
-		originalDB: ldb,
 		isSnapshot: false,
 		opts:       opts,
 	}, nil
@@ -204,10 +201,9 @@ func (s *LevelDBStore) Snapshot() (Snapshot, error) {
 	if snapshot == nil {
 		return nil, NewError("failed to create snapshot")
 	}
-	// 返回一个新的LevelDBStore实例，其中ldb字段为快照，并保存原始数据库实例
+	// 返回一个新的LevelDBStore实例，其中ldb字段为快照
 	return &LevelDBStore{
 		ldb:        snapshot,
-		originalDB: db,
 		isSnapshot: true,
 		opts:       s.opts,
 	}, nil
@@ -247,61 +243,5 @@ func (s *LevelDBStore) Release() error {
 		return s.Close()
 	}
 	// 对于普通数据库实例，Release方法不做任何事情
-	return nil
-}
-
-// SwitchToSnapshot 将当前实例切换到快照模式
-// 如果当前已是快照模式，则返回错误
-func (s *LevelDBStore) SwitchToSnapshot() error {
-	// 如果当前已是快照模式，不能再切换到快照
-	if s.isSnapshot {
-		return NewError("cannot switch to snapshot from snapshot")
-	}
-
-	// 确保当前ldb是*leveldb.DB类型
-	db, ok := s.ldb.(*leveldb.DB)
-	if !ok {
-		return NewError("invalid database type for creating snapshot")
-	}
-
-	// 创建新的快照
-	snapshot, err := db.GetSnapshot()
-	if err != nil {
-		return err
-	}
-	if snapshot == nil {
-		return NewError("failed to create snapshot")
-	}
-
-	// 切换ldb字段为新快照
-	s.ldb = snapshot
-	s.isSnapshot = true
-
-	return nil
-}
-
-// SwitchToDB 将当前实例切换回数据库模式
-// 如果当前已是数据库模式，则返回错误
-// 如果当前是快照模式，会先释放快照资源
-func (s *LevelDBStore) SwitchToDB() error {
-	// 如果当前已是数据库模式，不需要切换
-	if !s.isSnapshot {
-		return NewError("already in database mode")
-	}
-
-	// 先释放当前快照资源
-	if snapshot, ok := s.ldb.(*leveldb.Snapshot); ok {
-		snapshot.Release()
-	}
-
-	// 确保有原始数据库实例可以切换回
-	if s.originalDB == nil {
-		return NewError("no original database instance available for switching back")
-	}
-
-	// 切换ldb字段为原始数据库实例
-	s.ldb = s.originalDB
-	s.isSnapshot = false
-
 	return nil
 }

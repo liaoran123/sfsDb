@@ -45,7 +45,10 @@ type Store interface {
 
 	// Snapshot 创建快照
 	Snapshot() (Snapshot, error)
-
+	// SwitchToSnapshot 切换到数据库模式
+	SwitchToSnapshot() error
+	// SwitchToDB 切换到数据库模式
+	SwitchToDB() error
 	// Close 关闭存储
 	Close() error
 }
