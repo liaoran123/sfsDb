@@ -8,7 +8,7 @@ import (
 // 初始化函数
 func init() {
 	AtomicInt = make(map[string]*atomic.Int64)
-	AtomicIntDec = make(map[string]*atomic.Int64)
+	AtomicDec = make(map[string]*atomic.Int64)
 }
 
 // key: string，表id,index_id组成；格式：table_id,index_id
@@ -16,7 +16,7 @@ func init() {
 var AtomicInt map[string]*atomic.Int64
 
 // *atomic.Int64 记录delete的键值数
-var AtomicIntDec map[string]*atomic.Int64
+var AtomicDec map[string]*atomic.Int64
 
 // AtomicMap 类型用于记录键值变化
 type AtomicMap map[string]*atomic.Int64

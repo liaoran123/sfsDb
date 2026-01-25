@@ -6,74 +6,116 @@ import (
 )
 
 type Record map[string]any
-
-// 选择显示的key字段，如sql语句中的select f0,f1,... from table
-// 如果keys为空，则返回所有字段
-func (r Record) Select(keys ...string) (rs Record) {
+// Select selects fields from a record
+// Returns a new record with the selected fields
+func (r Record) Select(keys ...string) Record {
 	if r == nil {
 		return nil
 	}
 	if len(keys) == 0 {
 		return r
 	}
-	rs = make(map[string]any, len(keys))
+	result := make(Record, len(keys))
 	for _, key := range keys {
-		rs[key] = r[key]
+		result[key] = r[key]
 	}
-	return rs
+	return result
 }
 
-// ----------------------------------
-
 type Records []Record
-
-// 选择显示的key字段，如sql语句中的select f0,f1,... from table
-// 如果keys为空，则返回所有字段
-func (rs Records) Select(fields ...string) (rs2 Records) {
+// Select selects fields from records
+// Returns a new records with the selected fields
+func (rs Records) Select(fields ...string) Records {
 	if len(fields) == 0 {
 		return rs
 	}
-	rs2 = make([]Record, len(rs))
+	result := make(Records, len(rs))
 	for i, r := range rs {
-		rs2[i] = r.Select(fields...)
+		result[i] = r.Select(fields...)
 	}
-	return rs2
+	return result
 }
-func (rs Records) Operation(op ...Operation) (rs2 Records) {
+// Operation performs operations on records
+// Returns a new records with the results of the operations
+func (rs Records) Operation(op ...Operation) Records {
 	if len(rs) == 0 {
 		return nil
 	}
 	if len(op) == 0 {
 		return rs
 	}
-	// 直接创建结果切片，避免先复制再修改
+	
 	result := make(Records, 0, len(rs))
 	for _, r := range rs {
-		// 为每个记录创建新的副本，避免修改原记录
 		newRecord := make(Record, len(r)+1)
-		// 直接复制字段，避免使用 maps.Copy（maps.Copy 是 Go 1.21+ 新增，且性能与直接遍历相当）
 		for k, v := range r {
 			newRecord[k] = v
 		}
-		// 检测新字段名是否已经存在
+		
 		newField := op[0].NewField()
 		if _, exists := newRecord[newField]; exists {
 			panic(fmt.Sprintf("field '%s' already exists in record, cannot add duplicate field", newField))
 		}
-		// 添加新字段
+		
 		newRecord[newField] = op[0].Evaluate(r)
-		// 将新记录添加到结果切片
 		result = append(result, newRecord)
 	}
+	
 	return result
 }
 
-// 添加交集，并集，差集等等
-func (rs Records) Intersect(other ...Records) (rs2 Records) {
+func (rs Records) Contains(r Record) bool {
+	for _, record := range rs {
+		if reflect.DeepEqual(record, r) {
+			return true
+		}
+	}
+	return false
+}
+
+// OperationVertical performs vertical operations on records
+func (rs Records) OperationVertical(op ...VerticalOperation) Records {
+	if len(rs) == 0 {
+		return nil
+	}
+	if len(op) == 0 {
+		return rs
+	}
+	
+	// Create a copy of records to avoid modifying the original
+	result := make(Records, len(rs))
+	copy(result, rs)
+	
+	// Apply each vertical operation
+	for _, verticalOp := range op {
+		// Calculate the result of the vertical operation
+		opResult := verticalOp.Evaluate(rs)
+		newField := verticalOp.NewField()
+		
+		// Add the result to each record
+		for i := range result {
+			if result[i] == nil {
+				result[i] = make(Record)
+			}
+			// Create a new record if the field already exists to avoid overwriting
+			newRecord := make(Record, len(result[i])+1)
+			for k, v := range result[i] {
+				newRecord[k] = v
+			}
+			newRecord[newField] = opResult
+			result[i] = newRecord
+		}
+	}
+	
+	return result
+}
+
+func (rs Records) Intersect(other ...Records) Records {
 	if len(rs) == 0 || len(other) == 0 {
 		return nil
 	}
-	rs2 = make([]Record, 0, len(rs))
+	
+	result := make(Records, 0, len(rs))
 	for _, r := range rs {
 		found := false
 		for _, o := range other {
@@ -83,63 +125,60 @@ func (rs Records) Intersect(other ...Records) (rs2 Records) {
 			}
 		}
 		if found {
-			rs2 = append(rs2, r)
+			result = append(result, r)
 		}
 	}
-	return rs2
+	
+	return result
 }
 
-// 判断是否包含指定记录
-func (rs Records) Contains(r Record) bool {
-	for _, record := range rs {
-		if reflect.DeepEqual(record, r) {
-			return true
-		}
-	}
-	return false
-}
-func (rs Records) Union(other ...Records) (rs2 Records) {
+func (rs Records) Union(other ...Records) Records {
 	if len(rs) == 0 {
 		if len(other) == 0 {
 			return nil
 		}
-		// 当 rs 为空时，返回所有 other 记录的并集
-		rs2 = make([]Record, 0)
+		
+		result := make(Records, 0)
 		for _, o := range other {
 			for _, r := range o {
-				if !rs2.Contains(r) {
-					rs2 = append(rs2, r)
+				if !result.Contains(r) {
+					result = append(result, r)
 				}
 			}
 		}
-		return rs2
+		return result
 	}
+	
 	if len(other) == 0 {
 		return rs
 	}
-	rs2 = make([]Record, 0, len(rs))
-	// 添加 rs 中的所有记录
+	
+	result := make(Records, 0, len(rs))
 	for _, r := range rs {
-		rs2 = append(rs2, r)
+		result = append(result, r)
 	}
-	// 添加 other 中不存在于 rs 的记录
+	
 	for _, o := range other {
 		for _, r := range o {
-			if !rs2.Contains(r) {
-				rs2 = append(rs2, r)
+			if !result.Contains(r) {
+				result = append(result, r)
 			}
 		}
 	}
-	return rs2
+	
+	return result
 }
-func (rs Records) Difference(other ...Records) (rs2 Records) {
+
+func (rs Records) Difference(other ...Records) Records {
 	if len(rs) == 0 {
 		return nil
 	}
+	
 	if len(other) == 0 {
 		return rs
 	}
-	rs2 = make([]Record, 0, len(rs))
+	
+	result := make(Records, 0, len(rs))
 	for _, r := range rs {
 		found := false
 		for _, o := range other {
@@ -149,8 +188,9 @@ func (rs Records) Difference(other ...Records) (rs2 Records) {
 			}
 		}
 		if !found {
-			rs2 = append(rs2, r)
+			result = append(result, r)
 		}
 	}
-	return rs2
+	
+	return result
 }

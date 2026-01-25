@@ -9,11 +9,11 @@ import (
 )
 
 /*
-	// - 添加一条记录后删除，AtomicInt和AtomicIntDec所有对应的键值相等。
+	// - 添加一条记录后删除，AtomicInt和AtomicDec所有对应的键值相等。
 
-	// 验证修改字段后AtomicInt和AtomicIntDec：
-	// - 所有的修改，主键索引，（AtomicInt）putCount+=1, （AtomicIntDec）deleteCount+=1，因为添加的时候是1，修改后对应的AtomicInt和AtomicIntDec键值相减=1
-	// - 普通索引：（AtomicInt）putCount=1, （AtomicIntDec）deleteCount=1
+	// 验证修改字段后AtomicInt和AtomicDec：
+	// - 所有的修改，主键索引，（AtomicInt）putCount+=1, （AtomicDec）deleteCount+=1，因为添加的时候是1，修改后对应的AtomicInt和AtomicDec键值相减=1
+	// - 普通索引：（AtomicInt）putCount=1, （AtomicDec）deleteCount=1
 	// - 全文索引的长度通过func (dfi *DefaultFullTextIndex) Tokenize(nr string, ftlen int) (tokens []string)计算得到len(tokens) putCount=len(tokens), deleteCount=len(tokens)
 
 */
@@ -87,7 +87,7 @@ func TestKeyChangeTracking(t *testing.T) {
 	// 初始状态：所有计数器应为0
 	for _, indexID := range []byte{pkID, normalIndexID, fulltextIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != 0 {
 			t.Fatalf("Expected put count 0 for table %d index %d, got %d", tableID, indexID, putCount)
@@ -135,7 +135,7 @@ func TestKeyChangeTracking(t *testing.T) {
 	// 验证删除后的计数器：每个索引都应该有3次put和1次delete操作
 	for _, indexID := range []byte{pkID, normalIndexID, fulltextIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != 3 {
 			t.Errorf("Expected put count 3 for table %d index %d, got %d", tableID, indexID, putCount)
@@ -160,7 +160,7 @@ func TestKeyChangeTracking(t *testing.T) {
 	// （更新操作会先删除旧记录，再插入新记录，所以会增加1次put和1次delete）
 	for _, indexID := range []byte{pkID, normalIndexID, fulltextIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != 4 {
 			t.Errorf("Expected put count 4 for table %d index %d, got %d", tableID, indexID, putCount)
@@ -191,7 +191,7 @@ func TestKeyChangeTracking(t *testing.T) {
 	// 验证批量插入后的计数器：每个索引都应该有6次put和2次delete操作
 	for _, indexID := range []byte{pkID, normalIndexID, fulltextIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != 6 {
 			t.Errorf("Expected put count 6 for table %d index %d, got %d", tableID, indexID, putCount)
@@ -219,7 +219,7 @@ func TestKeyChangeTracking(t *testing.T) {
 	// 验证批量删除后的计数器：每个索引都应该有6次put和4次delete操作
 	for _, indexID := range []byte{pkID, normalIndexID, fulltextIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != 6 {
 			t.Errorf("Expected put count 6 for table %d index %d, got %d", tableID, indexID, putCount)
@@ -245,7 +245,7 @@ func TestKeyChangeTracking(t *testing.T) {
 	// 验证净变化量：每个索引的净变化量应该等于最终记录数
 	for _, indexID := range []byte{pkID, normalIndexID, fulltextIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 		netChange := putCount - deleteCount
 
 		if netChange != 2 {
@@ -298,7 +298,7 @@ func TestKeyChange_AddDeleteEqual(t *testing.T) {
 
 	// 初始状态：put和delete计数器都应为0
 	putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), pkID)
-	deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), pkID)
+	deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), pkID)
 
 	if putCount != 0 || deleteCount != 0 {
 		t.Fatalf("Initial state: Expected putCount=0 and deleteCount=0, got putCount=%d, deleteCount=%d", putCount, deleteCount)
@@ -313,7 +313,7 @@ func TestKeyChange_AddDeleteEqual(t *testing.T) {
 
 	// 验证插入后：putCount=1, deleteCount=0
 	putCount = monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), pkID)
-	deleteCount = monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), pkID)
+	deleteCount = monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), pkID)
 
 	if putCount != 1 {
 		t.Errorf("After insert: Expected putCount=1, got %d", putCount)
@@ -331,7 +331,7 @@ func TestKeyChange_AddDeleteEqual(t *testing.T) {
 
 	// 验证删除后：putCount=1, deleteCount=1，两者应该相等
 	putCount = monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), pkID)
-	deleteCount = monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), pkID)
+	deleteCount = monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), pkID)
 
 	if putCount != deleteCount {
 		t.Errorf("After delete: Expected putCount(%d) to equal deleteCount(%d)", putCount, deleteCount)
@@ -414,7 +414,7 @@ func TestKeyChange_UpdateIndexFieldsSeparately(t *testing.T) {
 	// 初始状态：所有计数器应为0
 	for _, indexID := range []byte{pkID, nameIndexID, fulltextIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != 0 || deleteCount != 0 {
 			t.Fatalf("Initial state: Expected putCount=0 and deleteCount=0 for index %d, got putCount=%d, deleteCount=%d", indexID, putCount, deleteCount)
@@ -440,7 +440,7 @@ func TestKeyChange_UpdateIndexFieldsSeparately(t *testing.T) {
 
 	// 验证主键索引
 	pkPutCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), pkID)
-	pkDeleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), pkID)
+	pkDeleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), pkID)
 	if pkPutCount != 1 || pkDeleteCount != 0 {
 		t.Errorf("After insert: Expected primary key putCount=1, deleteCount=0, got putCount=%d, deleteCount=%d", pkPutCount, pkDeleteCount)
 	} else {
@@ -449,7 +449,7 @@ func TestKeyChange_UpdateIndexFieldsSeparately(t *testing.T) {
 
 	// 验证普通索引
 	namePutCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), nameIndexID)
-	nameDeleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), nameIndexID)
+	nameDeleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), nameIndexID)
 	if namePutCount != 1 || nameDeleteCount != 0 {
 		t.Errorf("After insert: Expected normal index putCount=1, deleteCount=0, got putCount=%d, deleteCount=%d", namePutCount, nameDeleteCount)
 	} else {
@@ -458,7 +458,7 @@ func TestKeyChange_UpdateIndexFieldsSeparately(t *testing.T) {
 
 	// 验证全文索引
 	fulltextPutCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), fulltextIndexID)
-	fulltextDeleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), fulltextIndexID)
+	fulltextDeleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), fulltextIndexID)
 	if fulltextPutCount != 5 || fulltextDeleteCount != 0 {
 		t.Errorf("After insert: Expected fulltext index putCount=5, deleteCount=0, got putCount=%d, deleteCount=%d", fulltextPutCount, fulltextDeleteCount)
 	} else {
@@ -486,7 +486,7 @@ func TestKeyChange_UpdateIndexFieldsSeparately(t *testing.T) {
 
 	// 验证主键索引
 	pkPutCount = monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), pkID)
-	pkDeleteCount = monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), pkID)
+	pkDeleteCount = monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), pkID)
 	if pkPutCount != 2 || pkDeleteCount != 1 {
 		t.Errorf("After update name: Expected primary key putCount=2, deleteCount=1, got putCount=%d, deleteCount=%d", pkPutCount, pkDeleteCount)
 	} else {
@@ -495,7 +495,7 @@ func TestKeyChange_UpdateIndexFieldsSeparately(t *testing.T) {
 
 	// 验证普通索引
 	namePutCount = monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), nameIndexID)
-	nameDeleteCount = monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), nameIndexID)
+	nameDeleteCount = monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), nameIndexID)
 	if namePutCount != 2 || nameDeleteCount != 1 {
 		t.Errorf("After update name: Expected normal index putCount=2, deleteCount=1, got putCount=%d, deleteCount=%d", namePutCount, nameDeleteCount)
 	} else {
@@ -504,7 +504,7 @@ func TestKeyChange_UpdateIndexFieldsSeparately(t *testing.T) {
 
 	// 验证全文索引
 	fulltextPutCount = monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), fulltextIndexID)
-	fulltextDeleteCount = monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), fulltextIndexID)
+	fulltextDeleteCount = monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), fulltextIndexID)
 	if fulltextPutCount != 5 || fulltextDeleteCount != 0 {
 		t.Errorf("After update name: Expected fulltext index putCount=5, deleteCount=0, got putCount=%d, deleteCount=%d", fulltextPutCount, fulltextDeleteCount)
 	} else {
@@ -526,7 +526,7 @@ func TestKeyChange_UpdateIndexFieldsSeparately(t *testing.T) {
 	// 只验证putCount >= deleteCount
 	for _, indexID := range []byte{pkID, nameIndexID, fulltextIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount < deleteCount {
 			t.Errorf("After update description: Expected putCount(%d) >= deleteCount(%d) for index %d", putCount, deleteCount, indexID)
@@ -548,7 +548,7 @@ func TestKeyChange_UpdateIndexFieldsSeparately(t *testing.T) {
 	// 只验证putCount >= deleteCount
 	for _, indexID := range []byte{pkID, nameIndexID, fulltextIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount < deleteCount {
 			t.Errorf("After update age: Expected putCount(%d) >= deleteCount(%d) for index %d", putCount, deleteCount, indexID)
@@ -566,7 +566,7 @@ func TestKeyChange_UpdateIndexFieldsSeparately(t *testing.T) {
 	// 验证删除后：所有索引的putCount等于deleteCount
 	for _, indexID := range []byte{pkID, nameIndexID, fulltextIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != deleteCount {
 			t.Errorf("After delete: Expected putCount(%d) to equal deleteCount(%d) for index %d", putCount, deleteCount, indexID)
@@ -636,7 +636,7 @@ func TestKeyChange_ConcurrentOperations(t *testing.T) {
 	// 初始状态：put和delete计数器都应为0
 	for _, indexID := range []byte{pkID, nameIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != 0 || deleteCount != 0 {
 			t.Fatalf("Initial state: Expected putCount=0 and deleteCount=0 for index %d, got putCount=%d, deleteCount=%d", indexID, putCount, deleteCount)
@@ -707,7 +707,7 @@ func TestKeyChange_ConcurrentOperations(t *testing.T) {
 
 	for _, indexID := range []byte{pkID, nameIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != expectedPut {
 			t.Errorf("Expected putCount=%d for index %d, got %d", expectedPut, indexID, putCount)
@@ -783,7 +783,7 @@ func TestKeyChange_UpdateIndexField(t *testing.T) {
 	// 初始状态：put和delete计数器都应为0
 	for _, indexID := range []byte{pkID, nameIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != 0 || deleteCount != 0 {
 			t.Fatalf("Initial state: Expected putCount=0 and deleteCount=0 for index %d, got putCount=%d, deleteCount=%d", indexID, putCount, deleteCount)
@@ -800,7 +800,7 @@ func TestKeyChange_UpdateIndexField(t *testing.T) {
 	// 验证插入后：putCount=1, deleteCount=0
 	for _, indexID := range []byte{pkID, nameIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != 1 {
 			t.Errorf("After insert: Expected putCount=1 for index %d, got %d", indexID, putCount)
@@ -825,7 +825,7 @@ func TestKeyChange_UpdateIndexField(t *testing.T) {
 	// 验证所有索引：putCount=2, deleteCount=1
 	for _, indexID := range []byte{pkID, nameIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		// 验证put和delete计数器的关系：putCount = deleteCount + 1
 		// 因为更新操作会删除旧记录（+1 delete）并插入新记录（+1 put），所以净变化为+1
@@ -845,7 +845,7 @@ func TestKeyChange_UpdateIndexField(t *testing.T) {
 
 	// 验证再次修改后：putCount=3, deleteCount=2
 	namePutCount2 := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), nameIndexID)
-	nameDeleteCount2 := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), nameIndexID)
+	nameDeleteCount2 := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), nameIndexID)
 
 	if namePutCount2 != nameDeleteCount2+1 {
 		t.Errorf("After second update (name index): Expected putCount=%d+1=%d, got putCount=%d, deleteCount=%d", nameDeleteCount2, nameDeleteCount2+1, namePutCount2, nameDeleteCount2)
@@ -864,7 +864,7 @@ func TestKeyChange_UpdateIndexField(t *testing.T) {
 	// 因为删除操作会删除所有索引条目，所以对于所有索引：putCount = deleteCount
 	for _, indexID := range []byte{pkID, nameIndexID} {
 		putCount := monitor.AtomicMap(monitor.AtomicInt).Get(byte(tableID), indexID)
-		deleteCount := monitor.AtomicMap(monitor.AtomicIntDec).Get(byte(tableID), indexID)
+		deleteCount := monitor.AtomicMap(monitor.AtomicDec).Get(byte(tableID), indexID)
 
 		if putCount != deleteCount {
 			t.Errorf("After delete: Expected putCount(%d) to equal deleteCount(%d) for index %d", putCount, deleteCount, indexID)

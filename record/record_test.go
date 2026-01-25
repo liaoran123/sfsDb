@@ -524,3 +524,225 @@ func TestRecordsOperation(t *testing.T) {
 		testRecords.Operation(op)
 	})
 }
+
+// TestRecordsOperationVertical 测试 Records 的 OperationVertical 方法
+func TestRecordsOperationVertical(t *testing.T) {
+	// 创建测试记录集合
+	testRecords := Records{
+		{
+			"id":     1,
+			"name":   "张三",
+			"age":    30,
+			"salary": 5000.0,
+			"department": "技术部",
+		},
+		{
+			"id":     2,
+			"name":   "李四",
+			"age":    25,
+			"salary": 4000.0,
+			"department": "技术部",
+		},
+		{
+			"id":     3,
+			"name":   "王五",
+			"age":    35,
+			"salary": 6000.0,
+			"department": "销售部",
+		},
+		{
+			"id":     4,
+			"name":   "赵六",
+			"age":    28,
+			"salary": 5500.0,
+			"department": "销售部",
+		},
+	}
+
+	// 测试用例1：Sum垂直操作
+	t.Run("SumVerticalOperation", func(t *testing.T) {
+		// 创建求和垂直操作
+		sumOp := NewSumVerticalOperation("salary", "total_salary")
+		result := testRecords.OperationVertical(sumOp)
+		
+		// 验证结果
+		if len(result) != 4 {
+			t.Errorf("Expected 4 records, got %d", len(result))
+		}
+		
+		// 验证每个记录都有total_salary字段
+		expectedTotal := 5000.0 + 4000.0 + 6000.0 + 5500.0
+		for i, record := range result {
+			if _, ok := record["total_salary"]; !ok {
+				t.Errorf("Expected record %d to have 'total_salary' field", i)
+			}
+			if record["total_salary"].(float64) != expectedTotal {
+				t.Errorf("Expected total_salary %f, got %f for record %d", expectedTotal, record["total_salary"].(float64), i)
+			}
+		}
+	})
+
+	// 测试用例2：Avg垂直操作
+	t.Run("AvgVerticalOperation", func(t *testing.T) {
+		// 创建平均垂直操作
+		avgOp := NewAvgVerticalOperation("salary", "avg_salary")
+		result := testRecords.OperationVertical(avgOp)
+		
+		// 验证结果
+		if len(result) != 4 {
+			t.Errorf("Expected 4 records, got %d", len(result))
+		}
+		
+		// 验证每个记录都有avg_salary字段
+		total := 5000.0 + 4000.0 + 6000.0 + 5500.0
+		expectedAvg := total / 4.0
+		for i, record := range result {
+			if _, ok := record["avg_salary"]; !ok {
+				t.Errorf("Expected record %d to have 'avg_salary' field", i)
+			}
+			if record["avg_salary"].(float64) != expectedAvg {
+				t.Errorf("Expected avg_salary %f, got %f for record %d", expectedAvg, record["avg_salary"].(float64), i)
+			}
+		}
+	})
+
+	// 测试用例3：Count垂直操作
+	t.Run("CountVerticalOperation", func(t *testing.T) {
+		// 创建计数垂直操作
+		countOp := NewCountVerticalOperation("salary", "record_count")
+		result := testRecords.OperationVertical(countOp)
+		
+		// 验证结果
+		if len(result) != 4 {
+			t.Errorf("Expected 4 records, got %d", len(result))
+		}
+		
+		// 验证每个记录都有record_count字段
+		expectedCount := 4
+		for i, record := range result {
+			if _, ok := record["record_count"]; !ok {
+				t.Errorf("Expected record %d to have 'record_count' field", i)
+			}
+			if record["record_count"].(int) != expectedCount {
+				t.Errorf("Expected record_count %d, got %d for record %d", expectedCount, record["record_count"].(int), i)
+			}
+		}
+	})
+
+	// 测试用例4：Max垂直操作
+	t.Run("MaxVerticalOperation", func(t *testing.T) {
+		// 创建最大值垂直操作
+		maxOp := NewMaxVerticalOperation("salary", "max_salary")
+		result := testRecords.OperationVertical(maxOp)
+		
+		// 验证结果
+		if len(result) != 4 {
+			t.Errorf("Expected 4 records, got %d", len(result))
+		}
+		
+		// 验证每个记录都有max_salary字段
+		expectedMax := 6000.0
+		for i, record := range result {
+			if _, ok := record["max_salary"]; !ok {
+				t.Errorf("Expected record %d to have 'max_salary' field", i)
+			}
+			if record["max_salary"].(float64) != expectedMax {
+				t.Errorf("Expected max_salary %f, got %f for record %d", expectedMax, record["max_salary"].(float64), i)
+			}
+		}
+	})
+
+	// 测试用例5：Min垂直操作
+	t.Run("MinVerticalOperation", func(t *testing.T) {
+		// 创建最小值垂直操作
+		minOp := NewMinVerticalOperation("salary", "min_salary")
+		result := testRecords.OperationVertical(minOp)
+		
+		// 验证结果
+		if len(result) != 4 {
+			t.Errorf("Expected 4 records, got %d", len(result))
+		}
+		
+		// 验证每个记录都有min_salary字段
+		expectedMin := 4000.0
+		for i, record := range result {
+			if _, ok := record["min_salary"]; !ok {
+				t.Errorf("Expected record %d to have 'min_salary' field", i)
+			}
+			if record["min_salary"].(float64) != expectedMin {
+				t.Errorf("Expected min_salary %f, got %f for record %d", expectedMin, record["min_salary"].(float64), i)
+			}
+		}
+	})
+
+	// 测试用例6：Group垂直操作
+	t.Run("GroupVerticalOperation", func(t *testing.T) {
+		// 创建分组垂直操作
+		groupOp := NewGroupVerticalOperation("department", "group_result")
+		result := testRecords.OperationVertical(groupOp)
+		
+		// 验证结果
+		if len(result) != 4 {
+			t.Errorf("Expected 4 records, got %d", len(result))
+		}
+		
+		// 验证每个记录都有group_result字段
+		for i, record := range result {
+			if _, ok := record["group_result"]; !ok {
+				t.Errorf("Expected record %d to have 'group_result' field", i)
+			}
+			
+			// 验证group_result是map类型
+			groupResult, ok := record["group_result"].(map[any]Records)
+			if !ok {
+				t.Errorf("Expected group_result to be map[any]Records, got %T for record %d", record["group_result"], i)
+				continue
+			}
+			
+			// 验证分组结果
+			if len(groupResult) != 2 {
+				t.Errorf("Expected 2 groups, got %d for record %d", len(groupResult), i)
+			}
+			
+			// 验证技术部有2条记录
+			if techGroup, ok := groupResult["技术部"]; ok {
+				if len(techGroup) != 2 {
+					t.Errorf("Expected 2 records in 技术部 group, got %d", len(techGroup))
+				}
+			} else {
+				t.Error("Expected 技术部 group to exist")
+			}
+			
+			// 验证销售部有2条记录
+			if salesGroup, ok := groupResult["销售部"]; ok {
+				if len(salesGroup) != 2 {
+					t.Errorf("Expected 2 records in 销售部 group, got %d", len(salesGroup))
+				}
+			} else {
+				t.Error("Expected 销售部 group to exist")
+			}
+		}
+	})
+
+	// 测试用例7：空记录集合
+	t.Run("EmptyRecords", func(t *testing.T) {
+		emptyRecords := Records{}
+		sumOp := NewSumVerticalOperation("salary", "total_salary")
+		result := emptyRecords.OperationVertical(sumOp)
+		
+		// 验证结果为空
+		if result != nil {
+			t.Errorf("Expected nil result from empty records, got %v", result)
+		}
+	})
+
+	// 测试用例8：无操作
+	t.Run("NoOperation", func(t *testing.T) {
+		result := testRecords.OperationVertical()
+		
+		// 验证返回原记录
+		if len(result) != len(testRecords) {
+			t.Errorf("Expected same number of records, got %d vs %d", len(result), len(testRecords))
+		}
+	})
+}
