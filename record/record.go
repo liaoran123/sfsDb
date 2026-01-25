@@ -1,6 +1,7 @@
 package record
 
 import (
+	"fmt"
 	"reflect"
 )
 
@@ -37,6 +38,34 @@ func (rs Records) Select(fields ...string) (rs2 Records) {
 		rs2[i] = r.Select(fields...)
 	}
 	return rs2
+}
+func (rs Records) Operation(op ...Operation) (rs2 Records) {
+	if len(rs) == 0 {
+		return nil
+	}
+	if len(op) == 0 {
+		return rs
+	}
+	// 直接创建结果切片，避免先复制再修改
+	result := make(Records, 0, len(rs))
+	for _, r := range rs {
+		// 为每个记录创建新的副本，避免修改原记录
+		newRecord := make(Record, len(r)+1)
+		// 直接复制字段，避免使用 maps.Copy（maps.Copy 是 Go 1.21+ 新增，且性能与直接遍历相当）
+		for k, v := range r {
+			newRecord[k] = v
+		}
+		// 检测新字段名是否已经存在
+		newField := op[0].NewField()
+		if _, exists := newRecord[newField]; exists {
+			panic(fmt.Sprintf("field '%s' already exists in record, cannot add duplicate field", newField))
+		}
+		// 添加新字段
+		newRecord[newField] = op[0].Evaluate(r)
+		// 将新记录添加到结果切片
+		result = append(result, newRecord)
+	}
+	return result
 }
 
 // 添加交集，并集，差集等等

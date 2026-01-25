@@ -360,3 +360,167 @@ func TestRecordsDifference(t *testing.T) {
 		}
 	})
 }
+
+// TestRecordsOperation 测试 Records 的 Operation 方法
+func TestRecordsOperation(t *testing.T) {
+	// 创建测试记录集合
+	testRecords := Records{
+		{
+			"id":     1,
+			"name":   "张三",
+			"age":    30,
+			"salary": 5000.0,
+			"bonus":  1000.0,
+			"str1":   "hello",
+			"str2":   "world",
+		},
+		{
+			"id":     2,
+			"name":   "李四",
+			"age":    25,
+			"salary": 4000.0,
+			"bonus":  800.0,
+			"str1":   "good",
+			"str2":   "morning",
+		},
+	}
+
+	// 测试用例1：空 Records
+	t.Run("EmptyRecords", func(t *testing.T) {
+		emptyRecords := Records{}
+		result := emptyRecords.Operation()
+		if result != nil {
+			t.Errorf("Expected nil result from empty records, got %v", result)
+		}
+	})
+
+	// 测试用例2：没有提供 Operation
+	t.Run("NoOperation", func(t *testing.T) {
+		result := testRecords.Operation()
+		if len(result) != len(testRecords) {
+			t.Errorf("Expected same number of records, got %d vs %d", len(result), len(testRecords))
+		}
+		// 验证结果是原记录的副本
+		for i, record := range result {
+			if len(record) != len(testRecords[i]) {
+				t.Errorf("Expected same number of fields in record %d, got %d vs %d", i, len(record), len(testRecords[i]))
+			}
+		}
+	})
+
+	// 测试用例3：单个加法 Operation
+	t.Run("SingleAddOperation", func(t *testing.T) {
+		// 创建加法运算：salary + bonus
+		op := NewAddOperation([]string{"salary", "bonus"}, "total_income")
+		result := testRecords.Operation(op)
+		
+		// 验证结果记录数相同
+		if len(result) != len(testRecords) {
+			t.Errorf("Expected same number of records, got %d vs %d", len(result), len(testRecords))
+		}
+		
+		// 验证每个记录都添加了新字段
+		for i, record := range result {
+			if _, ok := record["total_income"]; !ok {
+				t.Errorf("Expected record %d to have 'total_income' field", i)
+			}
+			
+			// 验证计算结果正确
+			expected := testRecords[i]["salary"].(float64) + testRecords[i]["bonus"].(float64)
+			if record["total_income"].(float64) != expected {
+				t.Errorf("Expected total_income %f, got %f for record %d", expected, record["total_income"].(float64), i)
+			}
+		}
+	})
+
+	// 测试用例4：单个字符串连接 Operation
+	t.Run("SingleConcatOperation", func(t *testing.T) {
+		// 创建字符串连接运算：str1 + str2
+		op := NewConcatOperation([]string{"str1", "str2"}, "combined_str", " ")
+		result := testRecords.Operation(op)
+		
+		// 验证结果记录数相同
+		if len(result) != len(testRecords) {
+			t.Errorf("Expected same number of records, got %d vs %d", len(result), len(testRecords))
+		}
+		
+		// 验证每个记录都添加了新字段
+		for i, record := range result {
+			if _, ok := record["combined_str"]; !ok {
+				t.Errorf("Expected record %d to have 'combined_str' field", i)
+			}
+			
+			// 验证连接结果正确
+			expected := testRecords[i]["str1"].(string) + " " + testRecords[i]["str2"].(string)
+			if record["combined_str"].(string) != expected {
+				t.Errorf("Expected combined_str '%s', got '%s' for record %d", expected, record["combined_str"].(string), i)
+			}
+		}
+	})
+
+	// 测试用例5：多个 Operation（只处理第一个）
+	t.Run("MultipleOperations", func(t *testing.T) {
+		// 创建多个运算
+		op1 := NewAddOperation([]string{"salary", "bonus"}, "total_income")
+		op2 := NewSubOperation([]string{"salary", "bonus"}, "net_salary")
+		
+		// 只处理第一个 Operation
+		result := testRecords.Operation(op1, op2)
+		
+		// 验证结果记录数相同
+		if len(result) != len(testRecords) {
+			t.Errorf("Expected same number of records, got %d vs %d", len(result), len(testRecords))
+		}
+		
+		// 验证只有第一个运算结果被添加
+		for i, record := range result {
+			if _, ok := record["total_income"]; !ok {
+				t.Errorf("Expected record %d to have 'total_income' field", i)
+			}
+			if _, ok := record["net_salary"]; ok {
+				t.Errorf("Expected record %d not to have 'net_salary' field (only first operation should be processed)", i)
+			}
+		}
+	})
+
+	// 测试用例6：减法 Operation
+	t.Run("SingleSubOperation", func(t *testing.T) {
+		// 创建减法运算：salary - bonus
+		op := NewSubOperation([]string{"salary", "bonus"}, "net_salary")
+		result := testRecords.Operation(op)
+		
+		// 验证结果记录数相同
+		if len(result) != len(testRecords) {
+			t.Errorf("Expected same number of records, got %d vs %d", len(result), len(testRecords))
+		}
+		
+		// 验证每个记录都添加了新字段
+		for i, record := range result {
+			if _, ok := record["net_salary"]; !ok {
+				t.Errorf("Expected record %d to have 'net_salary' field", i)
+			}
+			
+			// 验证计算结果正确
+			expected := testRecords[i]["salary"].(float64) - testRecords[i]["bonus"].(float64)
+			if record["net_salary"].(float64) != expected {
+				t.Errorf("Expected net_salary %f, got %f for record %d", expected, record["net_salary"].(float64), i)
+			}
+		}
+	})
+
+	// 测试用例7：重复字段名检测
+	t.Run("DuplicateFieldDetection", func(t *testing.T) {
+		// 创建运算，故意使用已存在的字段名
+		op := NewAddOperation([]string{"salary", "bonus"}, "salary")
+		
+		// 验证会panic
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for duplicate field name, but no panic occurred")
+			}
+		}()
+		
+		// 执行运算，应该panic
+		testRecords.Operation(op)
+	})
+}
