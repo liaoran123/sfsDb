@@ -43,7 +43,7 @@ func (c *batchContainer) Add(key []byte, ValueMapKey uint8) {
 	} else {
 		c.batch.Put(key, c.values[ValueMapKey])
 		//添加索引计数器
-		monitor.AtomicMap(monitor.AtomicIntDec).Inc(key[0], key[2]) //key[0]为表ID，key[2]为索引ID
+		monitor.AtomicMap(monitor.AtomicInt).Inc(key[0], key[2]) //key[0]为表ID，key[2]为索引ID
 	}
 	c.len++
 }

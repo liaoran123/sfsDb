@@ -4,26 +4,23 @@ import (
 	"bytes"
 	"maps"
 	"sync"
-	"time"
 
 	"github.com/liaoran123/sfsDb/match"
-	"github.com/liaoran123/sfsDb/monitor"
 	"github.com/liaoran123/sfsDb/record"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
 
 type TableIter struct {
-	iter             storage.Iterator
-	jumpRanges       []storage.Iterator
-	table            *Table
-	match            []match.Match
-	selects          []string
-	index            Index //搜索时使用的索引
-	move             map[bool]func() bool
-	top              map[bool]func() bool
-	QueryPerformance *monitor.QueryPerformance
-	mu               sync.Mutex
+	iter       storage.Iterator
+	jumpRanges []storage.Iterator
+	table      *Table
+	match      []match.Match
+	selects    []string
+	index      Index //搜索时使用的索引
+	move       map[bool]func() bool
+	top        map[bool]func() bool
+	mu         sync.Mutex
 }
 
 // 导出记录 ，用于流式处理删除修改记录操作等。
@@ -45,8 +42,7 @@ func TableIterNew(table *Table, iter storage.Iterator, index Index, selects ...s
 			true:  iter.First,
 			false: iter.Last,
 		},
-		iter:             iter,
-		QueryPerformance: monitor.GetQueryPerformance(),
+		iter: iter,
 	}
 }
 
@@ -290,7 +286,6 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 	if !t.top[esc]() {
 		return
 	}
-	startTime := time.Now()
 	var rd record.Record
 	var rdany *map[string]any
 	var fieldsBytes *map[string][]byte
@@ -342,9 +337,6 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 			break
 		}
 	}
-	t.QueryPerformance.Index = t.index.GetId()
-	t.QueryPerformance.Count = loop
-	t.QueryPerformance.TotalTime += time.Since(startTime).Nanoseconds()
 }
 
 // 遍历迭代器导出数据
@@ -384,16 +376,12 @@ func (t *TableIter) GetPrimaryKeys(k, v []byte, fields ...string) (r any) {
 func (t *TableIter) Map(fields ...string) (data map[any]bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	startTime := time.Now()
 	data = make(map[any]bool)
 	traverseCount := 0
 	for t.iter.First(); t.iter.Valid(); t.iter.Next() {
 		data[t.GetPrimaryKeys(t.iter.Key(), t.iter.Value(), fields...)] = true
 		traverseCount++
 	}
-	t.QueryPerformance.Index = t.index.GetId()
-	t.QueryPerformance.Count = traverseCount
-	t.QueryPerformance.TotalTime += time.Since(startTime).Nanoseconds()
 	return
 }
 
@@ -465,5 +453,4 @@ func (t *TableIter) Release() {
 	for _, jumpRange := range t.jumpRanges {
 		jumpRange.Release()
 	}
-	monitor.PutQueryPerformance(t.QueryPerformance)
 }

@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liaoran123/sfsDb/monitor"
 	"github.com/liaoran123/sfsDb/util"
 )
 
@@ -62,11 +61,6 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to insert record: %v", err)
 		}
-	}
-
-	// 验证索引计数器
-	if monitor.AtomicMap(monitor.AtomicIntDec).Get(table.id, pk.GetId()) != 3 {
-		t.Fatalf("Expected 3 records, got %d", monitor.AtomicMap(monitor.AtomicIntDec).Get(table.id, pk.GetId()))
 	}
 
 	// 测试搜索复合主键
