@@ -90,3 +90,18 @@
 22:47:52.348958 version@stat F·[3 4] S·1KiB[719B 995B] Sc·[0.75 0.00]
 22:47:52.349936 db@close closing
 22:47:52.349936 db@close done T·0s
+=============== Jan 25, 2026 (CST) ===============
+22:57:43.665569 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+22:57:43.687977 version@stat F·[3 4] S·1KiB[719B 995B] Sc·[0.75 0.00]
+22:57:43.687977 db@open opening
+22:57:43.687977 journal@recovery F·1
+22:57:43.688954 journal@recovery recovering @21
+22:57:43.690915 memdb@flush created L0@23 N·5 S·265B "\x00-\x00..\x00\x00\x10,v43":"\x00-\x00..\x00\x00\x12,v47"
+22:57:43.691884 version@stat F·[4 4] S·1KiB[984B 995B] Sc·[1.00 0.00]
+22:57:43.696767 db@janitor F·10 G·0
+22:57:43.696767 db@open done T·8.7901ms
+22:57:43.696767 table@move L0@23 -> L1
+22:57:43.696767 version@stat F·[3 5] S·1KiB[719B 1KiB] Sc·[0.75 0.00]
+22:57:43.698721 db@close closing
+22:57:43.698721 table-move@commit exiting
+22:57:43.698721 db@close done T·0s

@@ -643,3 +643,199 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	fmt.Println("\n=== 所有ACID事务测试通过 ===")
 }
+
+// TestTableTransactionCache 测试TableTransaction的cache字段功能
+func TestTableTransactionCache(t *testing.T) {
+	fmt.Println("\n=== 测试6：Transaction接口与cache字段功能测试 ===")
+	// 测试Transaction接口的基本功能，特别是cache字段的"读自己的写"功能
+
+	// 创建测试表
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"age":  0,
+	}
+	table, err := TableNew("test_transaction_cache")
+	if err != nil {
+		t.Fatalf("创建表失败: %v", err)
+	}
+
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("设置表字段失败: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk_id")
+	if err != nil {
+		t.Fatalf("创建主键失败: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("创建主键索引失败: %v", err)
+	}
+
+	// 测试1：事务内插入并读取（测试cache的"读自己的写"功能）
+	t.Run("InsertAndRead", func(t *testing.T) {
+		fmt.Println("\n--- 测试1.1：事务内插入并读取（读自己的写）---")
+		// 开始事务
+		tx, err := table.Begin()
+		if err != nil {
+			t.Fatalf("开始事务失败: %v", err)
+		}
+
+		// 插入记录
+		insertRecord := map[string]any{"id": 1, "name": "张三", "age": 25}
+		_, err = tx.Insert(&insertRecord)
+		if err != nil {
+			tx.Rollback()
+			t.Fatalf("事务内插入记录失败: %v", err)
+		}
+
+		// 事务内读取刚插入的记录（测试cache）
+		readRecord := map[string]any{"id": 1}
+		recordData, err := tx.Read(&readRecord)
+		if err != nil {
+			tx.Rollback()
+			t.Fatalf("事务内读取记录失败: %v", err)
+		}
+
+		if recordData == nil {
+			tx.Rollback()
+			t.Fatalf("事务内没有读取到刚插入的记录，cache功能失败")
+		}
+
+		// 提交事务
+		err = tx.Commit()
+		if err != nil {
+			t.Fatalf("提交事务失败: %v", err)
+		}
+
+		fmt.Println("✓ 事务内插入并读取成功，cache功能正常")
+	})
+
+	// 测试2：事务内更新并读取（测试cache的更新功能）
+	t.Run("UpdateAndRead", func(t *testing.T) {
+		fmt.Println("\n--- 测试1.2：事务内更新并读取 --- ")
+		// 开始事务
+		tx, err := table.Begin()
+		if err != nil {
+			t.Fatalf("开始事务失败: %v", err)
+		}
+
+		// 更新记录
+		updateRecord := map[string]any{"id": 1, "age": 26}
+		err = tx.Update(&updateRecord)
+		if err != nil {
+			tx.Rollback()
+			t.Fatalf("事务内更新记录失败: %v", err)
+		}
+
+		// 事务内读取刚更新的记录（测试cache）
+		readRecord := map[string]any{"id": 1}
+		recordData, err := tx.Read(&readRecord)
+		if err != nil {
+			tx.Rollback()
+			t.Fatalf("事务内读取记录失败: %v", err)
+		}
+
+		if recordData == nil {
+			tx.Rollback()
+			t.Fatalf("事务内没有读取到刚更新的记录，cache功能失败")
+		}
+
+		// 提交事务
+		err = tx.Commit()
+		if err != nil {
+			t.Fatalf("提交事务失败: %v", err)
+		}
+
+		fmt.Println("✓ 事务内更新并读取成功，cache功能正常")
+	})
+
+	// 测试3：事务回滚（测试cache的回滚功能）
+	t.Run("Rollback", func(t *testing.T) {
+		fmt.Println("\n--- 测试1.3：事务回滚 --- ")
+		// 开始事务
+		tx, err := table.Begin()
+		if err != nil {
+			t.Fatalf("开始事务失败: %v", err)
+		}
+
+		// 插入记录
+		insertRecord := map[string]any{"id": 2, "name": "测试回滚", "age": 30}
+		_, err = tx.Insert(&insertRecord)
+		if err != nil {
+			tx.Rollback()
+			t.Fatalf("事务内插入记录失败: %v", err)
+		}
+
+		// 事务内读取刚插入的记录（测试cache）
+		readRecord := map[string]any{"id": 2}
+		recordData, err := tx.Read(&readRecord)
+		if err != nil {
+			tx.Rollback()
+			t.Fatalf("事务内读取记录失败: %v", err)
+		}
+
+		if recordData == nil {
+			tx.Rollback()
+			t.Fatalf("事务内没有读取到刚插入的记录，cache功能失败")
+		}
+
+		// 回滚事务
+		err = tx.Rollback()
+		if err != nil {
+			t.Fatalf("回滚事务失败: %v", err)
+		}
+
+		// 验证记录是否被回滚
+		readRecordAfterRollback := map[string]any{"id": 2}
+		iter := table.Search(&readRecordAfterRollback)
+		defer iter.Release()
+		records := iter.GetRecords(true)
+		if len(records) != 0 {
+			t.Errorf("回滚失败，记录仍然存在")
+		}
+
+		fmt.Println("✓ 事务回滚成功，cache功能正常")
+	})
+
+	// 测试4：事务内删除并读取（测试cache的删除功能）
+	t.Run("DeleteAndRead", func(t *testing.T) {
+		fmt.Println("\n--- 测试1.4：事务内删除并读取 --- ")
+		// 开始事务
+		tx, err := table.Begin()
+		if err != nil {
+			t.Fatalf("开始事务失败: %v", err)
+		}
+
+		// 删除记录
+		deleteRecord := map[string]any{"id": 1}
+		err = tx.Delete(&deleteRecord)
+		if err != nil {
+			tx.Rollback()
+			t.Fatalf("事务内删除记录失败: %v", err)
+		}
+
+		// 提交事务
+		err = tx.Commit()
+		if err != nil {
+			t.Fatalf("提交事务失败: %v", err)
+		}
+
+		// 验证记录是否被删除
+		readRecordAfterDelete := map[string]any{"id": 1}
+		iter := table.Search(&readRecordAfterDelete)
+		defer iter.Release()
+		records := iter.GetRecords(true)
+		if len(records) != 0 {
+			t.Errorf("删除失败，记录仍然存在")
+		}
+
+		fmt.Println("✓ 事务内删除并读取成功，cache功能正常")
+	})
+
+	fmt.Println("\n=== Transaction接口与cache字段功能测试通过 ===")
+}
