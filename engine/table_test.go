@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
 
@@ -1957,8 +1958,25 @@ func TestTableUpdateWithOptimisticLock(t *testing.T) {
 	t.Logf("Final record content is correct")
 }
 
-// TestTableSearch 测试表遍历数据和Search方法的功能
+// TestTableSearch 测试使用加密数据库表遍历数据和Search方法的功能
 func TestTableSearch1(t *testing.T) {
+	// 生成测试密钥
+	masterKey := make([]byte, 32)
+	for i := range masterKey {
+		masterKey[i] = byte(i)
+	}
+	// 创建加密配置
+	encryptConfig := &storage.EncryptionConfig{
+		Enabled:   true,
+		Algorithm: "AES-256-GCM",
+		MasterKey: masterKey,
+	}
+	// 初始化加密的全局KVDb
+	_, err := storage.OpenDefaultDbWithEncryption("./test_encrypted_table_db", encryptConfig)
+	if err != nil {
+		t.Fatalf("Failed to open encrypted database: %v", err)
+	}
+	defer storage.CloseDb()
 	// 创建测试表
 	table, err := TableNew("test_search")
 	if err != nil {
