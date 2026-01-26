@@ -6,7 +6,6 @@ import (
 )
 
 type Record map[string]any
-
 // Select selects fields from a record
 // Returns a new record with the selected fields
 func (r Record) Select(keys ...string) Record {
@@ -24,7 +23,6 @@ func (r Record) Select(keys ...string) Record {
 }
 
 type Records []Record
-
 // Select selects fields from records
 // Returns a new records with the selected fields
 func (rs Records) Select(fields ...string) Records {
@@ -37,7 +35,6 @@ func (rs Records) Select(fields ...string) Records {
 	}
 	return result
 }
-
 // Operation performs operations on records
 // Returns a new records with the results of the operations
 func (rs Records) Operation(op ...Operation) Records {
@@ -47,23 +44,23 @@ func (rs Records) Operation(op ...Operation) Records {
 	if len(op) == 0 {
 		return rs
 	}
-
+	
 	result := make(Records, 0, len(rs))
 	for _, r := range rs {
 		newRecord := make(Record, len(r)+1)
 		for k, v := range r {
 			newRecord[k] = v
 		}
-
+		
 		newField := op[0].NewField()
 		if _, exists := newRecord[newField]; exists {
 			panic(fmt.Sprintf("field '%s' already exists in record, cannot add duplicate field", newField))
 		}
-
+		
 		newRecord[newField] = op[0].Evaluate(r)
 		result = append(result, newRecord)
 	}
-
+	
 	return result
 }
 
@@ -84,17 +81,17 @@ func (rs Records) OperationVertical(op ...VerticalOperation) Records {
 	if len(op) == 0 {
 		return rs
 	}
-
+	
 	// Create a copy of records to avoid modifying the original
 	result := make(Records, len(rs))
 	copy(result, rs)
-
+	
 	// Apply each vertical operation
 	for _, verticalOp := range op {
 		// Calculate the result of the vertical operation
 		opResult := verticalOp.Evaluate(rs)
 		newField := verticalOp.NewField()
-
+		
 		// Add the result to each record
 		for i := range result {
 			if result[i] == nil {
@@ -109,7 +106,7 @@ func (rs Records) OperationVertical(op ...VerticalOperation) Records {
 			result[i] = newRecord
 		}
 	}
-
+	
 	return result
 }
 
@@ -117,7 +114,7 @@ func (rs Records) Intersect(other ...Records) Records {
 	if len(rs) == 0 || len(other) == 0 {
 		return nil
 	}
-
+	
 	result := make(Records, 0, len(rs))
 	for _, r := range rs {
 		found := false
@@ -131,7 +128,7 @@ func (rs Records) Intersect(other ...Records) Records {
 			result = append(result, r)
 		}
 	}
-
+	
 	return result
 }
 
@@ -140,7 +137,7 @@ func (rs Records) Union(other ...Records) Records {
 		if len(other) == 0 {
 			return nil
 		}
-
+		
 		result := make(Records, 0)
 		for _, o := range other {
 			for _, r := range o {
@@ -151,16 +148,16 @@ func (rs Records) Union(other ...Records) Records {
 		}
 		return result
 	}
-
+	
 	if len(other) == 0 {
 		return rs
 	}
-
+	
 	result := make(Records, 0, len(rs))
 	for _, r := range rs {
 		result = append(result, r)
 	}
-
+	
 	for _, o := range other {
 		for _, r := range o {
 			if !result.Contains(r) {
@@ -168,7 +165,7 @@ func (rs Records) Union(other ...Records) Records {
 			}
 		}
 	}
-
+	
 	return result
 }
 
@@ -176,11 +173,11 @@ func (rs Records) Difference(other ...Records) Records {
 	if len(rs) == 0 {
 		return nil
 	}
-
+	
 	if len(other) == 0 {
 		return rs
 	}
-
+	
 	result := make(Records, 0, len(rs))
 	for _, r := range rs {
 		found := false
@@ -194,6 +191,6 @@ func (rs Records) Difference(other ...Records) Records {
 			result = append(result, r)
 		}
 	}
-
+	
 	return result
 }

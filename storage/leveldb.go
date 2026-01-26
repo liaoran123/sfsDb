@@ -226,6 +226,7 @@ func (s *LevelDBStore) Release() error {
 	return nil
 }
 
+// -----------以下切换，实际并发事务并不合适。故弃用。------------------------------------------
 // SwitchToSnapshot 将当前实例切换到快照模式
 // 如果当前已是快照模式，则返回错误
 func (s *LevelDBStore) SwitchToSnapshot() error {
