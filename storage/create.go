@@ -4,13 +4,7 @@ package storage
 
 var KVDb Store
 
-/*
-func init() {
-	config := config.Cfg
-	KVDb, _ = OpenDefaultDb(config.DbPath)
-}
-*/
-// OpenStoreDb 打开存储数据库，使用公共KVDb变量，保证全局唯一实例
+// OpenDefaultDb 打开存储数据库，使用公共KVDb变量，保证全局唯一实例
 func OpenDefaultDb(Path string) (Store, error) {
 	var err error
 	KVDb, err = NewLevelDBStore(Path, nil)
@@ -18,6 +12,48 @@ func OpenDefaultDb(Path string) (Store, error) {
 		return nil, err
 	}
 	return KVDb, nil
+}
+
+// OpenDefaultDbWithEncryption 打开带加密的默认数据库，使用公共KVDb变量，保证全局唯一实例
+func OpenDefaultDbWithEncryption(Path string, config *EncryptionConfig) (Store, error) {
+	// 创建底层LevelDB存储
+	underlyingStore, err := NewLevelDBStore(Path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果未启用加密，直接返回底层存储
+	if !config.Enabled {
+		KVDb = underlyingStore
+		return KVDb, nil
+	}
+
+	// 创建加密存储包装器
+	encryptedStore, err := NewEncryptedStoreWrapper(underlyingStore, config)
+	if err != nil {
+		underlyingStore.Close()
+		return nil, err
+	}
+
+	KVDb = encryptedStore
+	return KVDb, nil
+}
+
+// NewLevelDBStoreWithEncryption 创建带加密的LevelDB存储实例
+func NewLevelDBStoreWithEncryption(Path string, config *EncryptionConfig) (Store, error) {
+	// 创建底层LevelDB存储
+	underlyingStore, err := NewLevelDBStore(Path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果未启用加密，直接返回底层存储
+	if !config.Enabled {
+		return underlyingStore, nil
+	}
+
+	// 创建加密存储包装器
+	return NewEncryptedStoreWrapper(underlyingStore, config)
 }
 func CloseDb() error {
 	if KVDb != nil {
@@ -47,7 +83,7 @@ func NewStore(config StoreConfig) (Store, error) {
 	}
 }
 
-//备份数据库
+// 备份数据库
 func BackupDb(Path string) error {
 	//保存当前的源数据库引用
 	sourceDb := KVDb
