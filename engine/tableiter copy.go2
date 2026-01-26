@@ -132,8 +132,6 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		//转换为记录 ： *map[string][]byte ==> *map[string]any
 		rd = record.Record(*t.table.RecordByteToAny(trd))
 	}
-	//版本号字段是乐观锁内部机制，不应该返回
-	delete(rd, "v")
 	return rd
 }
 
