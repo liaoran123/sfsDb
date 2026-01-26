@@ -1790,6 +1790,173 @@ func TestCompositePrimaryKeySearch1(t *testing.T) {
 
 }
 
+// 测试Update方法的乐观锁功能
+func TestTableUpdateWithOptimisticLock(t *testing.T) {
+	// 使用唯一表名，避免测试数据累积
+	tableName := fmt.Sprintf("test_update_optimistic_lock_%d", time.Now().UnixNano())
+
+	// 创建表
+	table, err := TableNew(tableName)
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// 定义表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"age":  0,
+	}
+
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk")
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+
+	// 1. 插入一条记录
+	record := map[string]any{
+		"id":   1,
+		"name": "Alice",
+		"age":  25,
+	}
+
+	_, err = table.Insert(&record)
+	if err != nil {
+		t.Fatalf("Failed to insert record: %v", err)
+	}
+
+	// 2. 获取记录并读取版本号
+	// 先通过主键搜索获取记录
+	searchFields := map[string]any{"id": 1}
+	iter := table.Search(&searchFields)
+	if iter == nil {
+		t.Fatalf("Failed to search record")
+	}
+	defer iter.Release()
+
+	records := iter.GetRecords(true)
+	if len(records) != 1 {
+		t.Fatalf("Expected 1 record, got %d", len(records))
+	}
+
+	// 获取当前版本号
+	currentRecord := records[0]
+	currentVersion, ok := currentRecord["v"].(int)
+	if !ok {
+		t.Fatalf("Expected version field 'v' of type int, got %T", currentRecord["v"])
+	}
+	t.Logf("Initial record version: %d", currentVersion)
+
+	// 3. 使用正确的版本号更新记录，验证成功
+	updateFields1 := map[string]any{
+		"id":   1,
+		"name": "Alice Updated",
+		"age":  26,
+		"v":    currentVersion, // 提供正确的版本号
+	}
+
+	err = table.Update(&updateFields1)
+	if err != nil {
+		t.Fatalf("Failed to update record with correct version: %v", err)
+	}
+	t.Logf("Update with correct version succeeded")
+
+	// 验证更新后的版本号递增
+	iter = table.Search(&searchFields)
+	if iter == nil {
+		t.Fatalf("Failed to search record after update")
+	}
+	defer iter.Release()
+
+	records = iter.GetRecords(true)
+	if len(records) != 1 {
+		t.Fatalf("Expected 1 record after update, got %d", len(records))
+	}
+
+	updatedRecord := records[0]
+	newVersion, ok := updatedRecord["v"].(int)
+	if !ok {
+		t.Fatalf("Expected version field 'v' of type int, got %T", updatedRecord["v"])
+	}
+
+	if newVersion != currentVersion+1 {
+		t.Fatalf("Expected version to increment by 1, got %d (expected %d)", newVersion, currentVersion+1)
+	}
+	t.Logf("Version correctly incremented to: %d", newVersion)
+
+	// 4. 使用旧版本号再次更新记录，验证乐观锁冲突
+	updateFields2 := map[string]any{
+		"id":   1,
+		"name": "Alice Updated Again",
+		"age":  27,
+		"v":    currentVersion, // 提供旧版本号，应该失败
+	}
+
+	err = table.Update(&updateFields2)
+	if err == nil {
+		t.Fatalf("Expected optimistic lock conflict, but update succeeded")
+	}
+
+	if !strings.Contains(err.Error(), "optimistic lock conflict") {
+		t.Fatalf("Expected 'optimistic lock conflict' error, got: %v", err)
+	}
+	t.Logf("Got expected optimistic lock conflict: %v", err)
+
+	// 5. 使用正确的新版本号更新记录，验证成功
+	updateFields3 := map[string]any{
+		"id":   1,
+		"name": "Alice Updated Again",
+		"age":  27,
+		"v":    newVersion, // 提供正确的新版本号
+	}
+
+	err = table.Update(&updateFields3)
+	if err != nil {
+		t.Fatalf("Failed to update record with correct new version: %v", err)
+	}
+	t.Logf("Update with correct new version succeeded")
+
+	// 验证第二次更新后的版本号再次递增
+	iter = table.Search(&searchFields)
+	if iter == nil {
+		t.Fatalf("Failed to search record after second update")
+	}
+	defer iter.Release()
+
+	records = iter.GetRecords(true)
+	if len(records) != 1 {
+		t.Fatalf("Expected 1 record after second update, got %d", len(records))
+	}
+
+	finalRecord := records[0]
+	finalVersion, ok := finalRecord["v"].(int)
+	if !ok {
+		t.Fatalf("Expected version field 'v' of type int, got %T", finalRecord["v"])
+	}
+
+	if finalVersion != newVersion+1 {
+		t.Fatalf("Expected version to increment by 1 again, got %d (expected %d)", finalVersion, newVersion+1)
+	}
+	t.Logf("Version correctly incremented to: %d after second update", finalVersion)
+
+	// 验证最终记录内容
+	if finalRecord["name"] != "Alice Updated Again" || finalRecord["age"] != 27 {
+		t.Fatalf("Expected updated record content, got: %v", finalRecord)
+	}
+	t.Logf("Final record content is correct")
+}
+
 // TestTableSearch 测试表遍历数据和Search方法的功能
 func TestTableSearch1(t *testing.T) {
 	// 创建测试表

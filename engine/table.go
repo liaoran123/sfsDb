@@ -67,7 +67,13 @@ func (t *Table) GetId() uint8 {
 }
 
 // 必须先为表预设字段和类型
+// 由于进行乐观锁的设计，版本号字段默认是v，占据一个字段，故而只支持254个字段。默认版本号值为0，每次更新时自动增加1
 func (t *Table) SetFields(fields map[string]any) error {
+	//字段命不能是版本号名称v
+	if t.fields["v"] != nil {
+		return fmt.Errorf("字段名称 'v' 是默认字段，作为版本号，不能自定义。")
+	}
+
 	t.fields = fields
 	t.fieldsid = make(map[uint8]string, len(t.fields))
 	if t.fieldIDManager == nil {
@@ -82,6 +88,9 @@ func (t *Table) SetFields(fields map[string]any) error {
 		}
 		t.fieldsid[id] = field
 	}
+	//添加版本号字段，并设置id为255
+	t.fields["v"] = 0
+	t.fieldsid[uint8(255)] = "v"
 	return nil
 }
 

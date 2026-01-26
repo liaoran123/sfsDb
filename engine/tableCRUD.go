@@ -53,6 +53,11 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	}
 	currentID = (*fields)[pkfield].(int)
 	//currentID = util.AnyToInt((*fields)[pkfield])
+	// 添加初始版本号
+	if _, hasVersion := (*fields)["v"]; !hasVersion {
+		(*fields)["v"] = 1 // 初始版本号为1
+	}
+
 	// 转换字段为字节数组
 	fieldsBytes := t.FieldsToBytes(fields)
 
@@ -92,16 +97,11 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 // 删除记录
 // fields *map[string]any 主键值，可能是组合主键
 func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
-	if t.fields == nil {
-		return fmt.Errorf("表 '%s' 未设置字段和类型", t.name)
-	}
-	var batch storage.Batch
-	//是否用户手动控制事务
-	useBatch := len(batchs) > 0
-	if useBatch { //用户手动控制事务
-		batch = batchs[0]
-	} else {
-		batch = t.kvStore.GetBatch()
+	//检查是否提供了所有主键字段
+	for _, field := range t.GetPrimaryKey().GetFields() {
+		if _, ok := (*fields)[field]; !ok {
+			return fmt.Errorf("必须提供主键字段 '%s'", field)
+		}
 	}
 	//读取记录
 	record, err := t.Read(fields)
@@ -111,11 +111,22 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	if record == nil {
 		return fmt.Errorf("主键值 '%v' 的记录不存在", fields)
 	}
+
+	var batch storage.Batch
+	//是否用户手动控制事务
+	useBatch := len(batchs) > 0
+	if useBatch { //用户手动控制事务
+		batch = batchs[0]
+	} else {
+		batch = t.kvStore.GetBatch()
+	}
+
 	//反序列化记录，并且将字段值转换为对应的类型
 	//fieldsBytes := t.ParseRecord(record)
 	pk := t.GetPrimaryKey()
 	fieldsBytes, err := pk.Parse(t.fieldsid, record)
 	if err != nil {
+		//释放batch资源
 		return err
 	}
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
@@ -129,12 +140,6 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 
 // 从按主键数据库读取记录
 func (t *Table) Read(fields *map[string]any) ([]byte, error) {
-	//检查是否提供了所有主键字段
-	for _, field := range t.GetPrimaryKey().GetFields() {
-		if _, ok := (*fields)[field]; !ok {
-			return nil, fmt.Errorf("删除操作必须提供主键字段 '%s'", field)
-		}
-	}
 	fieldsBytes := t.FieldsToBytes(fields)
 	key := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
 	return t.ReadByBytes(key), nil
@@ -142,9 +147,13 @@ func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 
 // 更新记录，不支持修改主键字段
 // fields *map[string]any 主键值，可能是组合主键
+// 乐观锁并发控制，允许多个事务同时读取记录，但只有一个事务能成功更新记录，避免了并发更新冲突。
 func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
-	if t.fields == nil {
-		return fmt.Errorf("表 '%s' 未设置字段和类型", t.name)
+	//检查是否提供了所有主键字段
+	for _, field := range t.GetPrimaryKey().GetFields() {
+		if _, ok := (*fields)[field]; !ok {
+			return fmt.Errorf("必须提供主键字段 '%s'", field)
+		}
 	}
 	// 检查字段类型是否匹配
 	if err := t.CheckType(fields); err != nil {
@@ -185,9 +194,25 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	if err != nil {
 		return err
 	}
+	//---------删除-----------------------
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
-	//删除
 	BatchContainer.Operation(fieldsBytes, updateFields...)
+
+	//---------更新-----------------------
+	// 获取当前版本号
+	currentVersionbyte, exists := (*fieldsBytes)["v"]
+	if !exists {
+		currentVersionbyte = []byte{1} // 默认版本号
+	}
+	currentVersion := int(util.Bytes(currentVersionbyte).Uint64())
+
+	// 检查版本号是否匹配
+	if updateVersion, hasVersion := (*fields)["v"].(int); hasVersion {
+		if updateVersion != currentVersion {
+			return fmt.Errorf("optimistic lock conflict: version mismatch, expected %d, got %d", currentVersion, updateVersion)
+		}
+	}
+	(*fields)["v"] = currentVersion + 1 // 更新版本号
 
 	//更新字段值
 	for field, val := range *fields {

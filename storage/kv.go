@@ -41,6 +41,7 @@ type Store interface {
 	WriteBatch(batch Batch, put ...bool) error
 
 	// Iterator 创建迭代器
+	//Iterator(slice *util.Range) Iterator
 	Iterator(start, limit []byte) Iterator
 
 	// Snapshot 创建快照

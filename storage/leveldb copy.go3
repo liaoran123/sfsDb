@@ -77,10 +77,15 @@ func (s *LevelDBStore) Get(key []byte) ([]byte, error) {
 // Put 设置key-value对
 func (s *LevelDBStore) Put(key []byte, value []byte) error {
 
-	// 总是使用originalDB执行写操作，无论当前是否为快照模式
-	db := s.originalDB
-	if db == nil {
-		return NewError("originalDB is nil, cannot perform write operations")
+	// 快照不支持写操作
+	if s.isSnapshot {
+		return NewError("snapshot does not support write operations")
+	}
+
+	// 确保ldb是*leveldb.DB类型
+	db, ok := s.ldb.(*leveldb.DB)
+	if !ok {
+		return NewError("invalid database type for write operations")
 	}
 
 	return db.Put(key, value, nil)
@@ -89,11 +94,17 @@ func (s *LevelDBStore) Put(key []byte, value []byte) error {
 // Delete 删除指定key
 func (s *LevelDBStore) Delete(key []byte) error {
 
-	// 总是使用originalDB执行写操作，无论当前是否为快照模式
-	db := s.originalDB
-	if db == nil {
-		return NewError("originalDB is nil, cannot perform write operations")
+	// 快照不支持写操作
+	if s.isSnapshot {
+		return NewError("snapshot does not support write operations")
 	}
+
+	// 确保ldb是*leveldb.DB类型
+	db, ok := s.ldb.(*leveldb.DB)
+	if !ok {
+		return NewError("invalid database type for write operations")
+	}
+
 	return db.Delete(key, nil)
 }
 
@@ -147,12 +158,11 @@ func (s *LevelDBStore) WriteBatch(batch Batch, put ...bool) error {
 	return nil
 }
 
-/*
 // Iterator 创建迭代器
 func (s *LevelDBStore) Iterator1(slice *util.Range) Iterator {
 	return s.ldb.NewIterator(slice, nil)
 }
-*/
+
 // Iterator 创建迭代器
 func (s *LevelDBStore) Iterator(start, limit []byte) Iterator {
 	return s.ldb.NewIterator(&util.Range{Start: start, Limit: limit}, nil)
