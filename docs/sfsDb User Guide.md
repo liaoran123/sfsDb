@@ -467,7 +467,151 @@ if err != nil {
 
 ## 4. 索引管理
 
-### 4.1 普通索引
+### 4.1 索引接口概述
+
+sfsDb 定义了一套完整的索引接口体系，为不同类型的索引提供了统一的操作方法。
+
+#### 4.1.1 基础索引接口
+
+所有索引类型都实现了基础 `Index` 接口，定义了索引的核心方法：
+
+```go
+// 基础索引接口，定义所有索引类型共有的方法
+type Index interface {
+    // 添加索引字段
+    AddFields(field ...string)
+    // 获取索引字段列表
+    GetFields() []string
+    Len() int
+    setId(id uint8)
+    GetId() uint8
+    Name() string
+    SetName(name string) error
+    //修改索引字段名称
+    UpdateFields(oldfields string, newfields string)
+    //删除索引字段
+    DeleteFields(field ...string)
+    //拼接前缀
+    Prefix(tbid uint8) []byte
+    //拼接值，不需要前缀
+    Join(fieldsBytes *map[string][]byte) []byte
+    //拼接前缀+值
+    JoinPrefix(tbid uint8, val []byte) []byte
+    // 拼接索引前缀+索引值，调用JoinPrefix，Join方法
+    JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte
+    // 匹配索引字段
+    MatchFields(fields ...string) bool
+}
+```
+
+#### 4.1.2 索引类型层次结构
+
+sfsDb 支持三种主要索引类型，每种类型都有对应的接口和实现：
+
+1. **主键索引 (PrimaryKey)** - 用于唯一标识记录
+2. **普通索引 (NormalIndex)** - 用于加速查询
+3. **全文索引 (FullTextIndex)** - 用于文本搜索
+
+### 4.2 主键索引
+
+#### 4.2.1 主键索引接口
+
+```go
+// 主键接口，嵌入基础索引接口
+type PrimaryKey interface {
+    Index
+    // 设置主键ID
+    GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte
+    GetfieldTypeLen(tablefields *map[string]any) *map[string]uint8
+    Parse(fieldsid map[uint8]string, value []byte) (*map[string][]byte, error)
+}
+```
+
+#### 4.2.2 默认主键索引实现
+
+```go
+// 默认主键索引
+// 组合主键时只支持固定长度的类型的组合。
+// 字符串类型，必须指定长度。否则无法解析或存在转义问题导致bug。
+type DefaultPrimaryKey struct {
+    BaseIndex // 嵌入基础索引
+}
+
+func DefaultPrimaryKeyNew(name string) (*DefaultPrimaryKey, error)
+```
+
+#### 4.2.3 使用示例
+
+```go
+// 创建单主键表
+userTable, err := engine.TableNew("user_table")
+if err != nil {
+    panic(err)
+}
+
+// 设置字段
+userFields := map[string]any{
+    "id":   0,     // 主键字段
+    "name": "",    // 普通字段
+    "age":  0,     // 普通字段
+}
+err = userTable.SetFields(userFields)
+if err != nil {
+    panic(err)
+}
+
+// 创建单主键索引
+pk, err := engine.DefaultPrimaryKeyNew("pk_id")
+err = pk.AddFields("id")
+err = userTable.CreateIndex(pk)
+if err != nil {
+    panic(err)
+}
+
+// 创建复合主键索引
+compositePk, err := engine.DefaultPrimaryKeyNew("pk_order_user")
+if err != nil {
+    panic(err)
+}
+// 添加多个主键字段
+compositePk.AddFields("order_id", "user_id")
+err = orderTable.CreateIndex(compositePk)
+if err != nil {
+    panic(err)
+}
+```
+
+### 4.3 普通索引
+
+#### 4.3.1 普通索引接口
+
+```go
+// 普通索引接口，嵌入基础索引接口
+type NormalIndex interface {
+    Index
+    // 将索引的value转换为主键map值
+
+    // 由于NormalIndex完全匹配index接口，所以需要一个Tag方法来区别是否是二级索引。
+    Tag() bool
+    Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error)
+}
+```
+
+#### 4.3.2 默认普通索引实现
+
+```go
+// 默认普通索引，二级索引
+type DefaultNormalIndex struct {
+    BaseIndex // 嵌入基础索引
+}
+
+func DefaultNormalIndexNew(name string) (*DefaultNormalIndex, error)
+
+// Tag方法返回true，表示是二级索引。
+func (dni *DefaultNormalIndex) Tag() bool
+```
+
+#### 4.3.3 使用示例
 
 ```go
 // 创建普通索引
@@ -481,11 +625,7 @@ err = table.CreateIndex(normalIndex)
 if err != nil {
     panic(err)
 }
-```
 
-### 4.2 复合索引
-
-```go
 // 创建复合索引
 compositeIndex, err := engine.DefaultNormalIndexNew("idx_name_age")
 if err != nil {
@@ -499,7 +639,61 @@ if err != nil {
 }
 ```
 
-### 4.3 示例：创建包含多种索引的表
+### 4.4 全文索引
+
+#### 4.4.1 全文索引接口
+
+```go
+// 全文索引接口，嵌入基础索引接口
+type FullTextIndex interface {
+    Index
+    SetFullField(field string, len int) error
+    //GetFtlen() int
+    // 拼接全文索引值
+    JoinFullValues(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) [][]byte
+    // 分词方法
+    Tokenize(nr string, ftlen int) (tokens []string)
+    Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error)
+}
+```
+
+#### 4.4.2 默认全文索引实现
+
+```go
+// 默认全文索引
+type DefaultFullTextIndex struct {
+    BaseIndex // 嵌入基础索引
+    //全文索引切分字段
+    ftsplit string
+    //切分长度
+    ftlen int
+}
+
+func DefaultFullTextIndexNew(name string) (*DefaultFullTextIndex, error)
+```
+
+#### 4.4.3 使用示例
+
+```go
+// 创建全文索引
+fullTextIndex, err := engine.DefaultFullTextIndexNew("fulltext_desc")
+if err != nil {
+    panic(err)
+}
+// 添加字段，最后一个字段必须是主键
+// 全文索引必须全量包括主键（单主键或组合主键），一般在后面。否则，会导致索引无唯一性。
+fullTextIndex.AddFields("description", "id")
+或
+fullTextIndex.AddFields("description", "id", "did") //"id"，“did”是组合主键
+// 设置全文索引字段和长度
+fullTextIndex.SetFullField("description", 5) // 5表示全文索引的长度。中文一般选择5或7。主要是支持象形文字。非象形文字该全文索引不太合适。
+err = table.CreateIndex(fullTextIndex)
+if err != nil {
+    panic(err)
+}
+```
+
+### 4.5 示例：创建包含多种索引的表
 
 ```go
 // 创建表
@@ -545,6 +739,181 @@ if err != nil {
     panic(err)
 }
 ```
+
+### 4.6 索引实现细节
+
+#### 4.6.1 基础索引结构
+
+所有索引类型都嵌入了 `BaseIndex` 结构体，提供了通用的索引功能：
+
+```go
+// 基础索引结构体，包含所有索引类型共有的字段和方法
+type BaseIndex struct {
+    fields []string
+    id     uint8
+    name   string
+}
+```
+
+#### 4.6.2 索引字段处理
+
+- **添加字段**: `AddFields(field ...string)` - 向索引添加一个或多个字段
+- **获取字段**: `GetFields() []string` - 获取索引的所有字段
+- **更新字段名称**: `UpdateFields(oldfields string, newfields string)` - 修改索引字段名称
+- **删除字段**: `DeleteFields(field ...string)` - 从索引中删除字段
+
+#### 4.6.3 索引值拼接
+
+索引内部使用字节数组来存储索引值，提供了多种拼接方法：
+
+- **Prefix**: 拼接索引前缀
+- **Join**: 拼接字段值
+- **JoinPrefix**: 拼接前缀和值
+- **JoinValue**: 拼接完整的索引值
+
+#### 4.6.4 复合索引注意事项
+
+1. **组合主键限制**: 组合主键只支持固定长度类型的组合，字符串类型必须指定长度
+2. **字段顺序**: 索引字段的顺序会影响查询性能，应将最常用的字段放在前面
+3. **索引大小**: 索引会增加存储开销，应只创建必要的索引
+
+### 4.7 索引管理系统
+
+#### 4.7.1 Indexs 结构体
+
+`Indexs` 是 sfsDb 的索引管理核心结构体，负责管理表的所有索引：
+
+```go
+// 索引管理结构
+type Indexs struct {
+    id     uint8
+    indexs []Index
+    fields *map[string]any //表字段
+}
+```
+
+**主要功能**：
+- 创建索引（检查字段存在性、索引名唯一性等）
+- 删除索引
+- 匹配索引（优先匹配主键索引，再匹配普通索引，最后匹配全文索引）
+- 管理索引的生命周期
+
+#### 4.7.2 表级索引管理方法
+
+`sfsDb` 提供了丰富的表级索引管理方法，方便用户创建和管理索引：
+
+##### 创建索引
+
+```go
+// 创建自定义索引
+func (t *Table) CreateIndex(index Index) error
+
+// 创建普通复合索引
+func (t *Table) CreateCompositeIndex(name string, fields ...string) error
+
+// 创建主键复合索引
+func (t *Table) CreateCompositePrimaryKey(name string, fields ...string) error
+
+// 创建主键索引（支持单个或多个字段）
+func (t *Table) CreatePrimaryKey(fields ...string) error
+
+// 创建普通索引（简化版，直接指定名称和字段）
+func (t *Table) CreateSimpleIndex(name string, fields ...string) error
+```
+
+##### 获取索引
+
+```go
+// 获取主键索引
+func (t *Table) GetPrimaryKey() PrimaryKey
+
+// 获取所有索引
+func (t *Table) GetAllIndexes() []Index
+
+// 根据名称获取索引
+func (t *Table) GetIndexByName(name string) Index
+
+// 根据字段名获取包含该字段的所有索引
+func (t *Table) GetIndexesByField(field string) []Index
+
+// 匹配索引
+func (t *Table) MatchIndex(fields ...string) Index
+```
+
+##### 删除索引
+
+```go
+// 删除指定名称的索引
+func (t *Table) DropIndex(name string) error
+
+// 删除主键索引
+func (t *Table) DropPrimaryKey() error
+```
+
+#### 4.7.3 索引管理示例
+
+```go
+// 示例：表级索引管理
+
+// 1. 创建各种类型的索引
+// 创建主键索引
+table.CreatePrimaryKey("id")
+
+// 创建复合主键索引
+table.CreateCompositePrimaryKey("pk_user_id", "user_id", "product_id")
+
+// 创建普通索引
+table.CreateSimpleIndex("idx_name", "name")
+
+// 创建复合索引
+table.CreateCompositeIndex("idx_name_age", "name", "age")
+
+// 2. 获取索引信息
+// 获取主键索引
+pk := table.GetPrimaryKey()
+
+// 获取所有索引
+allIndexes := table.GetAllIndexes()
+
+// 根据名称获取索引
+nameIndex := table.GetIndexByName("idx_name")
+
+// 根据字段获取索引
+nameIndexes := table.GetIndexesByField("name")
+
+// 3. 删除索引
+// 删除普通索引
+table.DropIndex("idx_name")
+
+// 删除主键索引
+table.DropPrimaryKey()
+```
+
+### 4.8 索引优化建议
+
+1. **选择合适的索引类型**: 根据查询需求选择合适的索引类型
+   - 唯一标识记录：使用主键索引
+   - 加速普通查询：使用普通索引
+   - 文本搜索：使用全文索引
+
+2. **合理设计索引字段**: 
+   - 主键字段应选择唯一、稳定的字段
+   - 普通索引应选择经常用于查询条件的字段
+   - 全文索引应选择需要文本搜索的字段
+
+3. **控制索引数量**: 
+   - 过多的索引会影响写入性能
+   - 只为频繁查询的字段创建索引
+
+4. **使用复合索引**: 
+   - 对于多字段查询，复合索引比多个单列索引更高效
+   - 遵循最左前缀原则设计复合索引
+
+5. **定期维护索引**: 
+   - 对于频繁更新的表，定期重建索引
+   - 删除不再使用的索引
+
+通过合理使用和优化索引，可以显著提高 sfsDb 的查询性能，特别是在处理大量数据时。
 
 ## 5. 全文搜索
 
@@ -1371,6 +1740,11 @@ func main() {
 ```
 
 ### 9.2 迭代器使用
+
+**TableIter 结构创建方式**：
+- TableIter 结构是由表的 `ForData()` 方法或 `Search()` 方法产生的
+- `Search()` 方法位于 `d:\MyGo\src\sfsDb\engine\tableCRUD.go#L283`，用于根据条件搜索记录并返回迭代器
+- `ForData()` 方法用于遍历表中的所有记录并返回迭代器
 
 ```go
 // 遍历所有记录
@@ -3636,6 +4010,245 @@ sfsDb 在并发情况下的事务表现：
      ```
 
 通过合理使用ACID事务，可以确保sfsDb在各种场景下的数据一致性和可靠性，特别是对于需要高可靠性的业务系统。
+
+### 9.12 表结构序列化
+
+#### 9.12.1 TableSchema 结构
+
+`TableSchema` 是 `Table` 结构体的映射，用于序列化和反序列化表的元数据。它包含表的基本信息，但不包含运行时状态（如counter和kvStore）。
+
+**TableSchema 结构定义**：
+
+```go
+type TableSchema struct {
+    // 表ID
+    ID uint8 `json:"id"`
+    // 表名
+    Name string `json:"name"`
+
+    // 字段定义，string为字段名，any为字段值示例（用于类型推断）
+    Fields map[string]any `json:"fields"`
+
+    // 索引信息，包含所有索引的基本信息
+    Indexes []IndexSchema `json:"indexes"`
+}
+```
+
+**字段说明**：
+- `ID`：表的唯一标识符
+- `Name`：表名
+- `Fields`：表的字段定义，包含字段名和字段值示例
+- `Indexes`：表的索引信息，包含所有索引的基本信息
+
+#### 9.12.2 TableSerialization 结构
+
+`TableSerialization` 包含 `Table` 的完整序列化信息，包括运行时状态。用于完整的 `Table` 序列化和反序列化。
+
+**TableSerialization 结构定义**：
+
+```go
+type TableSerialization struct {
+    // TableSchema 元数据
+    Schema *TableSchema `json:"schema"`
+
+    // 自动增值的当前值（counter AutoInt）
+    CurrentAutoID int `json:"current_auto_id"`
+}
+```
+
+**字段说明**：
+- `Schema`：表的元数据，类型为 `TableSchema`
+- `CurrentAutoID`：自动增值的当前值
+
+#### 9.12.3 IndexSchema 结构
+
+`IndexSchema` 是 `Index` 的映射，用于序列化和反序列化索引的基本信息。
+
+**IndexSchema 结构定义**：
+
+```go
+type IndexSchema struct {
+    // 索引名称
+    Name string `json:"name"`
+
+    // 索引类型：primary, normal, fulltext
+    Type string `json:"type"`
+
+    // 索引字段，顺序表示索引顺序
+    Fields []string `json:"fields"`
+
+    // 是否唯一索引
+    Unique bool `json:"unique"`
+}
+```
+
+**字段说明**：
+- `Name`：索引名称
+- `Type`：索引类型，包括 primary（主键索引）、normal（普通索引）、fulltext（全文索引）
+- `Fields`：索引字段列表，顺序表示索引顺序
+- `Unique`：是否为唯一索引
+
+#### 9.12.4 序列化和反序列化方法
+
+**将 Table 转换为 TableSchema**：
+
+```go
+func (t *Table) ToSchema() *TableSchema
+```
+
+**将 Table 转换为 TableSerialization**：
+
+```go
+func (t *Table) ToSerialization() *TableSerialization
+```
+
+**从 TableSchema 创建 Table**：
+
+```go
+func FromSchema(schema *TableSchema) (*Table, error)
+```
+
+**从 TableSerialization 创建 Table**：
+
+```go
+func FromSerialization(serialization *TableSerialization) (*Table, error)
+```
+
+**将 Table 转换为 JSON 字符串**：
+
+```go
+func TableToJSON(t *Table) (string, error)
+```
+
+**从 JSON 字符串创建 Table**：
+
+```go
+func TableFromJSON(jsonStr string) (*Table, error)
+```
+
+#### 9.12.5 使用示例
+
+**示例 1：将表结构序列化为 JSON**
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/engine"
+)
+
+func main() {
+    // 创建或获取表
+    table, err := engine.TableNew("users")
+    if err != nil {
+        panic(err)
+    }
+    
+    // 设置字段
+    fields := map[string]any{
+        "id":   0,
+        "name": "",
+        "age":  0,
+    }
+    if err := table.SetFields(fields); err != nil {
+        panic(err)
+    }
+    
+    // 创建索引
+    if err := table.CreatePrimaryKey("id"); err != nil {
+        panic(err)
+    }
+    if err := table.CreateSimpleIndex("idx_name_age", "name", "age"); err != nil {
+        panic(err)
+    }
+    
+    // 将表结构序列化为 JSON
+    jsonStr, err := engine.TableToJSON(table)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Println("表结构 JSON:")
+    fmt.Println(jsonStr)
+}
+```
+
+**示例 2：从 JSON 字符串创建表**
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/engine"
+)
+
+func main() {
+    // 表结构 JSON 字符串
+    jsonStr := `{
+        "schema": {
+            "id": 1,
+            "name": "users",
+            "fields": {
+                "id": 0,
+                "name": "",
+                "age": 0
+            },
+            "indexes": [
+                {
+                    "name": "pk",
+                    "type": "primary",
+                    "fields": ["id"],
+                    "unique": true
+                },
+                {
+                    "name": "idx_name_age",
+                    "type": "normal",
+                    "fields": ["name", "age"],
+                    "unique": false
+                }
+            ]
+        },
+        "current_auto_id": 0
+    }`
+    
+    // 从 JSON 字符串创建表
+    table, err := engine.TableFromJSON(jsonStr)
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Printf("表创建成功: %s (ID: %d)\n", table.GetName(), table.GetId())
+    fmt.Println("表字段:")
+    for field := range table.GetAllFields() {
+        fmt.Printf("  - %s\n", field)
+    }
+    
+    fmt.Println("表索引:")
+    for _, index := range table.GetAllIndexes() {
+        fmt.Printf("  - %s (类型: %T)\n", index.Name(), index)
+    }
+}
+```
+
+#### 9.12.6 使用场景
+
+**TableSchema 和相关序列化功能的主要使用场景**：
+
+1. **表结构备份和恢复**：将表结构序列化为 JSON 进行备份，需要时从 JSON 恢复
+2. **表结构迁移**：在不同环境之间迁移表结构
+3. **表结构分析**：分析表的结构和索引信息
+4. **元数据存储**：存储表的元数据信息
+5. **配置管理**：将表结构作为配置的一部分进行管理
+
+#### 9.12.7 注意事项
+
+1. **运行时状态**：TableSchema 不包含运行时状态（如 counter 和 kvStore），这些会在反序列化后重新初始化
+2. **字段类型**：Fields 中的 any 类型是字段值示例，用于类型推断
+3. **索引信息**：Indexes 包含所有索引的基本信息，但不包含索引的完整实现
+4. **JSON 格式**：序列化和反序列化使用标准 JSON 格式，便于存储和传输
+5. **错误处理**：序列化和反序列化过程中可能会出现错误，应始终检查并处理错误
 
 ## 10. 最佳实践
 

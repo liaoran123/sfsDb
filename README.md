@@ -216,7 +216,11 @@ func main() {
 
 ## 文档
 
-- [详细使用指南](./docs/使用文档.md)
+### 使用指南
+- [中文详细使用指南](./docs/使用文档.md)
+- [English User Guide](./docs/sfsDb User Guide (English).md)
+
+### 其他文档
 - [API 文档](./docs/guide.md)
 - [性能基准测试报告](./engine/comprehensive_benchmark_report.md)
 
