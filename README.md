@@ -75,7 +75,7 @@ func main() {
 	}
 	defer storage.CloseDb()
 
-	// 2. 创建用户表
+	// 2. 创建/打开用户表
 	fmt.Println("\n2. 创建用户表")
 	userTable, err := engine.TableNew("users")
 	if err != nil {
