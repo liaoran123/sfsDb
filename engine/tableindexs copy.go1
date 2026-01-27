@@ -138,10 +138,9 @@ func (t *Table) createIndexData(index Index) error {
 		if rval == nil {
 			continue
 		}
-		idxkeyvalue := index.Join(rval)
-		idxkey := index.JoinPrefix(t.id, idxkeyvalue)
-		idxvalue := pk.GetID(rval)
-		t.kvStore.Put(idxkey, idxvalue)
+		idxvalue := index.Join(rval)
+		idxkey := index.JoinPrefix(t.id, idxvalue)
+		t.kvStore.Put(idxkey, value)
 	}
 	//释放迭代器
 	defer iter.Release()

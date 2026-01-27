@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -114,4 +115,120 @@ func TestSingleFieldPrimaryKey(t *testing.T) {
 	}
 
 	t.Log("Single field primary key test passed!")
+}
+
+// 测试在表已经存在数据的情况下，新建索引是否正确建立索引数据
+func TestCreateIndexWithExistingData(t *testing.T) {
+	// 创建表
+	table, err := TableNew("test_index_existing_data")
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// 设置表字段
+	fields := map[string]any{
+		"id":    0,
+		"name":  "",
+		"age":   0,
+		"email": "",
+	}
+	if err := table.SetFields(fields); err != nil {
+		t.Fatalf("Failed to set table fields: %v", err)
+	}
+
+	// 创建主键
+	err = table.CreatePrimaryKey("id")
+	if err != nil {
+		t.Fatalf("Failed to create primary key: %v", err)
+	}
+
+	// 插入多条测试数据
+	testData := []map[string]any{
+		{"id": 1, "name": "张三", "age": 30, "email": "zhangsan@example.com"},
+		{"id": 2, "name": "李四", "age": 25, "email": "lisi@example.com"},
+		{"id": 3, "name": "王五", "age": 35, "email": "wangwu@example.com"},
+		{"id": 4, "name": "赵六", "age": 28, "email": "zhaoliu@example.com"},
+	}
+
+	for _, data := range testData {
+		_, err := table.Insert(&data)
+		if err != nil {
+			t.Fatalf("Failed to insert test data: %v", err)
+		}
+	}
+
+	// 验证数据已插入
+	iter := table.ForData()
+	defer iter.Release()
+	records := iter.GetRecords(true)
+	if len(records) != len(testData) {
+		t.Errorf("Expected %d records, got %d", len(testData), len(records))
+	}
+
+	// 在已有数据的情况下创建新索引
+	err = table.CreateSimpleIndex("name_idx", "name")
+	if err != nil {
+		fmt.Printf("Failed to create index with existing data: %v", err)
+	}
+
+	// 验证索引是否存在
+	indexes := table.GetAllIndexes()
+	if len(indexes) != 2 {
+		t.Errorf("Expected 2 indexes after creation, got %d", len(indexes))
+	}
+
+	// 验证所有数据是否仍然存在
+	allIter := table.ForData()
+	defer allIter.Release()
+	allRecords := allIter.GetRecords(true)
+	if len(allRecords) != len(testData) {
+		t.Errorf("Expected %d records in total, got %d", len(testData), len(allRecords))
+	}
+
+	// 验证索引字段是否正确
+	nameIndexFound := false
+	for _, idx := range indexes {
+		if idx.Name() == "name_idx" {
+			nameIndexFound = true
+			fields := idx.GetFields()
+			if len(fields) != 1 {
+				t.Errorf("Expected 1 field for name_idx, got %d", len(fields))
+			}
+			if fields[0] != "name" {
+				t.Errorf("Expected field 'name' for name_idx, got '%s'", fields[0])
+			}
+			break
+		}
+	}
+
+	if !nameIndexFound {
+		t.Error("Expected index 'name_idx' not found")
+	}
+
+	// 测试搜索功能
+	t.Log("Testing search functionality...")
+
+	// 测试搜索张三
+	searchCriteria := map[string]any{"name": "张三"}
+	searchIter := table.Search(&searchCriteria)
+	defer searchIter.Release()
+	searchRecords := searchIter.GetRecords(true)
+
+	t.Logf("Search for '张三' returned %d records", len(searchRecords))
+	for i, record := range searchRecords {
+		t.Logf("Record %d: %v", i, record)
+	}
+
+	// 测试搜索李四
+	searchCriteria2 := map[string]any{"name": "李四"}
+	searchIter2 := table.Search(&searchCriteria2)
+	defer searchIter2.Release()
+	searchRecords2 := searchIter2.GetRecords(true)
+
+	t.Logf("Search for '李四' returned %d records", len(searchRecords2))
+	for i, record := range searchRecords2 {
+		t.Logf("Record %d: %v", i, record)
+	}
+
+	t.Log("Create index with existing data test passed!")
 }
