@@ -138,14 +138,14 @@ func TestRecordsContains(t *testing.T) {
 	// 创建测试记录集合
 	testRecords := Records{
 		{
-			"id":     1,
-			"name":   "张三",
-			"age":    30,
+			"id":   1,
+			"name": "张三",
+			"age":  30,
 		},
 		{
-			"id":     2,
-			"name":   "李四",
-			"age":    25,
+			"id":   2,
+			"name": "李四",
+			"age":  25,
 		},
 	}
 
@@ -413,18 +413,18 @@ func TestRecordsOperation(t *testing.T) {
 		// 创建加法运算：salary + bonus
 		op := NewAddOperation([]string{"salary", "bonus"}, "total_income")
 		result := testRecords.Operation(op)
-		
+
 		// 验证结果记录数相同
 		if len(result) != len(testRecords) {
 			t.Errorf("Expected same number of records, got %d vs %d", len(result), len(testRecords))
 		}
-		
+
 		// 验证每个记录都添加了新字段
 		for i, record := range result {
 			if _, ok := record["total_income"]; !ok {
 				t.Errorf("Expected record %d to have 'total_income' field", i)
 			}
-			
+
 			// 验证计算结果正确
 			expected := testRecords[i]["salary"].(float64) + testRecords[i]["bonus"].(float64)
 			if record["total_income"].(float64) != expected {
@@ -438,18 +438,18 @@ func TestRecordsOperation(t *testing.T) {
 		// 创建字符串连接运算：str1 + str2
 		op := NewConcatOperation([]string{"str1", "str2"}, "combined_str", " ")
 		result := testRecords.Operation(op)
-		
+
 		// 验证结果记录数相同
 		if len(result) != len(testRecords) {
 			t.Errorf("Expected same number of records, got %d vs %d", len(result), len(testRecords))
 		}
-		
+
 		// 验证每个记录都添加了新字段
 		for i, record := range result {
 			if _, ok := record["combined_str"]; !ok {
 				t.Errorf("Expected record %d to have 'combined_str' field", i)
 			}
-			
+
 			// 验证连接结果正确
 			expected := testRecords[i]["str1"].(string) + " " + testRecords[i]["str2"].(string)
 			if record["combined_str"].(string) != expected {
@@ -463,15 +463,15 @@ func TestRecordsOperation(t *testing.T) {
 		// 创建多个运算
 		op1 := NewAddOperation([]string{"salary", "bonus"}, "total_income")
 		op2 := NewSubOperation([]string{"salary", "bonus"}, "net_salary")
-		
+
 		// 只处理第一个 Operation
 		result := testRecords.Operation(op1, op2)
-		
+
 		// 验证结果记录数相同
 		if len(result) != len(testRecords) {
 			t.Errorf("Expected same number of records, got %d vs %d", len(result), len(testRecords))
 		}
-		
+
 		// 验证只有第一个运算结果被添加
 		for i, record := range result {
 			if _, ok := record["total_income"]; !ok {
@@ -488,18 +488,18 @@ func TestRecordsOperation(t *testing.T) {
 		// 创建减法运算：salary - bonus
 		op := NewSubOperation([]string{"salary", "bonus"}, "net_salary")
 		result := testRecords.Operation(op)
-		
+
 		// 验证结果记录数相同
 		if len(result) != len(testRecords) {
 			t.Errorf("Expected same number of records, got %d vs %d", len(result), len(testRecords))
 		}
-		
+
 		// 验证每个记录都添加了新字段
 		for i, record := range result {
 			if _, ok := record["net_salary"]; !ok {
 				t.Errorf("Expected record %d to have 'net_salary' field", i)
 			}
-			
+
 			// 验证计算结果正确
 			expected := testRecords[i]["salary"].(float64) - testRecords[i]["bonus"].(float64)
 			if record["net_salary"].(float64) != expected {
@@ -512,14 +512,14 @@ func TestRecordsOperation(t *testing.T) {
 	t.Run("DuplicateFieldDetection", func(t *testing.T) {
 		// 创建运算，故意使用已存在的字段名
 		op := NewAddOperation([]string{"salary", "bonus"}, "salary")
-		
+
 		// 验证会panic
 		defer func() {
 			if r := recover(); r == nil {
 				t.Error("Expected panic for duplicate field name, but no panic occurred")
 			}
 		}()
-		
+
 		// 执行运算，应该panic
 		testRecords.Operation(op)
 	})
@@ -530,31 +530,31 @@ func TestRecordsOperationVertical(t *testing.T) {
 	// 创建测试记录集合
 	testRecords := Records{
 		{
-			"id":     1,
-			"name":   "张三",
-			"age":    30,
-			"salary": 5000.0,
+			"id":         1,
+			"name":       "张三",
+			"age":        30,
+			"salary":     5000.0,
 			"department": "技术部",
 		},
 		{
-			"id":     2,
-			"name":   "李四",
-			"age":    25,
-			"salary": 4000.0,
+			"id":         2,
+			"name":       "李四",
+			"age":        25,
+			"salary":     4000.0,
 			"department": "技术部",
 		},
 		{
-			"id":     3,
-			"name":   "王五",
-			"age":    35,
-			"salary": 6000.0,
+			"id":         3,
+			"name":       "王五",
+			"age":        35,
+			"salary":     6000.0,
 			"department": "销售部",
 		},
 		{
-			"id":     4,
-			"name":   "赵六",
-			"age":    28,
-			"salary": 5500.0,
+			"id":         4,
+			"name":       "赵六",
+			"age":        28,
+			"salary":     5500.0,
 			"department": "销售部",
 		},
 	}
@@ -564,12 +564,12 @@ func TestRecordsOperationVertical(t *testing.T) {
 		// 创建求和垂直操作
 		sumOp := NewSumVerticalOperation("salary", "total_salary")
 		result := testRecords.OperationVertical(sumOp)
-		
+
 		// 验证结果
 		if len(result) != 4 {
 			t.Errorf("Expected 4 records, got %d", len(result))
 		}
-		
+
 		// 验证每个记录都有total_salary字段
 		expectedTotal := 5000.0 + 4000.0 + 6000.0 + 5500.0
 		for i, record := range result {
@@ -587,12 +587,12 @@ func TestRecordsOperationVertical(t *testing.T) {
 		// 创建平均垂直操作
 		avgOp := NewAvgVerticalOperation("salary", "avg_salary")
 		result := testRecords.OperationVertical(avgOp)
-		
+
 		// 验证结果
 		if len(result) != 4 {
 			t.Errorf("Expected 4 records, got %d", len(result))
 		}
-		
+
 		// 验证每个记录都有avg_salary字段
 		total := 5000.0 + 4000.0 + 6000.0 + 5500.0
 		expectedAvg := total / 4.0
@@ -611,12 +611,12 @@ func TestRecordsOperationVertical(t *testing.T) {
 		// 创建计数垂直操作
 		countOp := NewCountVerticalOperation("salary", "record_count")
 		result := testRecords.OperationVertical(countOp)
-		
+
 		// 验证结果
 		if len(result) != 4 {
 			t.Errorf("Expected 4 records, got %d", len(result))
 		}
-		
+
 		// 验证每个记录都有record_count字段
 		expectedCount := 4
 		for i, record := range result {
@@ -634,12 +634,12 @@ func TestRecordsOperationVertical(t *testing.T) {
 		// 创建最大值垂直操作
 		maxOp := NewMaxVerticalOperation("salary", "max_salary")
 		result := testRecords.OperationVertical(maxOp)
-		
+
 		// 验证结果
 		if len(result) != 4 {
 			t.Errorf("Expected 4 records, got %d", len(result))
 		}
-		
+
 		// 验证每个记录都有max_salary字段
 		expectedMax := 6000.0
 		for i, record := range result {
@@ -657,12 +657,12 @@ func TestRecordsOperationVertical(t *testing.T) {
 		// 创建最小值垂直操作
 		minOp := NewMinVerticalOperation("salary", "min_salary")
 		result := testRecords.OperationVertical(minOp)
-		
+
 		// 验证结果
 		if len(result) != 4 {
 			t.Errorf("Expected 4 records, got %d", len(result))
 		}
-		
+
 		// 验证每个记录都有min_salary字段
 		expectedMin := 4000.0
 		for i, record := range result {
@@ -680,30 +680,30 @@ func TestRecordsOperationVertical(t *testing.T) {
 		// 创建分组垂直操作
 		groupOp := NewGroupVerticalOperation("department", "group_result")
 		result := testRecords.OperationVertical(groupOp)
-		
+
 		// 验证结果
 		if len(result) != 4 {
 			t.Errorf("Expected 4 records, got %d", len(result))
 		}
-		
+
 		// 验证每个记录都有group_result字段
 		for i, record := range result {
 			if _, ok := record["group_result"]; !ok {
 				t.Errorf("Expected record %d to have 'group_result' field", i)
 			}
-			
+
 			// 验证group_result是map类型
 			groupResult, ok := record["group_result"].(map[any]Records)
 			if !ok {
 				t.Errorf("Expected group_result to be map[any]Records, got %T for record %d", record["group_result"], i)
 				continue
 			}
-			
+
 			// 验证分组结果
 			if len(groupResult) != 2 {
 				t.Errorf("Expected 2 groups, got %d for record %d", len(groupResult), i)
 			}
-			
+
 			// 验证技术部有2条记录
 			if techGroup, ok := groupResult["技术部"]; ok {
 				if len(techGroup) != 2 {
@@ -712,7 +712,7 @@ func TestRecordsOperationVertical(t *testing.T) {
 			} else {
 				t.Error("Expected 技术部 group to exist")
 			}
-			
+
 			// 验证销售部有2条记录
 			if salesGroup, ok := groupResult["销售部"]; ok {
 				if len(salesGroup) != 2 {
@@ -729,7 +729,7 @@ func TestRecordsOperationVertical(t *testing.T) {
 		emptyRecords := Records{}
 		sumOp := NewSumVerticalOperation("salary", "total_salary")
 		result := emptyRecords.OperationVertical(sumOp)
-		
+
 		// 验证结果为空
 		if result != nil {
 			t.Errorf("Expected nil result from empty records, got %v", result)
@@ -739,7 +739,7 @@ func TestRecordsOperationVertical(t *testing.T) {
 	// 测试用例8：无操作
 	t.Run("NoOperation", func(t *testing.T) {
 		result := testRecords.OperationVertical()
-		
+
 		// 验证返回原记录
 		if len(result) != len(testRecords) {
 			t.Errorf("Expected same number of records, got %d vs %d", len(result), len(testRecords))

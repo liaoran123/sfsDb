@@ -270,6 +270,7 @@ GetOrCreateID 获取或创建基于名称和类型的ID
 
 返回：
 - uint8: 生成或获取的ID（0-255）
+- bool: 是否是新创建的ID
 - error: 错误信息，如ID已达上限
 
 功能流程：
@@ -280,15 +281,16 @@ GetOrCreateID 获取或创建基于名称和类型的ID
 5. 递增并存储计数器
 6. 将生成的ID存储到对象key
 7. 返回生成的ID
+bool: 是否是新创建的ID，true表示是，false表示不是
 */
-func (m *IDManager) GetOrCreateID(key string) (uint8, error) {
+func (m *IDManager) GetOrCreateID(key string) (uint8, bool, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	// 1. 生成对象key并尝试获取已存在的ID
 	if id, err := m.kvStore.Get([]byte(key)); err == nil {
 		// ID已存在，直接返回
-		return uint8(id[0]), nil
+		return uint8(id[0]), false, nil
 	}
 
 	// 2. ID不存在，生成新ID
@@ -305,5 +307,9 @@ func (m *IDManager) GetOrCreateID(key string) (uint8, error) {
 	objTypeKey := strings.Join(objTypeKeySlice, "-")
 
 	// 调用递增计数器方法生成新ID
-	return m.incrementCounter(objTypeKey, key)
+	newID, err := m.incrementCounter(objTypeKey, key)
+	if err != nil {
+		return 0, false, err
+	}
+	return newID, true, nil
 }

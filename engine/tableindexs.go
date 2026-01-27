@@ -11,11 +11,11 @@ func (t *Table) CreateIndex(index Index) error {
 		t.indexIDManager = NewIDManager(t.kvStore)
 	}
 	fkey := t.indexIDManager.GenerateIndexKey(t.id, index.Name())
-	idxid, err := t.indexIDManager.GetOrCreateID(fkey)
+	idxID, isNew, err := t.indexIDManager.GetOrCreateID(fkey)
 	if err != nil {
 		return err
 	}
-	err = t.indexs.createIndex(index, idxid)
+	err = t.indexs.createIndex(index, idxID)
 	if err != nil {
 		// 回退ID
 		_, err = t.indexIDManager.GetPreviousID(fkey)
@@ -25,7 +25,9 @@ func (t *Table) CreateIndex(index Index) error {
 		return err
 	}
 	//对table现有数据创建对应的新索引数据
-	t.createIndexData(index)
+	if isNew {
+		t.createIndexData(index)
+	}
 	return nil
 }
 
@@ -126,6 +128,7 @@ func (t *Table) createIndexData(index Index) error {
 	slice := util.NewRangeHelper(pkPrefix).FromComparison(util.Like, pkPrefix)
 	//pkPrefix创建迭代器
 	iter := t.kvStore.Iterator(slice.Start, slice.Limit)
+	defer iter.Release()
 	//遍历所有数据
 	var value []byte
 	for iter.Next() {
@@ -142,7 +145,5 @@ func (t *Table) createIndexData(index Index) error {
 		idxvalue := pk.GetID(rval)
 		t.kvStore.Put(idxkey, idxvalue)
 	}
-	//释放迭代器
-	defer iter.Release()
 	return nil
 }

@@ -54,7 +54,7 @@ func TableNew(name string) (*Table, error) {
 		TableIDManager = NewIDManager(tb.kvStore)
 	}
 	key := TableIDManager.GenerateTableKey(name)
-	id, err := TableIDManager.GetOrCreateID(key)
+	id, _, err := TableIDManager.GetOrCreateID(key)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (t *Table) SetFields(fields map[string]any) error {
 	var fkey string
 	for field := range t.fields {
 		fkey = t.fieldIDManager.GenerateFieldKey(t.id, field)
-		id, err := t.fieldIDManager.GetOrCreateID(fkey)
+		id, _, err := t.fieldIDManager.GetOrCreateID(fkey)
 		if err != nil {
 			return err
 		}
