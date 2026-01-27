@@ -1620,6 +1620,86 @@ iter.Delete()
 // iter.Delete(2)
 ```
 
+### 8.3 删除表的所有数据
+
+sfsDb 提供了 `DeleteAll()` 方法，用于删除表中的所有数据。这个方法会遍历表的所有键值对，并使用批量操作删除所有数据。
+
+```go
+// 删除表的所有数据
+func (t *Table) DeleteAll() error {
+	// 获取表的所有kv键值对迭代器
+	iter := t.For()
+	defer iter.Release()
+	
+	// 创建批量操作
+	batch := t.kvStore.GetBatch()
+	if batch == nil {
+		return fmt.Errorf("failed to get batch")
+	}
+	
+	// 定义批量操作的大小限制
+	const batchSizeLimit = 1000
+	
+	// 遍历并删除所有键值对
+	count := 0
+	for iter.Next() {
+		key := iter.Key()
+		batch.Delete(key)
+		count++
+		
+		// 当批量操作的大小达到限制时，执行批量操作并重置批量操作对象
+		if count >= batchSizeLimit {
+			// 提交批量操作
+			if err := t.kvStore.WriteBatch(batch); err != nil {
+				return err
+			}
+			
+			// 重置计数器和批量操作对象
+			count = 0
+			batch = t.kvStore.GetBatch()
+			if batch == nil {
+				return fmt.Errorf("failed to get batch")
+			}
+		}
+	}
+	
+	// 执行剩余的批量操作
+	if count > 0 {
+		if err := t.kvStore.WriteBatch(batch); err != nil {
+			return err
+		}
+	}
+	
+	return nil
+}
+```
+
+**使用示例**：
+
+```go
+// 删除表的所有数据
+err = table.DeleteAll()
+if err != nil {
+    panic(err)
+}
+fmt.Println("表数据删除成功")
+```
+
+**工作原理**：
+1. `DeleteAll()` 方法首先调用 `For()` 方法获取表的所有键值对迭代器
+2. 然后创建批量操作对象，用于批量删除键值对
+3. 定义批量操作的大小限制（默认为 1000），当达到限制时执行批量操作并重置
+4. 遍历迭代器，将每个键添加到批量操作中
+5. 当批量操作达到限制时，执行批量操作并重置
+6. 最后执行剩余的批量操作
+
+**注意事项**：
+- `DeleteAll()` 方法会删除表中的所有数据，包括索引数据
+- 该方法使用分批处理机制，确保在处理大量数据时不会超过批量操作的大小限制
+- 删除操作不会影响其他表的数据
+- 删除后表仍然存在，只是数据被清空
+- 可以在删除后重新向表中插入数据
+
 ## 9. 其他功能
 
 ### 9.1 记录集合操作
@@ -1805,6 +1885,51 @@ func main() {
 - TableIter 结构是由表的 `ForData()` 方法或 `Search()` 方法产生的
 - `Search()` 方法位于 `d:\MyGo\src\sfsDb\engine\tableCRUD.go#L283`，用于根据条件搜索记录并返回迭代器
 - `ForData()` 方法用于遍历表中的所有记录并返回迭代器
+
+### 9.3 遍历表所有键值对
+
+sfsDb 提供了 `For()` 方法，用于遍历表的所有键值对。这个方法返回一个存储引擎级别的迭代器，可以直接访问表的所有键值对，包括数据和索引数据。
+
+```go
+// 遍历表所有kv键值对，用于快速复制表用或删除表数据
+func (t *Table) For() storage.Iterator {
+	pfx := []byte{byte(t.id), SPLIT[0]}
+	rangeHelper := util.NewRangeHelper(pfx)
+	slice := rangeHelper.FromComparison(util.Like, pfx)
+	return t.kvStore.Iterator(slice.Start, slice.Limit)
+}
+```
+
+**工作原理**：
+1. `For()` 方法使用表的 ID 和分隔符创建一个前缀
+2. 使用 `util.NewRangeHelper` 创建一个范围辅助对象
+3. 使用 `FromComparison` 方法创建一个前缀匹配的范围
+4. 调用存储引擎的 `Iterator` 方法返回一个迭代器，用于遍历该范围内的所有键值对
+
+**使用场景**：
+- 快速复制表数据
+- 删除表的所有数据（如 `DeleteAll()` 方法中使用）
+- 底层数据操作和调试
+
+**使用示例**：
+
+```go
+// 使用 For() 方法遍历表的所有键值对
+iter := table.For()
+defer iter.Release()
+
+for iter.Next() {
+    key := iter.Key()
+    value := iter.Value()
+    fmt.Printf("Key: %s, Value: %s\n", string(key), string(value))
+}
+```
+
+**注意事项**：
+- `For()` 方法返回的是存储引擎级别的迭代器，需要手动调用 `Release()` 方法释放资源
+- 这个方法会遍历表的所有键值对，包括数据和索引数据
+- 对于大型表，遍历可能会比较耗时，建议在适当的场景中使用
+- `For()` 方法是 `DeleteAll()` 方法的基础，用于实现表数据的全量删除
 
 ```go
 // 遍历所有记录

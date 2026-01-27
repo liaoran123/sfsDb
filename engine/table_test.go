@@ -138,6 +138,396 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 	}
 }
 
+// 测试Table.For()方法，确保它只会遍历当前表的数据，不会影响到其他表
+func TestTableForMethod(t *testing.T) {
+	// 使用唯一表名，避免测试数据累积
+	tableName1 := fmt.Sprintf("test_table_for_1_%d", time.Now().UnixNano())
+	tableName2 := fmt.Sprintf("test_table_for_2_%d", time.Now().UnixNano())
+
+	// 创建第一个表
+	table1, err := TableNew(tableName1)
+	if err != nil {
+		t.Fatalf("Failed to create table1: %v", err)
+	}
+
+	// 创建第二个表
+	table2, err := TableNew(tableName2)
+	if err != nil {
+		t.Fatalf("Failed to create table2: %v", err)
+	}
+
+	// 定义表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"age":  0,
+	}
+
+	// 设置表字段
+	err = table1.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields for table1: %v", err)
+	}
+
+	err = table2.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields for table2: %v", err)
+	}
+
+	// 创建主键索引
+	pk1, err := DefaultPrimaryKeyNew("pk1")
+	if err != nil {
+		t.Fatalf("Failed to create primary key index for table1: %v", err)
+	}
+	pk1.AddFields("id")
+	err = table1.CreateIndex(pk1)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index for table1: %v", err)
+	}
+
+	pk2, err := DefaultPrimaryKeyNew("pk2")
+	if err != nil {
+		t.Fatalf("Failed to create primary key index for table2: %v", err)
+	}
+	pk2.AddFields("id")
+	err = table2.CreateIndex(pk2)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index for table2: %v", err)
+	}
+
+	// 向table1插入数据
+	testData1 := []map[string]any{
+		{"id": 1, "name": "Alice", "age": 25},
+		{"id": 2, "name": "Bob", "age": 30},
+		{"id": 3, "name": "Charlie", "age": 35},
+	}
+
+	for _, data := range testData1 {
+		_, err := table1.Insert(&data)
+		if err != nil {
+			t.Fatalf("Failed to insert data into table1: %v", err)
+		}
+	}
+
+	// 向table2插入数据
+	testData2 := []map[string]any{
+		{"id": 1, "name": "David", "age": 40},
+		{"id": 2, "name": "Eve", "age": 45},
+	}
+
+	for _, data := range testData2 {
+		_, err := table2.Insert(&data)
+		if err != nil {
+			t.Fatalf("Failed to insert data into table2: %v", err)
+		}
+	}
+
+	// 使用table1.For()方法遍历table1的所有数据
+	t.Log("Using table1.For() to iterate through table1 data...")
+	iter1 := table1.For()
+	defer iter1.Release()
+
+	// 统计table1.For()返回的数据数量
+	count1 := 0
+	for iter1.Next() {
+		key, value := iter1.Key(), iter1.Value()
+		t.Logf("table1.For() - Key: %s, Value: %s", string(key), string(value))
+		count1++
+	}
+
+	// 验证table1.For()返回的数据数量是否正确
+	if count1 != len(testData1) {
+		t.Errorf("Expected %d records from table1.For(), got %d", len(testData1), count1)
+	} else {
+		t.Logf("table1.For() returned %d records, which matches the expected count", count1)
+	}
+
+	// 验证table2的数据是否仍然正确
+	t.Log("Verifying table2 data...")
+	iter2 := table2.Search(&map[string]any{"id": nil})
+	defer iter2.Release()
+
+	records2 := iter2.GetRecords(true)
+	if len(records2) != len(testData2) {
+		t.Errorf("Expected %d records in table2, got %d", len(testData2), len(records2))
+	} else {
+		t.Logf("table2 still has %d records, which matches the expected count", len(records2))
+	}
+
+	// 验证table2的具体数据是否正确
+	for i, record := range records2 {
+		expectedData := testData2[i]
+		if record["id"] != expectedData["id"] || record["name"] != expectedData["name"] || record["age"] != expectedData["age"] {
+			t.Errorf("Expected record %d in table2: %v, got: %v", i, expectedData, record)
+		} else {
+			t.Logf("table2 record %d is correct: %v", i, record)
+		}
+	}
+
+	t.Log("TestTableForMethod completed successfully!")
+}
+
+// 测试表删除操作，确保它不会影响其他表
+func TestDeleteAllAndAffectOtherTables(t *testing.T) {
+	// 使用唯一表名，避免测试数据累积
+	tableName1 := fmt.Sprintf("test_delete_all_1_%d", time.Now().UnixNano())
+	tableName2 := fmt.Sprintf("test_delete_all_2_%d", time.Now().UnixNano())
+
+	// 创建第一个表
+	table1, err := TableNew(tableName1)
+	if err != nil {
+		t.Fatalf("Failed to create table1: %v", err)
+	}
+
+	// 创建第二个表
+	table2, err := TableNew(tableName2)
+	if err != nil {
+		t.Fatalf("Failed to create table2: %v", err)
+	}
+
+	// 定义表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"age":  0,
+	}
+
+	// 设置表字段
+	err = table1.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields for table1: %v", err)
+	}
+
+	err = table2.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields for table2: %v", err)
+	}
+
+	// 创建主键索引
+	pk1, err := DefaultPrimaryKeyNew("pk1")
+	if err != nil {
+		t.Fatalf("Failed to create primary key index for table1: %v", err)
+	}
+	pk1.AddFields("id")
+	err = table1.CreateIndex(pk1)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index for table1: %v", err)
+	}
+
+	pk2, err := DefaultPrimaryKeyNew("pk2")
+	if err != nil {
+		t.Fatalf("Failed to create primary key index for table2: %v", err)
+	}
+	pk2.AddFields("id")
+	err = table2.CreateIndex(pk2)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index for table2: %v", err)
+	}
+
+	// 向table1插入数据
+	testData1 := []map[string]any{
+		{"id": 1, "name": "Alice", "age": 25},
+		{"id": 2, "name": "Bob", "age": 30},
+		{"id": 3, "name": "Charlie", "age": 35},
+	}
+
+	for _, data := range testData1 {
+		_, err := table1.Insert(&data)
+		if err != nil {
+			t.Fatalf("Failed to insert data into table1: %v", err)
+		}
+	}
+
+	// 向table2插入数据
+	testData2 := []map[string]any{
+		{"id": 1, "name": "David", "age": 40},
+		{"id": 2, "name": "Eve", "age": 45},
+	}
+
+	for _, data := range testData2 {
+		_, err := table2.Insert(&data)
+		if err != nil {
+			t.Fatalf("Failed to insert data into table2: %v", err)
+		}
+	}
+
+	// 验证初始状态下两个表的数据都正确
+	iter1 := table1.Search(&map[string]any{"id": nil})
+	defer iter1.Release()
+	records1 := iter1.GetRecords(true)
+	if len(records1) != len(testData1) {
+		t.Errorf("Expected %d records in table1 initially, got %d", len(testData1), len(records1))
+	} else {
+		t.Logf("table1 initially has %d records", len(records1))
+	}
+
+	iter2 := table2.Search(&map[string]any{"id": nil})
+	defer iter2.Release()
+	records2 := iter2.GetRecords(true)
+	if len(records2) != len(testData2) {
+		t.Errorf("Expected %d records in table2 initially, got %d", len(testData2), len(records2))
+	} else {
+		t.Logf("table2 initially has %d records", len(records2))
+	}
+
+	// 使用table1.DeleteAll()方法删除table1的所有数据
+	t.Log("Using table1.DeleteAll() to delete all data from table1...")
+	err = table1.DeleteAll()
+	if err != nil {
+		t.Fatalf("Failed to delete all data from table1: %v", err)
+	}
+
+	// 验证table1的数据是否已被删除
+	iter1 = table1.Search(&map[string]any{"id": nil})
+	defer iter1.Release()
+	records1 = iter1.GetRecords(true)
+	if len(records1) != 0 {
+		t.Errorf("Expected 0 records in table1 after DeleteAll(), got %d", len(records1))
+	} else {
+		t.Logf("table1 has 0 records after DeleteAll(), which is correct")
+	}
+
+	// 验证table2的数据是否仍然正确
+	t.Log("Verifying table2 data after table1.DeleteAll()...")
+	iter2 = table2.Search(&map[string]any{"id": nil})
+	defer iter2.Release()
+	records2 = iter2.GetRecords(true)
+	if len(records2) != len(testData2) {
+		t.Errorf("Expected %d records in table2 after table1.DeleteAll(), got %d", len(testData2), len(records2))
+	} else {
+		t.Logf("table2 still has %d records after table1.DeleteAll(), which is correct", len(records2))
+	}
+
+	// 验证table2的具体数据是否正确
+	for i, record := range records2 {
+		expectedData := testData2[i]
+		if record["id"] != expectedData["id"] || record["name"] != expectedData["name"] || record["age"] != expectedData["age"] {
+			t.Errorf("Expected record %d in table2: %v, got: %v", i, expectedData, record)
+		} else {
+			t.Logf("table2 record %d is correct: %v", i, record)
+		}
+	}
+
+	// 测试在删除所有数据后，是否可以重新向表中插入数据
+	t.Log("Testing insertion into table1 after DeleteAll()...")
+	newData := map[string]any{"id": 4, "name": "Frank", "age": 50}
+	_, err = table1.Insert(&newData)
+	if err != nil {
+		t.Fatalf("Failed to insert new data into table1 after DeleteAll(): %v", err)
+	}
+
+	// 验证新数据是否成功插入
+	iter1 = table1.Search(&map[string]any{"id": nil})
+	defer iter1.Release()
+	records1 = iter1.GetRecords(true)
+	if len(records1) != 1 {
+		t.Errorf("Expected 1 record in table1 after re-insertion, got %d", len(records1))
+	} else {
+		t.Logf("table1 has 1 record after re-insertion, which is correct")
+	}
+
+	t.Log("TestDeleteAllAndAffectOtherTables completed successfully!")
+}
+
+// 测试表删除操作处理大量数据的情况
+func TestDeleteAllWithLargeData(t *testing.T) {
+	// 使用唯一表名，避免测试数据累积
+	tableName := fmt.Sprintf("test_delete_all_large_%d", time.Now().UnixNano())
+
+	// 创建表
+	table, err := TableNew(tableName)
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// 定义表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"age":  0,
+	}
+
+	// 设置表字段
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk")
+	if err != nil {
+		t.Fatalf("Failed to create primary key: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+
+	// 向表中插入大量数据（超过批量操作限制）
+	const largeDataCount = 1500 // 超过 batchSizeLimit (1000) 的值
+	t.Logf("Inserting %d records into table...", largeDataCount)
+
+	for i := 1; i <= largeDataCount; i++ {
+		data := map[string]any{
+			"id":   i,
+			"name": fmt.Sprintf("User%d", i),
+			"age":  i % 100,
+		}
+		_, err := table.Insert(&data)
+		if err != nil {
+			t.Fatalf("Failed to insert data at index %d: %v", i, err)
+		}
+	}
+
+	// 验证初始状态下表的数据量是否正确
+	iter := table.Search(&map[string]any{"id": nil})
+	defer iter.Release()
+	records := iter.GetRecords(true)
+	if len(records) != largeDataCount {
+		t.Errorf("Expected %d records initially, got %d", largeDataCount, len(records))
+	} else {
+		t.Logf("Table initially has %d records, which matches the expected count", len(records))
+	}
+
+	// 使用 DeleteAll() 方法删除表的所有数据
+	t.Log("Using DeleteAll() to delete all data from table...")
+	err = table.DeleteAll()
+	if err != nil {
+		t.Fatalf("Failed to delete all data: %v", err)
+	}
+
+	// 验证表的数据是否已被删除
+	iter = table.Search(&map[string]any{"id": nil})
+	defer iter.Release()
+	records = iter.GetRecords(true)
+	if len(records) != 0 {
+		t.Errorf("Expected 0 records after DeleteAll(), got %d", len(records))
+	} else {
+		t.Logf("Table has 0 records after DeleteAll(), which is correct")
+	}
+
+	// 测试在删除所有数据后，是否可以重新向表中插入数据
+	t.Log("Testing insertion into table after DeleteAll()...")
+	newData := map[string]any{"id": largeDataCount + 1, "name": "NewUser", "age": 25}
+	_, err = table.Insert(&newData)
+	if err != nil {
+		t.Fatalf("Failed to insert new data after DeleteAll(): %v", err)
+	}
+
+	// 验证新数据是否成功插入
+	iter = table.Search(&map[string]any{"id": nil})
+	defer iter.Release()
+	records = iter.GetRecords(true)
+	if len(records) != 1 {
+		t.Errorf("Expected 1 record after re-insertion, got %d", len(records))
+	} else {
+		t.Logf("Table has 1 record after re-insertion, which is correct")
+	}
+
+	t.Log("TestDeleteAllWithLargeData completed successfully!")
+}
+
 // 测试添加Table.Insert，删除Table.Delete，修改Table.Update，添加一条记录，通过主键进行修改和删除
 func TestTableCRUD(t *testing.T) {
 	// 使用唯一表名，避免测试数据累积

@@ -253,12 +253,60 @@ func (t *Table) ReadByBytes(key []byte) []byte {
 	return v
 }
 
-// 遍历表所有kv，复制表用
+// 遍历表所有kv键值对，用于快速复制表用或删除表数据
 func (t *Table) For() storage.Iterator {
 	pfx := []byte{byte(t.id), SPLIT[0]}
 	rangeHelper := util.NewRangeHelper(pfx)
 	slice := rangeHelper.FromComparison(util.Like, pfx)
 	return t.kvStore.Iterator(slice.Start, slice.Limit)
+}
+
+// 删除表的所有数据
+func (t *Table) DeleteAll() error {
+	// 获取表的所有kv键值对迭代器
+	iter := t.For()
+	defer iter.Release()
+
+	// 创建批量操作
+	batch := t.kvStore.GetBatch()
+	if batch == nil {
+		return fmt.Errorf("failed to get batch")
+	}
+
+	// 定义批量操作的大小限制
+	const batchSizeLimit = 1000
+
+	// 遍历并删除所有键值对
+	count := 0
+	for iter.Next() {
+		key := iter.Key()
+		batch.Delete(key)
+		count++
+
+		// 当批量操作的大小达到限制时，执行批量操作并重置批量操作对象
+		if count >= batchSizeLimit {
+			// 提交批量操作
+			if err := t.kvStore.WriteBatch(batch); err != nil {
+				return err
+			}
+
+			// 重置计数器和批量操作对象
+			count = 0
+			batch = t.kvStore.GetBatch()
+			if batch == nil {
+				return fmt.Errorf("failed to get batch")
+			}
+		}
+	}
+
+	// 执行剩余的批量操作
+	if count > 0 {
+		if err := t.kvStore.WriteBatch(batch); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // 遍历表所有数据
