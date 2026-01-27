@@ -127,7 +127,6 @@ func (t *Table) createIndexData(index Index) error {
 	//pkPrefix创建迭代器
 	iter := t.kvStore.Iterator(slice.Start, slice.Limit)
 	//遍历所有数据
-	//var key []byte
 	var value []byte
 	for iter.Next() {
 		_, value = iter.Key(), iter.Value()
