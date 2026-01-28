@@ -513,7 +513,49 @@ func (t *Table) createIndexData(index Index) error {
     //根据主键前缀遍历所有数据，创建索引数据
     //获取主键前缀
     pk := t.GetPrimaryKey() // 这里会触发自动创建主键
-    // ...
+    pkPrefix := pk.Prefix(t.id)
+    slice := util.NewRangeHelper(pkPrefix).FromComparison(util.Like, pkPrefix)
+    //pkPrefix创建迭代器
+    iter := t.kvStore.Iterator(slice.Start, slice.Limit)
+    defer iter.Release()
+    //遍历所有数据
+    var value []byte
+    for iter.Next() {
+        _, value = iter.Key(), iter.Value()
+        rval, err := pk.Parse(t.fieldsid, value)
+        if err != nil {
+            return err
+        }
+        if rval == nil {
+            continue
+        }
+        indexValue := pk.GetID(rval)
+        switch index := index.(type) {
+        case NormalIndex:
+            idxvalueofkey := index.Join(rval)
+            idxkey := index.JoinPrefix(t.id, idxvalueofkey)
+            t.kvStore.Put(idxkey, indexValue)
+        case FullTextIndex:
+            //func (c *batchContainer) Operation 函数基本一样
+            fieldsBytes, err := pk.Parse(t.fieldsid, value)
+            if err != nil {
+                return err
+            }
+            if fieldsBytes == nil {
+                continue
+            }
+            joinValues := index.JoinFullValues(fieldsBytes, t.id)
+            defer util.PutBytesArray(joinValues)
+            for _, joinValue := range joinValues {
+                if joinValue == nil {
+                    continue
+                }
+                // 为全文索引创建索引数据
+                t.kvStore.Put(joinValue, indexValue)
+            }
+        }
+    }
+    return nil
 }
 ```
 
@@ -863,7 +905,30 @@ type Indexs struct {
 
 ```go
 // 创建自定义索引
-func (t *Table) CreateIndex(index Index) error
+func (t *Table) CreateIndex(index Index) error {
+	if t.indexIDManager == nil {
+		t.indexIDManager = NewIDManager(t.kvStore)
+	}
+	fkey := t.indexIDManager.GenerateIndexKey(t.id, index.Name())
+	idxID, isNew, err := t.indexIDManager.GetOrCreateID(fkey)
+	if err != nil {
+		return err
+	}
+	err = t.indexs.createIndex(index, idxID)
+	if err != nil {
+		// 回退ID
+		_, err = t.indexIDManager.GetPreviousID(fkey)
+		if err != nil {
+			return err
+		}
+		return err
+	}
+	//对table现有数据创建对应的新索引数据
+	if isNew {
+		t.createIndexData(index)
+	}
+	return nil
+}
 
 // 创建普通复合索引
 func (t *Table) CreateCompositeIndex(name string, fields ...string) error
