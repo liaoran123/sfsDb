@@ -1951,6 +1951,46 @@ func main() {
 - `Search()` 方法位于 `d:\MyGo\src\sfsDb\engine\tableCRUD.go#L283`，用于根据条件搜索记录并返回迭代器
 - `ForData()` 方法用于遍历表中的所有记录并返回迭代器
 
+**跳跃区间 (jumpRanges) 功能**：
+
+#### 概述
+TableIter 结构体包含一个 `jumpRanges` 字段（位于 `d:\MyGo\src\sfsDb\engine\tableiter.go#L16`），用于存储跳跃区间的迭代器。跳跃区间是一种优化机制，用于在搜索时排除某些范围的记录，提高查询效率。
+
+#### 工作原理
+- **定义**：`jumpRanges []storage.Iterator` - 存储多个跳跃区间的迭代器
+- **设置方法**：`TableIter.SetJumpRanges(jumpRanges ...storage.Iterator)` - 设置跳跃区间
+- **使用场景**：主要用于不等于（!=）操作，当需要排除某些特定值的记录时
+- **资源管理**：迭代器的 `Release()` 方法会自动释放所有跳跃区间的迭代器资源
+
+#### 代码示例
+
+**在 `Search` 方法中的应用**（位于 `d:\MyGo\src\sfsDb\engine\tableCRUD.go#L372-378`）：
+
+```go
+} else { //不等于将会通过主键或索引进行全表扫描，并且设置跳跃区间
+    slice := rangeHelper.FromComparison(util.Like, pfx) //遍历前缀，即通过主键或索引全表扫描
+    iter = t.kvStore.Iterator(slice.Start, slice.Limit)
+    tbiter = TableIterNew(t, iter, idx)
+    //设置跳跃区间
+    neslice := rangeHelper.FromComparison(util.Like, key) //跳跃区间key=0-1-100==>0-1-101
+    tbiter.SetJumpRanges(t.kvStore.Iterator(neslice.Start, neslice.Limit))
+}
+```
+
+#### 应用场景
+1. **不等于操作**：当执行 `field != value` 类型的查询时
+2. **范围排除**：排除某个范围内的记录
+3. **多值排除**：排除多个特定值的记录
+4. **性能优化**：通过跳跃区间减少需要扫描的记录数量
+
+#### 内部实现
+当 TableIter 执行迭代时，会检查当前记录是否在跳跃区间内，如果是，则跳过该记录，继续下一条记录的处理。这样可以有效减少需要处理的记录数量，提高查询性能。
+
+#### 使用建议
+- **合理使用**：对于需要排除特定值的查询，跳跃区间可以显著提高性能
+- **资源管理**：不需要手动管理跳跃区间的迭代器资源，`TableIter.Release()` 会自动处理
+- **内存考虑**：过多的跳跃区间可能会增加内存使用，应根据实际需求合理设置
+
 ### 9.3 遍历表所有键值对
 
 sfsDb 提供了 `For()` 方法，用于遍历表的所有键值对。这个方法返回一个存储引擎级别的迭代器，可以直接访问表的所有键值对，包括数据和索引数据。
