@@ -130,6 +130,7 @@ func (t *Table) createIndexData(index Index) error {
 	iter := t.kvStore.Iterator(slice.Start, slice.Limit)
 	defer iter.Release()
 	//遍历所有数据
+	//var fieldsBytes *map[string][]byte
 	var value []byte
 	for iter.Next() {
 		_, value = iter.Key(), iter.Value()
@@ -140,10 +141,33 @@ func (t *Table) createIndexData(index Index) error {
 		if rval == nil {
 			continue
 		}
-		idxkeyvalue := index.Join(rval)
-		idxkey := index.JoinPrefix(t.id, idxkeyvalue)
-		idxvalue := pk.GetID(rval)
-		t.kvStore.Put(idxkey, idxvalue)
+		indexValue := pk.GetID(rval)
+		switch index := index.(type) {
+		case NormalIndex:
+			idxvalueofkey := index.Join(rval)
+			idxkey := index.JoinPrefix(t.id, idxvalueofkey)
+			t.kvStore.Put(idxkey, indexValue)
+		case FullTextIndex:
+			//func (c *batchContainer) Operation 函数基本一样
+			fieldsBytes, err := pk.Parse(t.fieldsid, value)
+			if err != nil {
+				return err
+			}
+			if fieldsBytes == nil {
+				continue
+			}
+			joinValues := index.JoinFullValues(fieldsBytes, t.id)
+			defer util.PutBytesArray(joinValues)
+			for _, joinValue := range joinValues {
+				if joinValue == nil {
+					continue
+				}
+				t.kvStore.Put(joinValue, indexValue)
+			}
+		default:
+			return nil
+		}
+
 	}
 	return nil
 }
