@@ -33,12 +33,15 @@ func (m AtomicMap) Inc(tableID, indexID byte) {
 	key := formatKey(tableID, indexID)
 	// 加锁保护map操作
 	atomicMapMutex.Lock()
-	defer atomicMapMutex.Unlock()
 	// 确保键存在，如果不存在则创建
 	if m[key] == nil {
 		m[key] = &atomic.Int64{}
 	}
-	m[key].Add(1)
+	// 获取计数器指针
+	counter := m[key]
+	atomicMapMutex.Unlock()
+	// atomic.Int64.Add 本身是原子操作，不需要在锁内执行
+	counter.Add(1)
 }
 
 /*
