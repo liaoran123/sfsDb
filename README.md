@@ -14,6 +14,10 @@ sfsDb 是一个轻量级嵌入式关系型数据库，专注于提供高性能�
    - 内置高性能全文索引引擎，提供精准的文本搜索能力
    - 支持复杂的文本匹配和检索需求，满足考据级应用场景
 
+3. **基于 LevelDB 封装实现**
+   - 使用 `github.com/syndtr/goleveldb/leveldb` 库作为存储引擎基础
+   - 充分利用 LevelDB 的 LSM-Tree 架构优势，提供高性能的读写操作
+
 ### 其他特性
 
 - **灵活的存储模型**：支持多种数据结构和存储格式
@@ -230,4 +234,11 @@ func main() {
 
 ## 许可证
 
-sfsDb 使用 MIT 许可证，详见 [LICENSE](./LICENSE) 文件。
+sfsDb 使用 Apache License 2.0 许可证，详见 [LICENSE](./LICENSE) 文件。
+
+### 依赖库许可证
+- **LevelDB**: 使用 BSD 2-clause 开源许可证，支持商业使用和二次开发
+- **其他依赖**: 详见 `go.mod` 文件中的依赖声明
+
+### 许可证兼容性
+Apache License 2.0 与 BSD 2-clause 许可证完全兼容，这意味着 sfsDb 可以自由地基于 LevelDB 进行封装和商业开发，用户可以放心在商业项目中使用 sfsDb。
