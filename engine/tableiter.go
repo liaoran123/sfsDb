@@ -213,7 +213,12 @@ func (t *TableIter) Match(rd *map[string]any, match []match.Match) bool {
 
 // 遍历迭代器返回解析后的记录
 func (t *TableIter) GetRecords(esc bool, limit ...int) (r record.Records) {
-	r = record.GetRecords()
+	Count := PageNew(limit...).Count
+	if Count > 0 {
+		r = record.GetRecordsWithCapacity(Count)
+	} else {
+		r = record.GetRecords()
+	}
 	r = r[:0]
 	t.ExportRecord(func(rd *record.Record) bool {
 		if len(*rd) == 0 { //删除记录后，数据为空，但是迭代器依然存在，只是返回空。
