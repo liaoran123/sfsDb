@@ -3,94 +3,9 @@ package record
 import (
 	"fmt"
 	"reflect"
-	"runtime"
-	"sync"
 )
 
 type Record map[string]any
-
-// 对象池，用于复用 Record 和 Records 对象
-var (
-	recordPool = &sync.Pool{
-		New: func() any {
-			return make(Record)
-		},
-	}
-
-	recordsPool = &sync.Pool{
-		New: func() any {
-			return make(Records, 0, 10)
-		},
-	}
-)
-
-// GetRecord 从对象池获取一个 Record 对象
-func GetRecord() Record {
-	r := recordPool.Get().(Record)
-	// 直接对返回的对象设置 finalizer（利用 map 引用类型特性）
-	runtime.SetFinalizer(&r, func(ptr *Record) {
-		if *ptr != nil {
-			obj := *ptr
-			// 清空 Record 中的所有字段
-			for k := range obj {
-				delete(obj, k)
-			}
-			// 将对象放回池
-			recordPool.Put(obj)
-		}
-	})
-	return r
-}
-
-// PutRecord 将 Record 对象放回对象池
-func PutRecord(r Record) {
-	if r == nil {
-		return
-	}
-	// 直接清空 Record 中的所有字段
-	for k := range r {
-		delete(r, k)
-	}
-	// 将对象放回池
-	recordPool.Put(r)
-}
-
-// GetRecords 从对象池获取一个 Records 对象
-func GetRecords() Records {
-	rs := recordsPool.Get().(Records)
-	// 直接对返回的对象设置 finalizer
-	runtime.SetFinalizer(&rs, func(ptr *Records) {
-		if *ptr != nil {
-			obj := *ptr
-			// 清空 Records 中的所有 Record 并将其放回对象池
-			for i, r := range obj {
-				if r != nil {
-					PutRecord(r)
-					obj[i] = nil
-				}
-			}
-			// 重置 slice 长度并放回池
-			recordsPool.Put(obj[:0])
-		}
-	})
-	return rs
-}
-
-// PutRecords 将 Records 对象放回对象池
-func PutRecords(rs Records) {
-	if rs == nil {
-		return
-	}
-	// 清空 Records 中的所有 Record 并将其放回对象池
-	for i, r := range rs {
-		if r != nil {
-			PutRecord(r)
-			rs[i] = nil
-		}
-	}
-	// 重置 slice 长度并放回池
-	recordsPool.Put(rs[:0])
-}
 
 // BatchSelect 批量选择多个记录的字段
 // 减少多次调用 Select 方法的开销
@@ -208,13 +123,12 @@ func (r Record) Select(keys ...string) Record {
 		return r
 	}
 	result := GetRecord()
-	// 预分配容量
-	for k := range result {
-		delete(result, k)
-	}
 
+	// 直接添加选中的字段，避免不必要的遍历删除
 	for _, key := range keys {
-		result[key] = r[key]
+		if val, exists := r[key]; exists {
+			result[key] = val
+		}
 	}
 	return result
 }
@@ -229,10 +143,16 @@ func (rs Records) Select(fields ...string) Records {
 	}
 	result := GetRecords()
 	result = result[:0]
-	result = append(result, make(Records, len(rs))...)
+	// 预分配足够的容量，减少后续扩容开销
+	if cap(result) < len(rs) {
+		// 如果容量不足，创建新的slice
+		newResult := make(Records, 0, len(rs))
+		recordsPool.Put(result)
+		result = newResult
+	}
 
-	for i, r := range rs {
-		result[i] = r.Select(fields...)
+	for _, r := range rs {
+		result = append(result, r.Select(fields...))
 	}
 	return result
 }
@@ -249,6 +169,13 @@ func (rs Records) Operation(op ...Operation) Records {
 
 	result := GetRecords()
 	result = result[:0]
+	// 预分配足够的容量，减少后续扩容开销
+	if cap(result) < len(rs) {
+		// 如果容量不足，创建新的slice
+		newResult := make(Records, 0, len(rs))
+		recordsPool.Put(result)
+		result = newResult
+	}
 
 	for _, r := range rs {
 		newRecord := GetRecord()

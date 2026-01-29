@@ -111,9 +111,16 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 	if fieldsBytes == nil {
 		return nil
 	}
+	// 使用对象池获取Record对象
+	rd = record.GetRecord()
+	var fieldsAny map[string]any
 	switch t.index.(type) {
 	case PrimaryKey: //主键通过Parse直接得到的就是记录
-		rd = record.Record(*t.table.RecordByteToAny(fieldsBytes))
+		fieldsAny = *t.table.RecordByteToAny(fieldsBytes)
+		// 将字段值复制到从对象池获取的Record中
+		for k, v := range fieldsAny {
+			rd[k] = v
+		}
 	default: //其他二级索引通过Parse得到的是主键ID值，需要回表才能得到记录。
 		// 拼接主键前缀和索引值，得到主键key
 		pk := t.table.GetPrimaryKey()
@@ -122,15 +129,23 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		// 回表读取完整记录
 		byrecord := t.table.ReadByBytes(pfx)
 		if byrecord == nil {
+			// 将对象放回池
+			record.PutRecord(rd)
 			return nil
 		}
 		//通过主键解析记录
 		trd, err := pk.Parse(t.table.fieldsid, byrecord)
 		if err != nil || trd == nil {
+			// 将对象放回池
+			record.PutRecord(rd)
 			return nil
 		}
 		//转换为记录 ： *map[string][]byte ==> *map[string]any
-		rd = record.Record(*t.table.RecordByteToAny(trd))
+		fieldsAny = *t.table.RecordByteToAny(trd)
+		// 将字段值复制到从对象池获取的Record中
+		for k, v := range fieldsAny {
+			rd[k] = v
+		}
 	}
 	//版本号字段是乐观锁内部机制，不应该返回给用户
 	delete(rd, "v")
