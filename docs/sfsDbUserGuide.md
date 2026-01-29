@@ -1991,7 +1991,7 @@ TableIter 结构体包含一个 `jumpRanges` 字段（位于 `d:\MyGo\src\sfsDb\
 - **资源管理**：不需要手动管理跳跃区间的迭代器资源，`TableIter.Release()` 会自动处理
 - **内存考虑**：过多的跳跃区间可能会增加内存使用，应根据实际需求合理设置
 
-### 9.3 遍历表所有键值对
+### 9.2.1 遍历表所有键值对
 
 sfsDb 提供了 `For()` 方法，用于遍历表的所有键值对。这个方法返回一个存储引擎级别的迭代器，可以直接访问表的所有键值对，包括数据和索引数据。
 
@@ -2047,258 +2047,148 @@ for _, record := range records {
     fmt.Printf("记录: %v\n", record)
 }
 
-// 获取所有记录（倒序）
-recordsReverse := iter.GetRecords(false)
-for _, record := range recordsReverse {
-    fmt.Printf("记录 (倒序): %v\n", record)
-}
+## 10. 半结构化数据支持
 
-// 分页获取记录
-// 获取第2页，每页10条记录（正序）
-page2Records := iter.GetRecords(true, 10, 10) // skip=10, limit=10
-for _, record := range page2Records {
-    fmt.Printf("第2页记录: %v\n", record)
-}
+### 10.1 概述
 
-// 获取第2页，每页10条记录（倒序）
-page2Reverse := iter.GetRecords(false, 10, 10) // skip=10, limit=10
-for _, record := range page2Reverse {
-    fmt.Printf("第2页记录 (倒序): %v\n", record)
-}
+sfsDb 提供了强大的半结构化数据支持，允许存储和查询复杂的嵌套数据结构，如 JSON 对象和数组。这一特性使 sfsDb 能够适应各种复杂的业务场景，无需预定义表结构。
 
-// TopN 获取记录
-// 测试Top3：获取前3条记录（正序）
-fmt.Println("\nTop3记录 (正序):")
-top3Records := iter.GetRecords(true, 3) // true表示正序，只获取前3条记录
-for _, record := range top3Records {
-    fmt.Printf("   - %v\n", record)
-}
+### 10.2 技术实现
 
-// 测试Top3：获取后3条记录（倒序）
-fmt.Println("\nTop3记录 (倒序):")
-top3Reverse := iter.GetRecords(false, 3) // false表示倒序，只获取后3条记录
-for _, record := range top3Reverse {
-    fmt.Printf("   - %v\n", record)
-}
+#### 10.2.1 底层存储
+- **自动序列化**：使用 JSON 格式自动序列化半结构化数据
+- **类型安全**：支持将半结构化数据转换回原始类型
+- **灵活存储**：可以存储任意嵌套深度的半结构化数据
 
-// 测试Top5：获取前5条记录（正序）
-fmt.Println("\nTop5记录 (正序):")
-top5Records := iter.GetRecords(true, 5) // true表示正序，只获取前5条记录
-for _, record := range top5Records {
-    fmt.Printf("   - %v\n", record)
-}
+#### 10.2.2 核心方法
+- **FieldsToBytes**：将包含半结构化数据的字段转换为字节数组
+- **RecordByteToAny**：将字节数组转换回包含半结构化数据的字段
 
-// 字段选择功能示例
-// 1. 使用 Records.Select() 选择特定字段
-fmt.Println("\n字段选择示例:")
-allRecords := iter.GetRecords(true)
+### 10.3 测试结果
 
-// 选择只显示 name 和 age 字段
-selectedFields := allRecords.Select("name", "age")
-fmt.Println("只显示 name 和 age 字段:")
-for _, record := range selectedFields {
-    fmt.Printf("   - %v\n", record)
-}
+#### 10.3.1 测试场景
 
-// 2. 使用单个 Record.Select() 选择字段
-fmt.Println("\n单个记录字段选择:")
-if len(allRecords) > 0 {
-    firstRecord := allRecords[0]
-    partialRecord := firstRecord.Select("name", "score")
-    fmt.Printf("第一条记录的 name 和 score 字段: %v\n", partialRecord)
-}
+我们创建了一个完整的测试来验证 sfsDb 的半结构化数据支持能力，包括以下场景：
 
-// 3. 使用 TableIter.SetSelects() 在迭代器级别设置选择字段
-fmt.Println("\n迭代器级别字段选择:")
-iter3 := table.ForData()
-defer iter3.Release()
+1. **创建包含半结构化字段的表**
+2. **插入包含复杂半结构化数据的记录**
+3. **读取和验证半结构化数据**
+4. **更新半结构化数据**
+5. **删除包含半结构化数据的记录**
 
-// 设置迭代器只返回指定字段
-iter3.SetSelects("name", "active")
 
-// 获取记录时会自动只包含指定字段
-selectedRecords := iter3.GetRecords(true)
-for _, record := range selectedRecords {
-    fmt.Printf("   - %v\n", record)
-}
 
-// 测试Top5：获取后5条记录（倒序）
-fmt.Println("\nTop5记录 (倒序):")
-top5Reverse := iter.GetRecords(false, 5) // false表示倒序，只获取后5条记录
-for _, record := range top5Reverse {
-    fmt.Printf("   - %v\n", record)
-}
 
-// 测试Top15：获取所有记录（正序）
-fmt.Println("\n所有记录 (正序):")
-allRecords := iter.GetRecords(true, 15) // 当limit超过总记录数时，返回所有记录
-fmt.Printf("共获取到 %d 条记录\n", len(allRecords))
-for _, record := range allRecords {
-    fmt.Printf("   - %v\n", record)
-}
+### 10.4 使用示例
 
-// 测试Top15：获取所有记录（倒序）
-fmt.Println("\n所有记录 (倒序):")
-allReverse := iter.GetRecords(false, 15) // 当limit超过总记录数时，返回所有记录
-fmt.Printf("共获取到 %d 条记录\n", len(allReverse))
-for _, record := range allReverse {
-    fmt.Printf("   - %v\n", record)
-}
-
-// 传统方法：使用 First()、Valid()、Next() 遍历（不推荐，仅作参考）
-// for iter.First(); iter.Valid(); iter.Next() {
-//     record := table.ParseRecordValue(iter.Value())
-//     fmt.Printf("记录: %v\n", record)
-// }
-```
-
-### 9.2 记录更新
-
-#### 9.2.1 基本更新
+#### 10.4.1 创建包含半结构化字段的表
 
 ```go
-// 更新单个记录
+// 创建一个表
+tableName := "test_semi_structured"
+table, err := engine.TableNew(tableName)
+if err != nil {
+    panic(err)
+}
+
+// 定义表结构，包含半结构化字段
+fields := map[string]any{
+    "id":    0,                  // 主键
+    "name":  "",                 // 字符串
+    "age":   0,                  // 整型
+    "data":  map[string]any{},   // 半结构化数据（map）
+    "tags":  []string{},          // 半结构化数据（数组）
+    "nested": map[string]any{
+        "level1": map[string]any{
+            "level2": "value",
+        },
+    },
+}
+
+// 设置表字段
+if err := table.SetFields(fields); err != nil {
+    panic(err)
+}
+
+// 设置主键
+if err := table.CreatePrimaryKey("id"); err != nil {
+    panic(err)
+}
+```
+
+#### 10.4.2 插入包含半结构化数据的记录
+
+```go
+// 插入包含半结构化数据的记录
+record := map[string]any{
+    "id":   1,
+    "name": "张三",
+    "age":  25,
+    "data": map[string]any{
+        "address": "北京市朝阳区",
+        "phone":   "13800138000",
+        "email":   "zhangsan@example.com",
+    },
+    "tags": []string{"user", "active", "vip"},
+    "nested": map[string]any{
+        "level1": map[string]any{
+            "level2": "value1",
+            "level3": map[string]any{
+                "value":  123,
+                "active": true,
+            },
+        },
+    },
+}
+
+id, err := table.Insert(&record)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("插入成功，ID: %d\n", id)
+```
+
+#### 10.4.3 更新半结构化数据
+
+```go
+// 更新半结构化数据
 updateRecord := map[string]any{
-    "id":   1,      // 必须包含主键
-    "name": "张三更新", // 要更新的字段
-    "age":  31,     // 要更新的字段
+    "id":   1,
+    "name": "张三（更新）",
+    "data": map[string]any{
+        "address": "北京市海淀区",
+        "phone":   "13800138001",
+        "email":   "zhangsan@example.com",
+        "social": map[string]any{
+            "wechat": "zhangsan_wechat",
+        },
+    },
+    "tags": []string{"user", "active", "vip", "updated"},
 }
-err = table.Update(&updateRecord)
-if err != nil {
+
+if err := table.Update(&updateRecord); err != nil {
     panic(err)
 }
-fmt.Println("记录更新成功")
+fmt.Println("更新成功")
 ```
 
-#### 9.2.2 乐观锁机制
+### 10.5 应用场景
 
-sfsDb 内置了乐观锁机制，用于处理并发更新冲突。每个表都会自动添加一个 `v` 字段（int类型）作为版本号，每次更新记录时版本号会自动递增。
+半结构化数据支持使 sfsDb 适合以下场景：
 
-**乐观锁工作原理**：
-1. 当读取记录时，会获取当前的版本号
-2. 当更新记录时，可以选择传递期望的版本号
-3. 如果传递的版本号与当前版本号不匹配，会返回乐观锁冲突错误
-4. 如果不传递版本号，会直接更新记录并递增版本号
+1. **用户配置管理**：存储和管理用户的复杂配置信息
+2. **IoT 设备数据**：处理传感器产生的不规则数据结构
+3. **内容管理系统**：存储和查询复杂的内容结构
+4. **API 响应缓存**：缓存和管理 API 响应的复杂数据结构
+5. **日志数据存储**：存储和查询包含不同字段的日志数据
 
-**版本字段说明**：
-- 字段名：`v`
-- 类型：int
-- 默认值：1
-- 自动递增：每次更新记录时自动+1
+### 10.6 优势
 
-#### 9.2.3 指定版本号更新
-
-```go
-// 1. 先读取记录，获取当前版本号
-readFields := map[string]any{"id": 1}
-recordData, err := table.Read(&readFields)
-if err != nil {
-    panic(err)
-}
-
-// 假设读取到的记录包含版本号 v=1
-fmt.Println("当前记录版本号:", recordData["v"])
-
-// 2. 使用获取到的版本号进行更新
-updateRecord := map[string]any{
-    "id":   1,      // 必须包含主键
-    "name": "张三更新", // 要更新的字段
-    "v":    1,      // 指定期望的版本号
-}
-
-// 3. 执行更新
-// 如果在此期间有其他事务更新了该记录，版本号会变化，此更新会失败
-err = table.Update(&updateRecord)
-if err != nil {
-    // 检查是否是乐观锁冲突
-    if strings.Contains(err.Error(), "optimistic lock conflict") {
-        fmt.Println("乐观锁冲突，记录已被其他事务更新")
-        // 可以选择重试策略：重新读取记录，获取最新版本号后再次尝试更新
-    } else {
-        panic(err)
-    }
-}
-
-// 更新成功后，版本号会自动递增为 2
-fmt.Println("记录更新成功，新的版本号:", 2)
-```
-
-#### 9.2.4 乐观锁冲突处理示例
-
-```go
-// 乐观锁冲突的典型处理流程
-func updateWithRetry(table *engine.Table, id int, updateFunc func(map[string]any)) error {
-    maxRetries := 3
-    
-    for i := 0; i < maxRetries; i++ {
-        // 1. 读取记录，获取当前数据和版本号
-        readFields := map[string]any{"id": id}
-        recordData, err := table.Read(&readFields)
-        if err != nil {
-            return err
-        }
-        
-        // 2. 准备更新数据，包含当前版本号
-        updateData := map[string]any{"id": id}
-        
-        // 复制现有字段到更新数据
-        for k, v := range recordData {
-            updateData[k] = v
-        }
-        
-        // 3. 应用更新函数
-        updateFunc(updateData)
-        
-        // 4. 执行更新
-        err = table.Update(&updateData)
-        if err == nil {
-            // 更新成功
-            return nil
-        } else if strings.Contains(err.Error(), "optimistic lock conflict") {
-            // 乐观锁冲突，重试
-            fmt.Printf("乐观锁冲突，第 %d 次重试...\n", i+1)
-            continue
-        } else {
-            // 其他错误
-            return err
-        }
-    }
-    
-    return fmt.Errorf("更新失败，已达到最大重试次数")
-}
-
-// 使用示例
-updateFunc := func(data map[string]any) {
-    data["name"] = "张三最终更新"
-    data["age"] = data["age"].(int) + 1
-}
-
-err = updateWithRetry(table, 1, updateFunc)
-if err != nil {
-    panic(err)
-}
-fmt.Println("记录更新成功")
-```
-
-#### 9.2.5 不指定版本号的更新
-
-如果不指定版本号，系统会直接更新记录并递增版本号，不会进行乐观锁检查：
-
-```go
-// 不指定版本号，直接更新
-updateRecord := map[string]any{
-    "id":   1,      // 必须包含主键
-    "name": "张三更新", // 要更新的字段
-    // 没有指定 v 字段
-}
-
-// 会直接更新记录，并将版本号自动递增
-err = table.Update(&updateRecord)
-if err != nil {
-    panic(err)
-}
-fmt.Println("记录更新成功")
-```
+1. **灵活性**：无需预定义表结构，适应业务需求的动态变化
+2. **开发效率**：简化复杂数据结构的处理，减少代码量
+3. **兼容性**：支持与结构化数据的混合使用
+4. **性能**：针对半结构化数据进行了存储优化
+5. **易用性**：提供直观的 API 来处理半结构化数据
 
 **使用建议**：
 - 在高并发环境下，建议使用指定版本号的更新方式，避免丢失更新
@@ -3414,13 +3304,11 @@ for _, r := range result {
 6. **错误处理**：当检测到重复字段时，会触发 panic，建议在开发阶段进行测试
 7. **垂直与水平运算**：`Operation` 是水平运算（对单条记录的多个字段进行运算），`OperationVertical` 是垂直运算（对多条记录的同一字段进行运算）
 
-### 9.9 快照功能
-
-### 9.10 事务管理
+### 9.9 事务管理
 
 sfsDb 提供了完整的事务支持，通过 `Transaction` 接口可以方便地进行事务操作。事务支持 ACID 特性，确保数据的一致性和可靠性。
 
-#### 9.10.1 事务接口介绍
+#### 9.9.1 事务接口介绍
 
 ```go
 // Transaction 定义事务接口
@@ -3442,7 +3330,7 @@ type Transaction interface {
 }
 ```
 
-#### 9.10.2 事务基本使用流程
+#### 9.9.2 事务基本使用流程
 
 ```go
 // 1. 开始事务
@@ -3479,7 +3367,7 @@ try {
 }
 ```
 
-#### 9.10.3 事务方法详细说明
+#### 9.9.3 事务方法详细说明
 
 1. **`Insert(fields *map[string]any) (int, error)`**
    - 在事务中插入一条记录
@@ -3523,7 +3411,7 @@ try {
    - 回滚后，事务内的所有操作都不会生效
    - 回滚后，事务对象不能再使用
 
-#### 9.10.4 事务使用示例
+#### 9.9.4 事务使用示例
 
 **示例1：基本事务操作**
 
@@ -3673,7 +3561,7 @@ recordAfterCommit := readSingleRecord(table, &readRecord)
 fmt.Printf("事务提交后读取到的数据: %v\n", recordAfterCommit)
 ```
 
-#### 9.10.4 使用建议
+#### 9.9.5 使用建议
 
 1. **单表事务**：直接使用 `table.Begin()` 创建的事务，操作简洁方便
 2. **跨表事务**：目前需要手动管理 batch，直接使用底层 API：
@@ -3689,7 +3577,7 @@ fmt.Printf("事务提交后读取到的数据: %v\n", recordAfterCommit)
    err = storage.KVDb.WriteBatch(batch)
    ```
 
-#### 9.10.5 事务注意事项
+#### 9.9.6 事务注意事项
 
 1. **事务生命周期**：事务对象在 `Commit()` 或 `Rollback()` 后不能再使用
 2. **读一致性**：事务内的读取操作基于快照，不受外部修改影响
@@ -4536,9 +4424,9 @@ func main() {
 4. **JSON 格式**：序列化和反序列化使用标准 JSON 格式，便于存储和传输
 5. **错误处理**：序列化和反序列化过程中可能会出现错误，应始终检查并处理错误
 
-## 10. 最佳实践
+## 11. 最佳实践
 
-### 10.1 性能优化
+### 11.1 性能优化
 
 1. **合理设计索引**：为频繁查询的字段创建索引
 2. **避免全表扫描**：使用索引字段进行查询
@@ -4546,29 +4434,29 @@ func main() {
 4. **及时释放资源**：使用 `defer iter.Release()` 确保迭代器资源被释放
 5. **批量操作**：对于大量数据，使用批量插入和更新
 
-### 10.2 数据安全
+### 11.2 数据安全
 
 1. **定期备份**：定期备份数据库文件
 2. **错误处理**：始终检查并处理错误
 3. **验证输入数据**：在插入前验证数据的合法性
 4. **使用事务**：对于复杂操作，使用事务确保数据一致性
 
-### 10.3 代码规范
+### 11.3 代码规范
 
 1. **使用唯一表名**：在测试环境中使用时间戳生成唯一表名
 2. **注释代码**：为复杂查询和操作添加注释
 3. **遵循工作流**：修改字段时严格遵循先 `UpdateFieldName` 后 `SetFields` 的工作流
 4. **使用常量**：为字段名和表名使用常量定义
 
-## 11. 常见问题
+## 12. 常见问题
 
-### 11.1 字段修改后索引失效
+### 12.1 字段修改后索引失效
 
 **问题**：修改字段名称后，索引无法使用
 
 **解决方案**：确保严格遵循字段修改工作流：先调用 `UpdateFieldName`，再调用 `SetFields`。`UpdateFieldName` 会自动更新所有索引中的字段名。
 
-### 11.2 插入数据时主键冲突
+### 12.2 插入数据时主键冲突
 
 **问题**：插入数据时出现主键冲突错误
 
@@ -4577,7 +4465,7 @@ func main() {
 2. 确保手动指定的主键值唯一
 3. 使用事务处理批量插入
 
-### 11.3 全文搜索结果不符合预期
+### 12.3 全文搜索结果不符合预期
 
 **问题**：全文搜索没有返回预期结果
 
@@ -4587,7 +4475,7 @@ func main() {
 3. 验证搜索关键词是否与索引字段内容匹配
 4. 检查全文索引的长度设置是否合适
 
-### 11.4 查询性能慢
+### 12.4 查询性能慢
 
 **问题**：查询操作响应时间长
 
@@ -4597,7 +4485,7 @@ func main() {
 3. 使用分页功能减少返回数据量
 4. 考虑使用复合索引优化多字段查询
 
-## 12. 总结
+## 13. 总结
 
 sfsDb 是一个灵活、高效的嵌入式数据库，支持多种数据类型、索引类型和查询方式。通过本文档的示例和说明，您应该能够掌握 sfsDb 的基本使用方法和最佳实践。
 
