@@ -4434,6 +4434,72 @@ func main() {
 4. **及时释放资源**：使用 `defer iter.Release()` 确保迭代器资源被释放
 5. **批量操作**：对于大量数据，使用批量插入和更新
 
+#### 11.1.1 对象池和 Finalizer 机制
+
+sfsDb 实现了对象池和 finalizer 机制，用于优化 Record 和 Records 对象的内存使用和性能：
+
+**对象池工作原理**：
+- 使用 `sync.Pool` 管理 Record 和 Records 对象的复用
+- 通过 `GetRecord()` 和 `GetRecords()` 从池中获取对象
+- 通过 `PutRecord()` 和 `PutRecords()` 将对象放回池
+
+**Finalizer 机制**：
+- 使用 `runtime.SetFinalizer` 为对象设置最终izer
+- 当对象被垃圾回收时，自动将对象放回池中
+- 确保即使忘记手动释放对象，系统也能正常工作
+
+**使用示例**：
+
+```go
+// 正确使用 Record 对象
+record := record.GetRecord()
+defer record.PutRecord(record)
+
+// 设置字段
+record["id"] = 1
+record["name"] = "Alice"
+
+// 使用 record...
+
+// 正确使用 Records 对象
+records := record.GetRecords()
+defer record.PutRecords(records)
+
+// 添加记录
+records = append(records, record)
+
+// 使用 records...
+```
+
+**从 TableIter 获取记录的正确方式**：
+
+```go
+// 从迭代器获取记录
+iter := table.Search(&searchFields)
+defer iter.Release()
+
+records := iter.GetRecords(true)
+defer record.PutRecords(records) // 确保释放对象
+
+// 使用 records...
+for _, r := range records {
+    fmt.Printf("Record: %v\n", r)
+}
+```
+
+**性能优势**：
+1. **减少内存分配**：通过对象复用，减少频繁创建和销毁对象的开销
+2. **降低垃圾回收压力**：减少对象创建，降低垃圾回收的频率和开销
+3. **双重保障**：既支持手动释放（性能更好），也支持自动释放（更安全）
+4. **向后兼容**：不破坏现有代码，只是增强了安全性
+
+**最佳实践**：
+- 始终使用 `defer PutRecord()` 或 `defer PutRecords()` 确保对象被正确释放
+- 对于性能敏感的场景，优先使用手动释放
+- 对于复杂代码，依赖 finalizer 机制作为安全保障
+
+通过对象池和 finalizer 机制，sfsDb 在处理大量记录时能够保持更好的性能和内存使用效率。
+
 ### 11.2 数据安全
 
 1. **定期备份**：定期备份数据库文件

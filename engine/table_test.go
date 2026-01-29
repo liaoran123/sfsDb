@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liaoran123/sfsDb/record"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
@@ -2452,7 +2453,10 @@ func TestTableSearch1(t *testing.T) {
 	t.Run("ForData", func(t *testing.T) {
 		// 使用ForData方法遍历所有数据
 		dataIter := table.ForData()
+		defer dataIter.Release()
 		rs := dataIter.GetRecords(true)
+		defer record.PutRecords(rs)
+
 		for _, item := range rs {
 			fmt.Printf("records: %v\n", item)
 		}
@@ -2472,6 +2476,7 @@ func TestTableSearch1(t *testing.T) {
 		}
 		//defer dataIter.Release()
 		records := dataIter.GetRecords(true)
+		defer record.PutRecords(records)
 		fmt.Printf("records: %v\n", records)
 		//判断data[0]和records是否相等
 
@@ -2522,6 +2527,8 @@ func TestTableSearch1(t *testing.T) {
 		}
 		//defer dataIter.Release()
 		records := dataIter.GetRecords(true)
+		defer record.PutRecords(records)
+		fmt.Printf("records: %v\n", records)
 		for _, item := range records.Select("name", "age", "description") {
 			fmt.Printf("records: %v\n", item)
 		}
@@ -2609,9 +2616,12 @@ func TestTableSearch1(t *testing.T) {
 		}
 		//defer dataIter.Release()
 		records := dataIter.GetRecords(true)
+		defer record.PutRecords(records)
 		//判断data[1]和records是否相等
-		if records != nil {
-			t.Errorf("搜索description包含Bob的记录错误，期望: %v, 实际: %v", data[1]["id"], records[0][table.GetPrimaryKey().GetFields()[0]])
+		if len(records) > 0 {
+			t.Errorf("搜索不存在的记录错误，期望: 空结果, 实际: %v", records)
+		} else {
+			t.Logf("搜索不存在的记录成功，返回空结果")
 		}
 	})
 
@@ -2628,6 +2638,7 @@ func TestTableSearch1(t *testing.T) {
 		}
 		//defer dataIter.Release()
 		records := dataIter.GetRecords(true)
+		defer record.PutRecords(records)
 		for i, item := range records.Select() {
 			fmt.Printf("item %d: %v\n", i, item)
 		}
