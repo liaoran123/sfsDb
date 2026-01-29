@@ -400,7 +400,7 @@ func (t *TableIter) GetPrimaryKeys(k, v []byte, fields ...string) (r any) {
 func (t *TableIter) Map(fields ...string) (data map[any]bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	data = make(map[any]bool)
+	data = GetMap()
 	traverseCount := 0
 	for t.iter.First(); t.iter.Valid(); t.iter.Next() {
 		data[t.GetPrimaryKeys(t.iter.Key(), t.iter.Value(), fields...)] = true

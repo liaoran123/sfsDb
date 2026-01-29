@@ -2354,25 +2354,6 @@ func TestTableUpdateWithOptimisticLock(t *testing.T) {
 	}
 	t.Logf("Final record content is correct")
 }
-func TestTableSearch2(t *testing.T) {
-	// 重置对象池统计信息
-	record.ResetPoolStats()
-	//调用TestTableSearch1测试
-	TestTableSearch1(t)
-	// 打印对象池使用统计信息
-	stats := record.PoolStats()
-	fmt.Println("\n对象池使用统计信息:")
-	fmt.Printf("Record - 创建: %d, 获取: %d, 手动放回: %d\n",
-		stats["recordCreated"], stats["recordGet"], stats["recordPutManual"])
-	fmt.Printf("Records - 创建: %d, 获取: %d, 手动放回: %d\n",
-		stats["recordsCreated"], stats["recordsGet"], stats["recordsPutManual"])
-
-	// 检查是否有对象泄漏
-	// 注意：由于我们使用了 finalizer 机制，即使外部没有手动释放，对象也会在垃圾回收时自动释放
-	// 因此这里不再比较获取和放回的数量，而是简单地打印统计信息
-	fmt.Println("对象池使用统计信息已打印，由于使用了 finalizer 机制，即使外部没有手动释放，对象也会在垃圾回收时自动释放")
-	fmt.Println("如果手动放回的数量小于获取的数量，这是正常的，因为部分对象会通过 finalizer 自动释放")
-}
 
 // TestTableSearch 测试使用加密数据库表遍历数据和Search方法的功能
 func TestTableSearch1(t *testing.T) {

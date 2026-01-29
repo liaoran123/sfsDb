@@ -2,145 +2,120 @@ package record
 
 import (
 	"testing"
-	"time"
 )
 
-// TestPoolStats 测试对象池使用统计信息
-func TestPoolStats(t *testing.T) {
-	// 重置统计信息
-	ResetPoolStats()
-	stats := PoolStats()
+// TestRecordPoolDataClean 测试从对象池获取的 Record 对象数据是否干净
+func TestRecordPoolDataClean(t *testing.T) {
+	// 测试 GetRecord() 函数
+	for i := 0; i < 10; i++ {
+		r := GetRecord()
+		defer PutRecord(r)
 
-	// 验证初始状态
-	if stats["recordCreated"] != 0 {
-		t.Errorf("初始 recordCreated 应为 0，实际为 %d", stats["recordCreated"])
+		// 检查返回的 Record 是否为空
+		if len(r) != 0 {
+			t.Fatalf("GetRecord() should return an empty Record, got %d fields", len(r))
+		}
+
+		// 向 Record 中添加一些数据
+		r["id"] = i
+		r["name"] = "test"
+
+		// 将 Record 放回对象池
+		PutRecord(r)
 	}
-	if stats["recordGet"] != 0 {
-		t.Errorf("初始 recordGet 应为 0，实际为 %d", stats["recordGet"])
-	}
-	if stats["recordPut"] != 0 {
-		t.Errorf("初始 recordPut 应为 0，实际为 %d", stats["recordPut"])
-	}
-	if stats["recordsCreated"] != 0 {
-		t.Errorf("初始 recordsCreated 应为 0，实际为 %d", stats["recordsCreated"])
-	}
-	if stats["recordsGet"] != 0 {
-		t.Errorf("初始 recordsGet 应为 0，实际为 %d", stats["recordsGet"])
-	}
-	if stats["recordsPut"] != 0 {
-		t.Errorf("初始 recordsPut 应为 0，实际为 %d", stats["recordsPut"])
-	}
-}
 
-// TestRecordPool 测试 Record 对象池
-func TestRecordPool(t *testing.T) {
-	// 重置统计信息
-	ResetPoolStats()
-
-	// 获取并放回 Record 对象
-	r1 := GetRecord()
-	r1["key"] = "value"
-	PutRecord(r1)
-
-	r2 := GetRecord()
-	r2["key"] = "value2"
-	PutRecord(r2)
-
-	stats := PoolStats()
-
-	// 验证统计信息
-	if stats["recordGet"] != 2 {
-		t.Errorf("recordGet 应为 2，实际为 %d", stats["recordGet"])
-	}
-	if stats["recordPut"] != 2 {
-		t.Errorf("recordPut 应为 2，实际为 %d", stats["recordPut"])
-	}
-	// recordCreated 应该为 1 或 0，因为我们从池中获取了两个对象，但只可能创建了一个新对象
-	// 由于对象池的实现可能会在初始化时创建对象，所以我们只检查 recordCreated 是否不大于 1
-	if stats["recordCreated"] > 1 {
-		t.Errorf("recordCreated 应为不大于 1，实际为 %d", stats["recordCreated"])
-	}
-}
-
-// TestRecordsPool 测试 Records 对象池
-func TestRecordsPool(t *testing.T) {
-	// 重置统计信息
-	ResetPoolStats()
-
-	// 获取并放回 Records 对象
-	rs1 := GetRecords()
-	rs1 = append(rs1, GetRecord())
-	PutRecords(rs1)
-
-	rs2 := GetRecords()
-	rs2 = append(rs2, GetRecord())
-	rs2 = append(rs2, GetRecord())
-	PutRecords(rs2)
-
-	stats := PoolStats()
-
-	// 验证统计信息
-	if stats["recordsGet"] != 2 {
-		t.Errorf("recordsGet 应为 2，实际为 %d", stats["recordsGet"])
-	}
-	if stats["recordsPut"] != 2 {
-		t.Errorf("recordsPut 应为 2，实际为 %d", stats["recordsPut"])
-	}
-	// recordsCreated 应该为 1 或 0，因为我们从池中获取了两个对象，但只可能创建了一个新对象
-	// 由于对象池的实现可能会在初始化时创建对象，所以我们只检查 recordsCreated 是否不大于 1
-	if stats["recordsCreated"] > 1 {
-		t.Errorf("recordsCreated 应为不大于 1，实际为 %d", stats["recordsCreated"])
-	}
-}
-
-// TestGetRecordsWithCapacity 测试指定容量的 Records 对象池
-func TestGetRecordsWithCapacity(t *testing.T) {
-	// 重置统计信息
-	ResetPoolStats()
-
-	// 获取并放回指定容量的 Records 对象
-	rs1 := GetRecordsWithCapacity(10)
-	rs1 = append(rs1, GetRecord())
-	PutRecords(rs1)
-
-	stats := PoolStats()
-
-	// 验证统计信息
-	if stats["recordsGet"] != 1 {
-		t.Errorf("recordsGet 应为 1，实际为 %d", stats["recordsGet"])
-	}
-	if stats["recordsPut"] != 1 {
-		t.Errorf("recordsPut 应为 1，实际为 %d", stats["recordsPut"])
-	}
-}
-
-// TestFinalizerStats 测试 finalizer 机制的统计信息
-func TestFinalizerStats(t *testing.T) {
-	// 重置统计信息
-	ResetPoolStats()
-
-	// 获取 Record 对象，但不手动放回，依赖 finalizer
-	r := GetRecord()
-	r["key"] = "value"
-
-	// 手动设置为 nil，触发垃圾回收
-	r = nil
-
-	// 强制垃圾回收
-	time.Sleep(100 * time.Millisecond)
+	// 再次从对象池获取 Record，确保返回的对象是空的
 	for i := 0; i < 5; i++ {
-		time.Sleep(100 * time.Millisecond)
+		r := GetRecord()
+		defer PutRecord(r)
+
+		// 检查返回的 Record 是否为空
+		if len(r) != 0 {
+			t.Fatalf("GetRecord() should return an empty Record after being put back, got %d fields", len(r))
+		}
+	}
+}
+
+// TestRecordsPoolDataClean 测试从对象池获取的 Records 对象数据是否干净
+func TestRecordsPoolDataClean(t *testing.T) {
+	// 测试 GetRecords() 函数
+	for i := 0; i < 10; i++ {
+		rs := GetRecords()
+		defer PutRecords(rs)
+
+		// 检查返回的 Records 是否为空
+		if len(rs) != 0 {
+			t.Fatalf("GetRecords() should return an empty Records, got %d records", len(rs))
+		}
+
+		// 向 Records 中添加一些数据
+		for j := 0; j < 5; j++ {
+			r := GetRecord()
+			r["id"] = j
+			r["name"] = "test"
+			rs = append(rs, r)
+		}
+
+		// 将 Records 放回对象池
+		PutRecords(rs)
 	}
 
-	stats := PoolStats()
+	// 再次从对象池获取 Records，确保返回的对象是空的
+	for i := 0; i < 5; i++ {
+		rs := GetRecords()
+		defer PutRecords(rs)
 
-	// 验证统计信息
-	if stats["recordGet"] != 1 {
-		t.Errorf("recordGet 应为 1，实际为 %d", stats["recordGet"])
+		// 检查返回的 Records 是否为空
+		if len(rs) != 0 {
+			t.Fatalf("GetRecords() should return an empty Records after being put back, got %d records", len(rs))
+		}
 	}
-	// finalizer 应该已经被调用，recordPut 应该为 1
-	// 注意：由于垃圾回收的不确定性，这个测试可能会不稳定
-	// if stats["recordPut"] != 1 {
-	// 	t.Errorf("recordPut 应为 1，实际为 %d", stats["recordPut"])
-	// }
+}
+
+// TestRecordsWithCapacityPoolDataClean 测试从对象池获取的指定容量的 Records 对象数据是否干净
+func TestRecordsWithCapacityPoolDataClean(t *testing.T) {
+	capacity := 10
+
+	// 测试 GetRecordsWithCapacity() 函数
+	for i := 0; i < 10; i++ {
+		rs := GetRecordsWithCapacity(capacity)
+		defer PutRecords(rs)
+
+		// 检查返回的 Records 是否为空
+		if len(rs) != 0 {
+			t.Fatalf("GetRecordsWithCapacity() should return an empty Records, got %d records", len(rs))
+		}
+
+		// 检查容量是否至少为指定值
+		if cap(rs) < capacity {
+			t.Fatalf("GetRecordsWithCapacity() should return a Records with capacity at least %d, got %d", capacity, cap(rs))
+		}
+
+		// 向 Records 中添加一些数据
+		for j := 0; j < capacity; j++ {
+			r := GetRecord()
+			r["id"] = j
+			r["name"] = "test"
+			rs = append(rs, r)
+		}
+
+		// 将 Records 放回对象池
+		PutRecords(rs)
+	}
+
+	// 再次从对象池获取 Records，确保返回的对象是空的
+	for i := 0; i < 5; i++ {
+		rs := GetRecordsWithCapacity(capacity)
+		defer PutRecords(rs)
+
+		// 检查返回的 Records 是否为空
+		if len(rs) != 0 {
+			t.Fatalf("GetRecordsWithCapacity() should return an empty Records after being put back, got %d records", len(rs))
+		}
+
+		// 检查容量是否至少为指定值
+		if cap(rs) < capacity {
+			t.Fatalf("GetRecordsWithCapacity() should return a Records with capacity at least %d, got %d", capacity, cap(rs))
+		}
+	}
 }

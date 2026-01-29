@@ -1773,7 +1773,6 @@ sfsDb 实现了高效的对象池机制，用于管理 Record 和 Records 对象
 
 - **自动对象复用**：通过 sync.Pool 实现对象的重用
 - **自动内存释放**：使用 runtime.SetFinalizer 确保对象在不再使用时自动释放
-- **全局跟踪机制**：提供详细的对象池使用统计信息
 - **内存优化**：预分配合理容量，减少扩容开销
 
 ### 9.2 核心 API
@@ -1826,43 +1825,7 @@ record["name"] = "张三"
 // 当 record 变量超出作用域或被设为 nil 时，垃圾收集器会自动回收
 ```
 
-### 9.4 全局跟踪机制
 
-#### 9.4.1 获取本地统计信息
-
-```go
-// 获取对象池使用统计信息（当前会话）
-stats := record.PoolStats()
-fmt.Printf("已创建 Record 对象数: %d\n", stats["recordCreated"])
-fmt.Printf("从池获取的 Record 对象数: %d\n", stats["recordGet"])
-fmt.Printf("手动放回池的 Record 对象数: %d\n", stats["recordPutManual"])
-fmt.Printf("已创建 Records 对象数: %d\n", stats["recordsCreated"])
-fmt.Printf("从池获取的 Records 对象数: %d\n", stats["recordsGet"])
-fmt.Printf("手动放回池的 Records 对象数: %d\n", stats["recordsPutManual"])
-```
-
-#### 9.4.2 获取全局统计信息
-
-```go
-// 获取全局对象池使用统计信息（应用级）
-globalStats := record.GlobalPoolStats()
-fmt.Printf("全局创建的 Record 对象数: %d\n", globalStats["globalRecordCreated"])
-fmt.Printf("全局从池获取的 Record 对象数: %d\n", globalStats["globalRecordGet"])
-fmt.Printf("全局放回池的 Record 对象数: %d\n", globalStats["globalRecordPut"])
-fmt.Printf("全局创建的 Records 对象数: %d\n", globalStats["globalRecordsCreated"])
-fmt.Printf("全局从池获取的 Records 对象数: %d\n", globalStats["globalRecordsGet"])
-fmt.Printf("全局放回池的 Records 对象数: %d\n", globalStats["globalRecordsPut"])
-```
-
-#### 9.4.3 重置统计信息
-
-```go
-// 重置本地统计信息
-record.ResetPoolStats()
-
-// 重置全局统计信息
-record.ResetGlobalPoolStats()
-```
 
 ### 9.5 内存管理最佳实践
 
@@ -1899,16 +1862,13 @@ for i := 0; i < 100; i++ {
 2. **及时释放**：在不再需要对象时，尽快调用 PutRecord/PutRecords
 3. **避免循环引用**：确保 Record 中的值不会导致循环引用，影响垃圾收集
 4. **批量操作**：使用批量操作（如 BatchSelect、BatchOperation）减少对象创建
-5. **监控统计**：定期查看全局统计信息，优化对象池使用
-6. **合理使用 defer**：对于复杂函数，使用 defer 确保对象最终会被释放
-7. **避免频繁创建**：在循环中重用 Record 对象，而不是每次循环都创建新对象
-8. **注意作用域**：控制 Record 对象的作用域，避免不必要的长生命周期
+5. **合理使用 defer**：对于复杂函数，使用 defer 确保对象最终会被释放
+6. **避免频繁创建**：在循环中重用 Record 对象，而不是每次循环都创建新对象
+7. **注意作用域**：控制 Record 对象的作用域，避免不必要的长生命周期
 
 #### 9.5.3 生产环境最佳实践
 
 1. **性能监控**：
-   - 定期监控对象池统计信息，特别是创建数与获取数的比例
-   - 使用全局统计信息跟踪应用级别的内存使用情况
    - 设置监控告警，及时发现内存异常
 
 2. **内存优化**：
@@ -2035,46 +1995,10 @@ func main() {
     rs = append(rs, r)
     
     fmt.Printf("Records 长度: %d\n", len(rs))
-    
-    // 查看对象池统计信息
-    stats := record.PoolStats()
-    fmt.Printf("已创建 Record 对象数: %d\n", stats["recordCreated"])
-    fmt.Printf("从池获取的 Record 对象数: %d\n", stats["recordGet"])
 }
 ```
 
-#### 9.6.2 全局跟踪示例
 
-```go
-package main
-
-import (
-    "fmt"
-    "github.com/liaoran123/sfsDb/record"
-)
-
-func main() {
-    // 模拟大量对象操作
-    for i := 0; i < 1000; i++ {
-        r := record.GetRecord()
-        r["id"] = i
-        r["name"] = fmt.Sprintf("用户%d", i)
-        
-        // 每10个对象手动释放一次
-        if i%10 == 0 {
-            record.PutRecord(r)
-        }
-        // 其他对象会自动释放
-    }
-    
-    // 查看全局统计信息
-    globalStats := record.GlobalPoolStats()
-    fmt.Println("=== 全局对象池统计信息 ===")
-    fmt.Printf("创建的 Record 对象数: %d\n", globalStats["globalRecordCreated"])
-    fmt.Printf("从池获取的 Record 对象数: %d\n", globalStats["globalRecordGet"])
-    fmt.Printf("放回池的 Record 对象数: %d\n", globalStats["globalRecordPut"])
-}
-```
 
 #### 9.6.3 批量操作示例
 
@@ -2107,60 +2031,29 @@ func main() {
     }
     record.PutRecords(selected)
     record.PutRecords(records)
-    
-    // 查看统计信息
-    stats := record.PoolStats()
-    fmt.Printf("Record 对象创建数: %d\n", stats["recordCreated"])
-    fmt.Printf("Record 对象获取数: %d\n", stats["recordGet"])
-    fmt.Printf("Record 对象手动放回数: %d\n", stats["recordPutManual"])
 }
 ```
 
-### 9.7 统计信息说明
+### 9.7 常见问题与解决方案
 
-#### 9.7.1 本地统计信息（当前会话）
+#### 9.7.1 对象池复用率低
 
-| 统计项 | 描述 |
-|-------|------|
-| recordCreated | 已创建的 Record 对象数 |
-| recordGet | 从池获取的 Record 对象数 |
-| recordPutManual | 手动放回池的 Record 对象数 |
-| recordsCreated | 已创建的 Records 对象数 |
-| recordsGet | 从池获取的 Records 对象数 |
-| recordsPutManual | 手动放回池的 Records 对象数 |
-
-#### 9.7.2 全局统计信息（应用级）
-
-| 统计项 | 描述 |
-|-------|------|
-| globalRecordCreated | 全局创建的 Record 对象数 |
-| globalRecordGet | 全局从池获取的 Record 对象数 |
-| globalRecordPut | 全局放回池的 Record 对象数（包括自动和手动） |
-| globalRecordsCreated | 全局创建的 Records 对象数 |
-| globalRecordsGet | 全局从池获取的 Records 对象数 |
-| globalRecordsPut | 全局放回池的 Records 对象数（包括自动和手动） |
-
-### 9.8 常见问题与解决方案
-
-#### 9.8.1 对象池复用率低
-
-**问题**：globalRecordCreated 远大于 globalRecordGet
+**问题**：对象池复用率低，创建数远大于获取数
 
 **解决方案**：
 - 确保在不再使用对象时及时调用 PutRecord/PutRecords
 - 检查是否存在对象泄露（如循环引用）
 - 调整批量操作策略，减少临时对象创建
 
-#### 9.8.2 内存使用过高
+#### 9.7.2 内存使用过高
 
 **问题**：应用内存使用持续增长
 
 **解决方案**：
 - 检查是否有未释放的 Record/Records 对象
-- 监控全局统计信息，查找异常
 - 考虑增加垃圾收集频率（debug.SetGCPercent）
 
-#### 9.8.3 性能问题
+#### 9.7.3 性能问题
 
 **问题**：对象池操作成为性能瓶颈
 

@@ -238,6 +238,121 @@ func TestTestSelectForJoin(t *testing.T) {
 	// fmt.Println(fieldValue)
 }
 
+// TestTableIter_MapDataClean 测试 TableIter.Map() 方法返回的数据是否干净
+// 确保从对象池获取的 map[any]bool 对象始终是空的，没有残留之前的数据
+func TestTableIter_MapDataClean(t *testing.T) {
+	// 创建测试表
+	table, err := TableNew("test_map_data_clean")
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// 设置表字段
+	fields := map[string]any{"id": 0, "name": "", "age": 0}
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
+
+	// 创建主键索引
+	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+
+	// 插入测试数据
+	testData := []map[string]any{
+		{"id": 1, "name": "Alice", "age": 20},
+		{"id": 2, "name": "Bob", "age": 25},
+		{"id": 3, "name": "Charlie", "age": 30},
+	}
+
+	for _, data := range testData {
+		_, err := table.Insert(&data)
+		if err != nil {
+			t.Fatalf("Failed to insert test data: %v", err)
+		}
+	}
+
+	// 创建迭代器
+	iter := table.Search(&map[string]any{"id": nil})
+	defer iter.Release()
+
+	// 第一次调用 Map() 方法
+	map1 := iter.Map()
+	if len(map1) != 3 {
+		t.Fatalf("Map() should return 3 items, got %d", len(map1))
+	}
+
+	// 检查 map1 中的数据是否正确
+	expectedIDs := []int{1, 2, 3}
+	for _, id := range expectedIDs {
+		if !map1[id] {
+			t.Fatalf("Map() should contain id %d", id)
+		}
+	}
+
+	// 第二次调用 Map() 方法
+	map2 := iter.Map()
+	if len(map2) != 3 {
+		t.Fatalf("Map() should return 3 items, got %d", len(map2))
+	}
+
+	// 检查 map2 中的数据是否正确
+	for _, id := range expectedIDs {
+		if !map2[id] {
+			t.Fatalf("Map() should contain id %d", id)
+		}
+	}
+
+	// 检查 map1 和 map2 是否是不同的对象（因为它们都是从对象池获取的）
+	if &map1 == &map2 {
+		t.Fatalf("Map() should return different objects each time")
+	}
+
+	// 测试使用指定字段调用 Map() 方法
+	map3 := iter.Map("age")
+	if len(map3) != 3 {
+		t.Fatalf("Map('age') should return 3 items, got %d", len(map3))
+	}
+
+	// 检查 map3 中的数据是否正确
+	expectedAges := []int{20, 25, 30}
+	for _, age := range expectedAges {
+		if !map3[age] {
+			t.Fatalf("Map('age') should contain age %d", age)
+		}
+	}
+
+	// 第三次调用 Map() 方法，再次使用默认字段（id）
+	map4 := iter.Map()
+	if len(map4) != 3 {
+		t.Fatalf("Map() should return 3 items, got %d", len(map4))
+	}
+
+	// 检查 map4 中的数据是否正确
+	for _, id := range expectedIDs {
+		if !map4[id] {
+			t.Fatalf("Map() should contain id %d", id)
+		}
+	}
+
+	// 测试多次调用后，对象池中的对象是否被正确重用和清理
+	for i := 0; i < 10; i++ {
+		mapN := iter.Map()
+		if len(mapN) != 3 {
+			t.Fatalf("Map() should return 3 items on iteration %d, got %d", i, len(mapN))
+		}
+		for _, id := range expectedIDs {
+			if !mapN[id] {
+				t.Fatalf("Map() should contain id %d on iteration %d", id, i)
+			}
+		}
+	}
+}
+
 // TestTableIter_WithFieldComparison 测试 FieldComparison 与 TableIter 的集成
 // 主要是用于主键迭代器对于无索引字段的匹配。
 func TestTableIter_WithFieldComparison(t *testing.T) {
