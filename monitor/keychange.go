@@ -42,6 +42,9 @@ func (m AtomicMap) Inc(tableID, indexID byte) {
 	atomicMapMutex.Unlock()
 	// atomic.Int64.Add 本身是原子操作，不需要在锁内执行
 	counter.Add(1)
+	// 注意：不能直接在解锁后使用 m[key].Add(1)，因为：
+	// 1. 解锁后 map 的访问不再受锁保护，可能出现并发安全问题
+	// 2. 通过先获取指针，确保在锁内安全获取计数器引用，然后在锁外原子操作
 }
 
 /*
