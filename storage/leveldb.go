@@ -63,6 +63,9 @@ func NewLevelDBStore(Path string, opts *opt.Options) (Store, error) {
 
 // Get 获取指定key的值
 func (s *LevelDBStore) Get(key []byte) ([]byte, error) {
+	if s.ldb == nil {
+		return nil, NewError("ldb is nil, cannot perform read operations")
+	}
 	value, err := s.ldb.Get(key, nil)
 	if err != nil {
 		if err == leveldb.ErrNotFound {
@@ -155,6 +158,9 @@ func (s *LevelDBStore) Iterator1(slice *util.Range) Iterator {
 */
 // Iterator 创建迭代器
 func (s *LevelDBStore) Iterator(start, limit []byte) Iterator {
+	if s.ldb == nil {
+		return nil
+	}
 	return s.ldb.NewIterator(&util.Range{Start: start, Limit: limit}, nil)
 }
 

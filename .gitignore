@@ -12,6 +12,7 @@
 
 # 测试输出
 /test.out
+/test
 /todo
 # 数据库文件
 /engine/KVDB

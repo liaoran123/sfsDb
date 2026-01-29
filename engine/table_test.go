@@ -1278,12 +1278,12 @@ func TestTable_SetFields(t *testing.T) {
 		t.Fatalf("Failed to set fields: %v", err)
 	}
 
-	// 验证字段设置正确
-	if len(table.fields) != 3 {
-		t.Errorf("Expected 3 fields, got %d", len(table.fields))
+	// 验证字段设置正确（包括版本号字段 'v'）
+	if len(table.fields) != 4 {
+		t.Errorf("Expected 4 fields, got %d", len(table.fields))
 	}
-	if len(table.fieldsid) != 3 {
-		t.Errorf("Expected 3 fieldsid mappings, got %d", len(table.fieldsid))
+	if len(table.fieldsid) != 4 {
+		t.Errorf("Expected 4 fieldsid mappings, got %d", len(table.fieldsid))
 	}
 
 	// 验证每个字段都有对应的ID映射
@@ -1308,11 +1308,11 @@ func TestTable_SetFields(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error for empty fields: %v", err)
 	}
-	if len(table.fields) != 0 {
-		t.Errorf("Expected 0 fields, got %d", len(table.fields))
+	if len(table.fields) != 1 {
+		t.Errorf("Expected 1 field, got %d", len(table.fields))
 	}
-	if len(table.fieldsid) != 0 {
-		t.Errorf("Expected 0 fieldsid mappings, got %d", len(table.fieldsid))
+	if len(table.fieldsid) != 1 {
+		t.Errorf("Expected 1 fieldsid mappings, got %d", len(table.fieldsid))
 	}
 
 	// 测试4: 更新现有字段
@@ -1329,11 +1329,11 @@ func TestTable_SetFields(t *testing.T) {
 		t.Fatalf("Failed to update fields: %v", err)
 	}
 
-	if len(table.fields) != 4 {
-		t.Errorf("Expected 4 fields after update, got %d", len(table.fields))
+	if len(table.fields) != 5 {
+		t.Errorf("Expected 5 fields after update, got %d", len(table.fields))
 	}
-	if len(table.fieldsid) != 4 {
-		t.Errorf("Expected 4 fieldsid mappings after update, got %d", len(table.fieldsid))
+	if len(table.fieldsid) != 5 {
+		t.Errorf("Expected 5 fieldsid mappings after update, got %d", len(table.fieldsid))
 	}
 }
 

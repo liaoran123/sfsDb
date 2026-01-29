@@ -27,10 +27,16 @@ var (
 // GetRecord 从对象池获取一个 Record 对象
 func GetRecord() Record {
 	r := recordPool.Get().(Record)
-	// 设置 finalizer，当对象被垃圾回收时自动放回池
+	// 直接对返回的对象设置 finalizer（利用 map 引用类型特性）
 	runtime.SetFinalizer(&r, func(ptr *Record) {
 		if *ptr != nil {
-			PutRecord(*ptr)
+			obj := *ptr
+			// 清空 Record 中的所有字段
+			for k := range obj {
+				delete(obj, k)
+			}
+			// 将对象放回池
+			recordPool.Put(obj)
 		}
 	})
 	return r
@@ -41,22 +47,30 @@ func PutRecord(r Record) {
 	if r == nil {
 		return
 	}
-	// 清除 finalizer，避免重复释放
-	runtime.SetFinalizer(&r, nil)
-	// 清空 Record 中的所有字段
+	// 直接清空 Record 中的所有字段
 	for k := range r {
 		delete(r, k)
 	}
+	// 将对象放回池
 	recordPool.Put(r)
 }
 
 // GetRecords 从对象池获取一个 Records 对象
 func GetRecords() Records {
 	rs := recordsPool.Get().(Records)
-	// 设置 finalizer，当对象被垃圾回收时自动放回池
+	// 直接对返回的对象设置 finalizer
 	runtime.SetFinalizer(&rs, func(ptr *Records) {
 		if *ptr != nil {
-			PutRecords(*ptr)
+			obj := *ptr
+			// 清空 Records 中的所有 Record 并将其放回对象池
+			for i, r := range obj {
+				if r != nil {
+					PutRecord(r)
+					obj[i] = nil
+				}
+			}
+			// 重置 slice 长度并放回池
+			recordsPool.Put(obj[:0])
 		}
 	})
 	return rs
@@ -67,8 +81,6 @@ func PutRecords(rs Records) {
 	if rs == nil {
 		return
 	}
-	// 清除 finalizer，避免重复释放
-	runtime.SetFinalizer(&rs, nil)
 	// 清空 Records 中的所有 Record 并将其放回对象池
 	for i, r := range rs {
 		if r != nil {
@@ -76,7 +88,7 @@ func PutRecords(rs Records) {
 			rs[i] = nil
 		}
 	}
-	// 重置 slice 长度
+	// 重置 slice 长度并放回池
 	recordsPool.Put(rs[:0])
 }
 
