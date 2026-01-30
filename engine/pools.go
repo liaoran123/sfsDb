@@ -23,16 +23,7 @@ var (
 	// stringSlicePool 用于管理 []string 类型的对象池
 	stringSlicePool = sync.Pool{
 		New: func() any {
-
 			return make([]string, 0, 10) // 预分配容量为 10
-		},
-	}
-
-	// stringAnyMapPool 用于管理 map[string]any 类型的对象池
-	stringAnyMapPool = sync.Pool{
-		New: func() any {
-
-			return make(map[string]any)
 		},
 	}
 )
@@ -107,35 +98,6 @@ func ResetStringSlicePool() {
 	stringSlicePool = sync.Pool{
 		New: func() any {
 			return make([]string, 0, 10)
-		},
-	}
-}
-
-// GetStringAnyMap 从对象池获取一个 map[string]any 对象
-func GetStringAnyMap() map[string]any {
-	m := stringAnyMapPool.Get().(map[string]any)
-	// 清空 map 中的所有键值对，确保返回的数据干净
-	for k := range m {
-		delete(m, k)
-	}
-	return m
-}
-
-// PutStringAnyMap 将 map[string]any 对象归还到对象池
-func PutStringAnyMap(m map[string]any) {
-	// 清空 map 中的所有键值对，确保归还的对象干净
-	for k := range m {
-		delete(m, k)
-	}
-	stringAnyMapPool.Put(m)
-}
-
-// ResetStringAnyMapPool 重置 stringAnyMapPool 对象池
-func ResetStringAnyMapPool() {
-	// 由于 sync.Pool 没有直接的重置方法，我们可以通过替换来实现
-	stringAnyMapPool = sync.Pool{
-		New: func() any {
-			return make(map[string]any)
 		},
 	}
 }

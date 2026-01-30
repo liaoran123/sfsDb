@@ -4,38 +4,40 @@ import (
 	"testing"
 )
 
-// TestGetRecordsCleanlinessWithoutPut 测试在外部没有调用PutRecords的情况下，GetRecords函数依然能够返回干净的数据
-func TestGetRecordsCleanlinessWithoutPut(t *testing.T) {
-	// 测试1：首次获取的Records应该是空的
-	rs1 := GetRecords()
-	if len(rs1) != 0 {
-		t.Errorf("首次获取的Records长度应该为0，实际为%d", len(rs1))
+// TestRecordPoolCleanlinessWithoutPut 测试在没有显示调用PutRecord()时，Record对象池是否依然保持数据干净
+func TestRecordPoolCleanlinessWithoutPut(t *testing.T) {
+	// 测试1：首次从对象池获取的Record应该是空的
+	r1 := GetRecord()
+	if len(r1) != 0 {
+		t.Errorf("首次从对象池获取的Record长度应该为0，实际为%d", len(r1))
 	}
 
-	// 测试2：向Records中添加数据，但不放回对象池
-	rs1 = append(rs1, make(Record, 8))
-	if len(rs1) != 1 {
-		t.Errorf("添加数据后Records长度应该为1，实际为%d", len(rs1))
+	// 测试2：向Record中添加数据，但不放回对象池
+	r1["name"] = "test"
+	r1["age"] = 25
+	if len(r1) != 2 {
+		t.Errorf("添加数据后Record长度应该为2，实际为%d", len(r1))
 	}
 
-	// 注意：这里没有调用PutRecords
+	// 注意：这里没有调用PutRecord()
 
-	// 测试3：再次获取Records，应该是空的
-	rs2 := GetRecords()
-	if len(rs2) != 0 {
-		t.Errorf("再次获取的Records长度应该为0，实际为%d", len(rs2))
+	// 测试3：再次从对象池获取Record，应该是空的
+	r2 := GetRecord()
+	if len(r2) != 0 {
+		t.Errorf("再次从对象池获取的Record长度应该为0，实际为%d", len(r2))
 	}
 
-	// 测试4：多次获取，确保每次都返回空的Records
+	// 测试4：多次获取，确保每次都返回空的Record
 	for i := 0; i < 10; i++ {
-		rs := GetRecords()
-		if len(rs) != 0 {
-			t.Errorf("第%d次获取的Records长度应该为0，实际为%d", i+1, len(rs))
+		r := GetRecord()
+		if len(r) != 0 {
+			t.Errorf("第%d次从对象池获取的Record长度应该为0，实际为%d", i+1, len(r))
 		}
-		// 向Records中添加数据，但不放回对象池
-		rs = append(rs, make(Record, 8))
-		if len(rs) != 1 {
-			t.Errorf("添加数据后Records长度应该为1，实际为%d", len(rs))
+		// 向Record中添加数据，但不放回对象池
+		r["field1"] = i
+		r["field2"] = "value"
+		if len(r) != 2 {
+			t.Errorf("添加数据后Record长度应该为2，实际为%d", len(r))
 		}
 	}
 }

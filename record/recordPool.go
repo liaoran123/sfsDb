@@ -12,13 +12,14 @@ var (
 			return make(Records, 0, 16)
 		},
 	}
+	recordPool = &sync.Pool{
+		New: func() any {
+			// 预分配合理容量，减少后续扩容开销
+			return make(Record, 8)
+		},
+	}
 )
 
-/*
-func GetRecord() Record {
-	return make(Record, 8)
-}
-*/
 // GetRecords 从对象池获取一个 Records 对象
 // sync.Pool不会导致内存泄漏，确保返回的数据干净即可。
 func GetRecords() Records {
@@ -70,6 +71,14 @@ func PutRecords(rs Records) {
 	if rs == nil {
 		return
 	}
+
+	// 遍历并释放所有 Record 对象
+	for _, r := range rs {
+		if r != nil {
+			PutRecord(r)
+		}
+	}
+
 	// 检查容量是否过大，避免内存膨胀
 	const maxCapacity = 1000 // 可根据实际情况调整阈值
 	if cap(rs) > maxCapacity {
@@ -80,4 +89,35 @@ func PutRecords(rs Records) {
 		// 重置 slice 长度并放回池
 		recordsPool.Put(rs[:0])
 	}
+}
+
+// GetRecord 从对象池获取一个 Record 对象
+// 确保返回的数据干净
+func GetRecord() Record {
+	r := recordPool.Get().(Record)
+	// 清空 Record 中的所有字段，确保返回的数据干净
+	for k := range r {
+		delete(r, k)
+	}
+	return r
+}
+
+// PutRecord 将 Record 对象放回对象池
+func PutRecord(r Record) {
+	if r == nil {
+		return
+	}
+	// 清空 Record 中的所有字段，确保放回池中的对象干净
+	for k := range r {
+		delete(r, k)
+	}
+	recordPool.Put(r)
+}
+
+// GetRecordWithCapacity 从对象池获取一个指定初始容量的 Record 对象
+// 确保返回的数据干净
+func GetRecordWithCapacity(capacity int) Record {
+	// 对于map类型，容量是内部管理的，不能直接获取或控制
+	// 直接创建一个新的Record对象，指定初始容量
+	return make(Record, capacity)
 }

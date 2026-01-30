@@ -111,13 +111,23 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 	if fieldsBytes == nil {
 		return nil
 	}
+
+	// 获取一个干净的 Record 对象
+	rd = record.GetRecord()
+
 	switch t.index.(type) {
 	case PrimaryKey: //主键通过Parse直接得到的就是记录
-		rd = record.Record(*t.table.RecordByteToAny(fieldsBytes))
+		anyMap := t.table.RecordByteToAny(fieldsBytes)
+		if anyMap == nil {
+			return nil
+		}
+		// 填充数据到已获取的 Record 对象
+		for k, v := range *anyMap {
+			rd[k] = v
+		}
 	default: //其他二级索引通过Parse得到的是主键ID值，需要回表才能得到记录。
 		// 拼接主键前缀和索引值，得到主键key
 		pk := t.table.GetPrimaryKey()
-		//pktylen := pk.GetfieldTypeLen(&t.table.fields)
 		pfx := pk.JoinValue(fieldsBytes, t.table.id)
 		// 回表读取完整记录
 		byrecord := t.table.ReadByBytes(pfx)
@@ -126,14 +136,24 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		}
 		//通过主键解析记录
 		trd, err := pk.Parse(t.table.fieldsid, byrecord)
+		defer PutFieldsBytesMap(*trd)
 		if err != nil || trd == nil {
 			return nil
 		}
 		//转换为记录 ： *map[string][]byte ==> *map[string]any
-		rd = record.Record(*t.table.RecordByteToAny(trd))
+		anyMap := t.table.RecordByteToAny(trd)
+		if anyMap == nil {
+			return nil
+		}
+		// 填充数据到已获取的 Record 对象
+		for k, v := range *anyMap {
+			rd[k] = v
+		}
 	}
+
 	//版本号字段是乐观锁内部机制，不应该返回给用户
 	delete(rd, "v")
+
 	return rd
 }
 
@@ -298,6 +318,7 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 	var rd record.Record
 	var rdany *map[string]any
 	var fieldsBytes *map[string][]byte
+
 	page := PageNew(limit...)
 	count := 0
 	loop := 0
@@ -346,6 +367,7 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 			break
 		}
 	}
+	PutFieldsBytesMap(*fieldsBytes)
 }
 
 // 遍历迭代器导出数据

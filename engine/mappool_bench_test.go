@@ -91,21 +91,6 @@ func BenchmarkMakeStringSlice(b *testing.B) {
 	}
 }
 
-// 基准测试：使用对象池获取和归还 map[string]any
-func BenchmarkGetPutStringAnyMap(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		// 从对象池获取
-		m := GetStringAnyMap()
-		// 模拟使用
-		m["key1"] = "value1"
-		m["key2"] = 123
-		m["key3"] = true
-		// 归还到对象池
-		PutStringAnyMap(m)
-	}
-}
-
 // 基准测试：不使用对象池，每次创建新的 map[string]any
 func BenchmarkMakeStringAnyMap(b *testing.B) {
 	b.ResetTimer()

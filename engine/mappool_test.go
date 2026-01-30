@@ -82,29 +82,6 @@ func TestMapPoolCleanliness(t *testing.T) {
 	})
 
 	// 测试 map[string]any 对象池
-	t.Run("MapStringAny", func(t *testing.T) {
-		// 获取一个对象
-		m := GetStringAnyMap()
-		if len(m) != 0 {
-			t.Errorf("GetStringAnyMap() 返回的 map 不为空，长度为 %d", len(m))
-		}
-
-		// 使用对象
-		m["key"] = "value"
-		if len(m) != 1 {
-			t.Errorf("使用后 map 长度应为 1，实际为 %d", len(m))
-		}
-
-		// 归还对象
-		PutStringAnyMap(m)
-
-		// 再次获取对象，应该是空的
-		m2 := GetStringAnyMap()
-		if len(m2) != 0 {
-			t.Errorf("再次 GetStringAnyMap() 返回的 map 不为空，长度为 %d", len(m2))
-		}
-		PutStringAnyMap(m2)
-	})
 
 	// 测试多次 Get 和 Put 操作
 	t.Run("MultipleOperations", func(t *testing.T) {
@@ -134,13 +111,6 @@ func TestMapPoolCleanliness(t *testing.T) {
 			s = append(s, "value")
 			PutStringSlice(s)
 
-			// 测试 map[string]any
-			m3 := GetStringAnyMap()
-			if len(m3) != 0 {
-				t.Errorf("第 %d 次 GetStringAnyMap() 返回的 map 不为空，长度为 %d", i, len(m3))
-			}
-			m3["key"] = "value"
-			PutStringAnyMap(m3)
 		}
 	})
 }
