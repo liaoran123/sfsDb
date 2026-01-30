@@ -60,7 +60,6 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 
 	// 转换字段为字节数组
 	fieldsBytes := t.FieldsToBytes(fields)
-	defer PutFieldsBytesMap(*fieldsBytes)
 	var batch storage.Batch
 	//是否用户手动控制事务
 	if len(batchs) > 0 { //用户手动控制事务
@@ -74,7 +73,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 			return -1, fmt.Errorf("failed to get batch")
 		}
 	}
-
+	//格式化记录
 	record := t.FormatRecord(fieldsBytes)
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
 	BatchContainer.SetValue(0, record)                               //添加主键value=record
@@ -92,6 +91,15 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 
 	//fmt.Printf("Insert BatchContainer.Len(): %v\n", BatchContainer.Len())
 	return currentID, nil
+	/*
+		数据流动流程
+		1,外部传入 Insert(fields *map[string]any
+		2,// 转换字段为字节数组
+		fieldsBytes := t.FieldsToBytes(fields)
+		3,//格式化记录
+		record := t.FormatRecord(fieldsBytes)
+		4,添加更新记录
+	*/
 }
 
 // 删除记录
@@ -125,7 +133,6 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	//fieldsBytes := t.ParseRecord(record)
 	pk := t.GetPrimaryKey()
 	fieldsBytes, err := pk.Parse(t.fieldsid, record)
-	defer PutFieldsBytesMap(*fieldsBytes)
 	if err != nil {
 		//释放batch资源
 		return err
@@ -193,7 +200,6 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	//fieldsBytes := t.ParseRecord(record)
 	pk := t.GetPrimaryKey()
 	fieldsBytes, err := pk.Parse(t.fieldsid, record)
-	defer PutFieldsBytesMap(*fieldsBytes)
 	if err != nil {
 		return err
 	}
@@ -241,6 +247,19 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	}
 	//fmt.Printf("Update BatchContainer.Len(): %v\n", BatchContainer.Len())
 	return nil
+
+	/*
+		数据流动流程
+		1,外部传入 Update(fields *map[string]any
+		2,//读取旧记录
+		record, err := t.Read(fields)
+		3,反格式化旧记录：
+		fieldsBytes, err := pk.Parse(t.fieldsid, record)
+		4，更新字段值fieldsBytes
+		5,//格式化新记录
+		record = t.FormatRecord(fieldsBytes) 回转到2.
+		6，添加更新记录
+	*/
 }
 
 // 从按主键数据库读取记录

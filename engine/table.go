@@ -195,7 +195,7 @@ func (t *Table) CheckType(fields *map[string]any) error {
 // *map[string]any ==> *map[string][]byte
 // 与RecordByteToAny相反
 func (t *Table) FieldsToBytes(fields *map[string]any) *map[string][]byte {
-	result := GetFieldsBytesMap()
+	result := make(map[string][]byte, len(*fields))
 	for k, v := range *fields {
 		//value为nil时，使用默认值
 		//如果是时间类型，则使用当前时间
@@ -216,6 +216,34 @@ func (t *Table) FieldsToBytes(fields *map[string]any) *map[string][]byte {
 // 对应 func (dpk *DefaultPrimaryKey) Parse(fieldsid map[uint8]string, value []byte) (*map[string][]byte, error)
 // fieldsBytes必须是与t.fields相同的字段
 func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
+	/*
+		对于 FormatRecord 这种高频调用的方法，减少遍历次数和代码复杂度的收益，通常大于精确计算缓冲区大小所带来的内存节省。因此，在这个特定场景中，保守估计是更好的选择。
+		当然，在某些特殊场景下（例如处理非常大的记录，或对内存使用有严格要求的环境），精确计算可能更合适。但对于大多数常规使用场景，保守估计的方案更加平衡和实用。
+	*/
+	// 估算缓冲区大小，减少扩容次数
+	// 每个字段至少需要 1 字节的 ID + 1 字节的分隔符
+	estimatedSize := len(t.fieldsid) * 16 // 保守估计每个字段平均大小
+	buf := bytes.NewBuffer(make([]byte, 0, estimatedSize))
+	//记录格式：field1idvalue1-field2idvalue2-...-fieldNidvalueN
+	// 按照t.fields中的字段顺序来格式化记录，确保顺序一致
+	for id, field := range t.fieldsid {
+		if val, ok := (*fieldsBytes)[field]; ok {
+			// 转义值但不修改原始数据
+			escapedVal := util.Bytes(val).Escape()
+			buf.WriteByte(byte(id))
+			buf.Write(escapedVal)
+			buf.WriteString(SPLIT)
+		}
+	}
+	//删除最后一个分隔符
+	if buf.Len() > 0 {
+		buf.Truncate(buf.Len() - 1)
+	}
+	return buf.Bytes()
+}
+
+/*
+func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 	var buf bytes.Buffer
 	//记录格式：field1idvalue1-field2idvalue2-...-fieldNidvalueN
 	// 按照t.fields中的字段顺序来格式化记录，确保顺序一致
@@ -232,7 +260,7 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 	}
 	return buf.Bytes()
 }
-
+*/
 // *map[string][]byte ==> *map[string]any
 // 与FieldsToBytes相反
 func (t *Table) RecordByteToAny(value *map[string][]byte) *map[string]any {

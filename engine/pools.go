@@ -12,14 +12,14 @@ var (
 			return make(map[any]bool)
 		},
 	}
-
+	/*小对象，对象池操作开销可能大于直接创建
 	// fieldsBytesPool 用于管理 map[string][]byte 类型的对象池
 	fieldsBytesPool = sync.Pool{
 		New: func() any {
 			return make(map[string][]byte)
 		},
 	}
-
+	*/
 	// stringSlicePool 用于管理 []string 类型的对象池
 	stringSlicePool = sync.Pool{
 		New: func() any {
@@ -48,6 +48,7 @@ func PutMap(m map[any]bool) {
 	mapPool.Put(m)
 }
 
+/*
 // GetFieldsBytesMap 从对象池获取一个 map[string][]byte 对象
 func GetFieldsBytesMap() map[string][]byte {
 	m := fieldsBytesPool.Get().(map[string][]byte)
@@ -76,7 +77,7 @@ func ResetFieldsBytesPool() {
 		},
 	}
 }
-
+*/
 // GetStringSlice 从对象池获取一个 []string 切片
 func GetStringSlice() []string {
 	s := stringSlicePool.Get().([]string)

@@ -31,31 +31,6 @@ func TestMapPoolCleanliness(t *testing.T) {
 		PutMap(m2)
 	})
 
-	// 测试 map[string][]byte 对象池
-	t.Run("MapStringBytes", func(t *testing.T) {
-		// 获取一个对象
-		m := GetFieldsBytesMap()
-		if len(m) != 0 {
-			t.Errorf("GetFieldsBytesMap() 返回的 map 不为空，长度为 %d", len(m))
-		}
-
-		// 使用对象
-		m["key"] = []byte("value")
-		if len(m) != 1 {
-			t.Errorf("使用后 map 长度应为 1，实际为 %d", len(m))
-		}
-
-		// 归还对象
-		PutFieldsBytesMap(m)
-
-		// 再次获取对象，应该是空的
-		m2 := GetFieldsBytesMap()
-		if len(m2) != 0 {
-			t.Errorf("再次 GetFieldsBytesMap() 返回的 map 不为空，长度为 %d", len(m2))
-		}
-		PutFieldsBytesMap(m2)
-	})
-
 	// 测试 []string 对象池
 	t.Run("StringSlice", func(t *testing.T) {
 		// 获取一个对象
@@ -96,12 +71,6 @@ func TestMapPoolCleanliness(t *testing.T) {
 			PutMap(m1)
 
 			// 测试 map[string][]byte
-			m2 := GetFieldsBytesMap()
-			if len(m2) != 0 {
-				t.Errorf("第 %d 次 GetFieldsBytesMap() 返回的 map 不为空，长度为 %d", i, len(m2))
-			}
-			m2["key"] = []byte("value")
-			PutFieldsBytesMap(m2)
 
 			// 测试 []string
 			s := GetStringSlice()

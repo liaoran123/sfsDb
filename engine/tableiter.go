@@ -136,7 +136,6 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		}
 		//通过主键解析记录
 		trd, err := pk.Parse(t.table.fieldsid, byrecord)
-		defer PutFieldsBytesMap(*trd)
 		if err != nil || trd == nil {
 			return nil
 		}
@@ -317,7 +316,7 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 	}
 	var rd record.Record
 	var rdany *map[string]any
-
+	var fieldsBytes *map[string][]byte
 	page := PageNew(limit...)
 	count := 0
 	loop := 0
@@ -334,8 +333,7 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 				break
 			}
 		}
-		fieldsBytes := t.ParseBytes(key, value)
-		defer PutFieldsBytesMap(*fieldsBytes)
+		fieldsBytes = t.ParseBytes(key, value)
 		rdany = t.table.RecordByteToAny(fieldsBytes)
 		if t.Match(rdany, t.match) {
 			if loop < page.Start {
