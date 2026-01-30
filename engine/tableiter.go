@@ -237,7 +237,7 @@ func (t *TableIter) GetRecords(esc bool, limit ...int) (r record.Records) {
 
 // 判断主键是否存在
 func (t *TableIter) hasPrimaryKey(rd record.Record) bool {
-	pkfs := t.table.GetPrimaryKey().GetFields()
+	pkfs := t.table.GetPrimaryFields() // t.table.GetPrimaryKey().GetFields()
 	for _, f := range pkfs {
 		if _, ok := rd[f]; !ok {
 			return false
@@ -273,7 +273,7 @@ func (t *TableIter) Delete(limit ...int) error {
 // 更新迭代器中的记录
 func (t *TableIter) Update(fields *map[string]any, limit ...int) error {
 	existpk := false
-	pkfs := t.table.GetPrimaryKey().GetFields()
+	pkfs := t.table.GetPrimaryFields() // t.table.GetPrimaryKey().GetFields()
 	var err error
 	var pkValues map[string]any
 	t.ExportRecord(func(rd *record.Record) bool {
@@ -393,7 +393,7 @@ func (t *TableIter) GetPrimaryKeys(k, v []byte, fields ...string) (r any) {
 	fbs := t.ParseBytes(k, v)
 	fany := t.table.RecordByteToAny(fbs)
 	if len(fields) == 0 {
-		fields = t.table.GetPrimaryKey().GetFields()
+		fields = t.table.GetPrimaryFields() // t.table.GetPrimaryPrimaryKey().GetFields()
 	}
 	r = util.MergeFields(fields, fany)
 	return
