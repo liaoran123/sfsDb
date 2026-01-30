@@ -3,7 +3,6 @@
 package engine
 
 import (
-	"bytes"
 	"fmt"
 	"maps"
 	"reflect"
@@ -27,13 +26,16 @@ type Table struct {
 		底层支持泛型，业务上则由自己定义规则。
 		默认固定一个id字段为自动增值，当值为nil时，使用counter自动增值。
 	*/
-	fields         map[string]any   // 字段映射，string为字段名，any为字段值
-	fieldsid       map[uint8]string // id到字段名的映射
-	indexs         *Indexs          // 索引集合
-	counter        AutoInt          // 自动增值计数器，使用自定义的AutoInt
-	kvStore        storage.Store
-	fieldIDManager *IDManager // 字段ID管理器
-	indexIDManager *IDManager // 索引ID管理器
+	fields              map[string]any   // 字段映射，string为字段名，any为字段值
+	fieldsid            map[uint8]string // id到字段名的映射
+	indexs              *Indexs          // 索引集合
+	counter             AutoInt          // 自动增值计数器，使用自定义的AutoInt
+	kvStore             storage.Store
+	fieldIDManager      *IDManager      // 字段ID管理器
+	indexIDManager      *IDManager      // 索引ID管理器
+	timeFields          map[string]bool // 标记字段是否为时间类型
+	primaryFields       []string        // 缓存的主键字段列表
+	primaryFieldsLoaded bool            // 主键字段列表是否已加载
 }
 
 // 创建或获取一个表
@@ -66,6 +68,21 @@ func (t *Table) GetId() uint8 {
 	return t.id
 }
 
+// GetPrimaryFields 获取主键字段列表（带缓存）
+func (t *Table) GetPrimaryFields() []string {
+	if !t.primaryFieldsLoaded {
+		t.primaryFields = t.GetPrimaryKey().GetFields()
+		t.primaryFieldsLoaded = true
+	}
+	return t.primaryFields
+}
+
+// ResetPrimaryFields 重置主键字段列表缓存
+func (t *Table) ResetPrimaryFields() {
+	t.primaryFieldsLoaded = false
+	t.primaryFields = nil
+}
+
 // 必须先为表预设字段和类型
 // 由于进行乐观锁的设计，版本号字段默认是v，占据一个字段，故而只支持254个字段。默认版本号值为0，每次更新时自动增加1
 func (t *Table) SetFields(fields map[string]any) error {
@@ -94,6 +111,10 @@ func (t *Table) SetFields(fields map[string]any) error {
 	//添加版本号字段，并设置id为255
 	t.fields["v"] = 0
 	t.fieldsid[uint8(255)] = "v"
+
+	// 更新时间字段映射
+	t.initTimeFields()
+
 	return nil
 }
 
@@ -145,9 +166,11 @@ func (t *Table) GetField(field string) (any, bool) {
 }
 
 // 获取所有字段值，用于添加记录时，直接复制，无需自行创建。
+//
+//go:inline
 func (t *Table) GetAllFields() map[string]any {
 	// 返回字段的副本，避免直接修改内部状态
-	result := make(map[string]any)
+	result := make(map[string]any, len(t.fields))
 	maps.Copy(result, t.fields)
 	return result
 }
@@ -171,9 +194,11 @@ func (t *Table) GetFieldsName() []string {
 }
 
 // 检查类型是否匹配
+//
+//go:inline
 func (t *Table) CheckType(fields *map[string]any) error {
 	for field, value := range *fields {
-		fieldValue, exists := t.GetField(field)
+		fieldValue, exists := t.fields[field]
 		// 只检查已经存在于表中的字段的类型
 		if exists {
 			// 检查类型是否匹配
@@ -194,13 +219,15 @@ func (t *Table) CheckType(fields *map[string]any) error {
 // 将数据转换为字节数组，该合适添加时用。搜索时nil值不能更改
 // *map[string]any ==> *map[string][]byte
 // 与RecordByteToAny相反
+//
+//go:inline
 func (t *Table) FieldsToBytes(fields *map[string]any) *map[string][]byte {
 	result := make(map[string][]byte, len(*fields))
 	for k, v := range *fields {
 		//value为nil时，使用默认值
 		//如果是时间类型，则使用当前时间
 		if v == nil {
-			if reflect.TypeOf(t.fields[k]) == reflect.TypeFor[time.Time]() {
+			if t.isTimeField(k) {
 				v = time.Now()
 			} else {
 				v = t.fields[k]
@@ -211,11 +238,41 @@ func (t *Table) FieldsToBytes(fields *map[string]any) *map[string][]byte {
 	return &result
 }
 
+// isTimeField 检查字段是否为时间类型
+func (t *Table) isTimeField(field string) bool {
+	if t.timeFields == nil {
+		t.initTimeFields()
+	}
+	return t.timeFields[field]
+}
+
+// initTimeFields 初始化时间字段映射
+func (t *Table) initTimeFields() {
+	t.timeFields = make(map[string]bool)
+	for field, value := range t.fields {
+		t.timeFields[field] = reflect.TypeOf(value) == reflect.TypeFor[time.Time]()
+	}
+}
+
+// BatchFieldsToBytes 批量转换多个记录
+//
+//go:inline
+func (t *Table) BatchFieldsToBytes(records []*map[string]any) []*map[string][]byte {
+	results := make([]*map[string][]byte, len(records))
+	for i, fields := range records {
+		results[i] = t.FieldsToBytes(fields)
+	}
+	return results
+}
+
 // 格式化记录
 // fieldsid  map[uint8]string // id到字段名的映射的关键作用在这里。第一个字节是字段id，后面是字段值。解析方法简单。
 // 对应 func (dpk *DefaultPrimaryKey) Parse(fieldsid map[uint8]string, value []byte) (*map[string][]byte, error)
 // fieldsBytes必须是与t.fields相同的字段
-func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
+// 编译器优化 ： //go:inline 提示编译器进行内联优化，减少函数调用开销
+
+//go:inline
+func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) []byte {
 	/*
 		对于 FormatRecord 这种高频调用的方法，减少遍历次数和代码复杂度的收益，通常大于精确计算缓冲区大小所带来的内存节省。因此，在这个特定场景中，保守估计是更好的选择。
 		当然，在某些特殊场景下（例如处理非常大的记录，或对内存使用有严格要求的环境），精确计算可能更合适。但对于大多数常规使用场景，保守估计的方案更加平衡和实用。
@@ -223,23 +280,40 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 	// 估算缓冲区大小，减少扩容次数
 	// 每个字段至少需要 1 字节的 ID + 1 字节的分隔符
 	estimatedSize := len(t.fieldsid) * 16 // 保守估计每个字段平均大小
-	buf := bytes.NewBuffer(make([]byte, 0, estimatedSize))
+	data := make([]byte, 0, estimatedSize)
 	//记录格式：field1idvalue1-field2idvalue2-...-fieldNidvalueN
 	// 按照t.fields中的字段顺序来格式化记录，确保顺序一致
 	for id, field := range t.fieldsid {
 		if val, ok := (*fieldsBytes)[field]; ok {
 			// 转义值但不修改原始数据
 			escapedVal := util.Bytes(val).Escape()
-			buf.WriteByte(byte(id))
-			buf.Write(escapedVal)
-			buf.WriteString(SPLIT)
+			// 直接使用 append 操作字节切片
+			data = append(data, byte(id))
+			data = append(data, escapedVal...)
+			data = append(data, SPLIT...)
 		}
 	}
 	//删除最后一个分隔符
-	if buf.Len() > 0 {
-		buf.Truncate(buf.Len() - 1)
+	if len(data) > 0 {
+		data = data[:len(data)-len(SPLIT)]
 	}
-	return buf.Bytes()
+	return data
+}
+
+// BatchFormatRecords 批量格式化多个记录
+// 对于批量处理场景，此方法比多次调用 FormatRecord 更高效
+//
+//go:inline
+func (t *Table) BatchFormatRecords(records []*map[string][]byte) [][]byte {
+	// 预分配结果切片，减少扩容次数
+	results := make([][]byte, len(records))
+
+	// 批量处理所有记录
+	for i, fieldsBytes := range records {
+		results[i] = t.FormatRecord(fieldsBytes)
+	}
+
+	return results
 }
 
 /*
@@ -263,6 +337,8 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) (r []byte) {
 */
 // *map[string][]byte ==> *map[string]any
 // 与FieldsToBytes相反
+//
+//go:inline
 func (t *Table) RecordByteToAny(value *map[string][]byte) *map[string]any {
 	// 检查参数
 	if value == nil || t.fields == nil {
@@ -273,6 +349,17 @@ func (t *Table) RecordByteToAny(value *map[string][]byte) *map[string]any {
 		fields[field] = util.Bytes(val).ToAny(t.fields[field])
 	}
 	return &fields
+}
+
+// BatchRecordByteToAny 批量转换多个记录
+//
+//go:inline
+func (t *Table) BatchRecordByteToAny(records []*map[string][]byte) []*map[string]any {
+	results := make([]*map[string]any, len(records))
+	for i, value := range records {
+		results[i] = t.RecordByteToAny(value)
+	}
+	return results
 }
 
 // 获取所有索引的名称和id映射

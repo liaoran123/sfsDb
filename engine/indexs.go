@@ -7,9 +7,15 @@ import (
 
 // 索引管理结构
 type Indexs struct {
-	id     uint8
-	indexs []Index
-	fields *map[string]any //表字段
+	id                   uint8
+	indexs               []Index
+	fields               *map[string]any //表字段
+	primaryKey           PrimaryKey
+	primaryKeyLoaded     bool
+	normalIndexs         []NormalIndex
+	normalIndexsLoaded   bool
+	fullTextIndexs       []FullTextIndex
+	fullTextIndexsLoaded bool
 }
 
 /*
@@ -66,40 +72,55 @@ func (i *Indexs) createIndex(index Index, idxid uint8) error {
 	// 添加索引
 	index.setId(idxid)
 	i.indexs = append(i.indexs, index)
+	// 重置缓存
+	i.primaryKeyLoaded = false
+	i.normalIndexsLoaded = false
+	i.fullTextIndexsLoaded = false
 	return nil
 }
 
 // 返回PrimaryKey索引
 func (i *Indexs) getPrimaryKey() PrimaryKey {
-	for _, index := range i.indexs {
-		if _, ok := index.(PrimaryKey); ok {
-			return index.(PrimaryKey)
+	if !i.primaryKeyLoaded {
+		for _, index := range i.indexs {
+			if pk, ok := index.(PrimaryKey); ok {
+				i.primaryKey = pk
+				i.primaryKeyLoaded = true
+				return pk
+			}
 		}
+		i.primaryKeyLoaded = true // 标记为已加载，即使没有找到
 	}
-	return nil
+	return i.primaryKey
 }
 
 // 返回普通索引
 func (i *Indexs) GetNormalIndexs() []NormalIndex {
-	normalIndexs := make([]NormalIndex, 0)
-	//普通索引是基类，全部匹配，所以需要判断不是PrimaryKey和FullTextIndex才符合普通索引
-	for _, index := range i.indexs {
-		if _, ok := index.(NormalIndex); ok {
-			normalIndexs = append(normalIndexs, index.(NormalIndex))
+	if !i.normalIndexsLoaded {
+		i.normalIndexs = make([]NormalIndex, 0)
+		//普通索引是基类，全部匹配，所以需要判断不是PrimaryKey和FullTextIndex才符合普通索引
+		for _, index := range i.indexs {
+			if _, ok := index.(NormalIndex); ok {
+				i.normalIndexs = append(i.normalIndexs, index.(NormalIndex))
+			}
 		}
+		i.normalIndexsLoaded = true
 	}
-	return normalIndexs
+	return i.normalIndexs
 }
 
 // 返回全文索引
 func (i *Indexs) GetFullTextIndexs() []FullTextIndex {
-	fullTextIndexs := make([]FullTextIndex, 0)
-	for _, index := range i.indexs {
-		if _, ok := index.(FullTextIndex); ok {
-			fullTextIndexs = append(fullTextIndexs, index.(FullTextIndex))
+	if !i.fullTextIndexsLoaded {
+		i.fullTextIndexs = make([]FullTextIndex, 0)
+		for _, index := range i.indexs {
+			if _, ok := index.(FullTextIndex); ok {
+				i.fullTextIndexs = append(i.fullTextIndexs, index.(FullTextIndex))
+			}
 		}
+		i.fullTextIndexsLoaded = true
 	}
-	return fullTextIndexs
+	return i.fullTextIndexs
 }
 
 // 删除索引
@@ -108,6 +129,10 @@ func (i *Indexs) DeleteIndex(name string) error {
 		if index.Name() == name {
 			// 移除索引
 			i.indexs = append(i.indexs[:idx], i.indexs[idx+1:]...)
+			// 重置缓存
+			i.primaryKeyLoaded = false
+			i.normalIndexsLoaded = false
+			i.fullTextIndexsLoaded = false
 			return nil
 		}
 	}

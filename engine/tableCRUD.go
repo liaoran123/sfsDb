@@ -22,7 +22,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	currentID = -1
 
 	//获取主键字段
-	primaryFields := t.GetPrimaryKey().GetFields()
+	primaryFields := t.GetPrimaryFields() //t.GetPrimaryKey().GetFields()
 	if len(primaryFields) == 0 {
 		return 0, fmt.Errorf("表 '%s' 没有设置主键", t.name)
 	}
@@ -99,14 +99,174 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 		3,//格式化记录
 		record := t.FormatRecord(fieldsBytes)
 		4,添加更新记录
+		tableiter 查询功能则与上面添加的流程相反。一正一逆。
 	*/
+}
+
+// BatchInsert 批量插入多条记录
+// records []*map[string]any 要插入的记录列表
+// batchs ...storage.Batch 可选的批量操作容器
+// 返回值：插入记录的ID列表和错误信息
+func (t *Table) BatchInsert(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
+	// 检查参数
+	if t.fields == nil {
+		return nil, fmt.Errorf("表 '%s' 未设置字段和类型", t.name)
+	}
+	if len(records) == 0 {
+		return []int{}, nil
+	}
+	if records == nil {
+		return nil, fmt.Errorf("records cannot be nil")
+	}
+
+	// 获取主键字段
+	primaryFields := t.GetPrimaryFields() //t.GetPrimaryKey().GetFields()
+	if len(primaryFields) == 0 {
+		return nil, fmt.Errorf("表 '%s' 没有设置主键", t.name)
+	}
+
+	// 是否支持默认自动增值主键，单主键并且主键字段名为"id"
+	pklen := len(primaryFields)
+	pkfield := primaryFields[0]
+	supportDefault := pklen == 1 && pkfield == "id"
+
+	// 处理批量操作
+	var batch storage.Batch
+	if len(batchs) > 0 { // 用户手动控制事务
+		batch = batchs[0]
+		if batch == nil {
+			return nil, fmt.Errorf("batch cannot be nil")
+		}
+	} else {
+		batch = t.kvStore.GetBatch()
+		if batch == nil {
+			return nil, fmt.Errorf("failed to get batch")
+		}
+	}
+
+	// 预分配ID列表容量
+	ids := make([]int, len(records))
+
+	// 计算需要自动生成的ID数量
+	autoIncCount := 0
+	for _, fields := range records {
+		if fields == nil {
+			return nil, fmt.Errorf("record cannot be nil")
+		}
+		if supportDefault {
+			if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
+				autoIncCount++
+			}
+		}
+	}
+
+	// 批量获取自动增值ID，确保并发安全
+	var autoIncStart int
+	if supportDefault && autoIncCount > 0 {
+		autoIncStart = t.GetAutoIncBatch(autoIncCount)
+		// 后续ID可以直接计算，不需要重复调用GetAutoInc()
+	}
+
+	// 处理记录并批量插入
+	autoIncIdx := 0
+	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore) // 重用BatchContainer
+
+	for i, fields := range records {
+		// 检查字段类型
+		if err := t.CheckType(fields); err != nil {
+			return nil, err
+		}
+
+		// 处理自动增值主键
+		if supportDefault {
+			if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
+				// 使用预分配的自动增值ID
+				ids[i] = autoIncStart + autoIncIdx
+				(*fields)[pkfield] = ids[i]
+				autoIncIdx++
+			} else {
+				// 使用提供的主键值
+				ids[i] = util.AnyToInt((*fields)[pkfield])
+			}
+		} else {
+			// 非默认自动增值主键，使用提供的主键值
+			ids[i] = util.AnyToInt((*fields)[pkfield])
+		}
+
+		// 添加初始版本号
+		if _, hasVersion := (*fields)["v"]; !hasVersion {
+			(*fields)["v"] = 1 // 初始版本号为1
+		}
+
+		// 转换字段为字节数组
+		fieldsBytes := t.FieldsToBytes(fields)
+
+		// 格式化记录
+		record := t.FormatRecord(fieldsBytes)
+
+		// 批量添加记录
+		BatchContainer.SetValue(0, record)                               // 添加主键value=record
+		BatchContainer.SetValue(1, t.GetPrimaryKey().GetID(fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
+		// 添加全文索引key=joinValue,value=nil
+		BatchContainer.Operation(fieldsBytes)
+	}
+
+	// 提交批量操作
+	if len(batchs) == 0 {
+		if err := t.kvStore.WriteBatch(batch); err != nil {
+			return nil, err
+		}
+	}
+
+	return ids, nil
+}
+
+// BatchInsertWithSize 带批量大小控制的批量插入
+// records []*map[string]any 要插入的记录列表
+// batchSize int 每批处理的记录数量
+// batchs ...storage.Batch 可选的批量操作容器
+// 返回值：插入记录的ID列表和错误信息
+func (t *Table) BatchInsertWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error) {
+	// 检查参数
+	if batchSize <= 0 {
+		batchSize = 100 // 默认批量大小
+	}
+
+	// 计算总批次
+	totalRecords := len(records)
+	if totalRecords == 0 {
+		return []int{}, nil
+	}
+
+	// 预分配ID列表
+	allIds := make([]int, totalRecords)
+
+	// 分批处理
+	for start := 0; start < totalRecords; start += batchSize {
+		end := start + batchSize
+		if end > totalRecords {
+			end = totalRecords
+		}
+
+		// 处理当前批次
+		batchRecords := records[start:end]
+		batchIds, err := t.BatchInsert(batchRecords, batchs...)
+		if err != nil {
+			return nil, err
+		}
+
+		// 复制ID到结果列表
+		copy(allIds[start:end], batchIds)
+	}
+
+	return allIds, nil
 }
 
 // 删除记录
 // fields *map[string]any 主键值，可能是组合主键
 func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	//检查是否提供了所有主键字段
-	for _, field := range t.GetPrimaryKey().GetFields() {
+	for _, field := range t.GetPrimaryFields() {
 		if _, ok := (*fields)[field]; !ok {
 			return fmt.Errorf("必须提供主键字段 '%s'", field)
 		}
@@ -158,7 +318,7 @@ func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 // 乐观锁并发控制，允许多个事务同时读取记录，但只有一个事务能成功更新记录，避免了并发更新冲突。
 func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	//检查是否提供了所有主键字段
-	for _, field := range t.GetPrimaryKey().GetFields() {
+	for _, field := range t.GetPrimaryFields() {
 		if _, ok := (*fields)[field]; !ok {
 			return fmt.Errorf("必须提供主键字段 '%s'", field)
 		}

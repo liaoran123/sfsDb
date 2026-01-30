@@ -10,6 +10,22 @@ func (t *Table) GetAutoInc() int {
 	return int(t.counter.Increment())
 }
 
+// GetAutoIncBatch 批量获取自动增值的值
+// count 需要获取的ID数量
+// 返回值：第一个ID的值
+func (t *Table) GetAutoIncBatch(count int) int {
+	if count <= 0 {
+		return 0
+	}
+	if t.counter.Get() == 0 {
+		t.InitAuto()
+	}
+	// 先获取当前值，然后增加count
+	current := t.counter.Get()
+	t.counter.IncrementBy(count)
+	return current + 1 // 返回第一个可用的ID
+}
+
 // 初始化自动增值的值
 func (t *Table) InitAuto() {
 	maxValue := t.MaxAutoValue()

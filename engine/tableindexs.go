@@ -128,7 +128,11 @@ func (t *Table) createIndexData(index Index) error {
 	slice := util.NewRangeHelper(pkPrefix).FromComparison(util.Like, pkPrefix)
 	//pkPrefix创建迭代器
 	iter := t.kvStore.Iterator(slice.Start, slice.Limit)
-	defer iter.Release()
+	if iter != nil {
+		defer iter.Release()
+	} else {
+		return nil
+	}
 	//遍历所有数据
 	//var fieldsBytes *map[string][]byte
 	var value []byte

@@ -40,3 +40,11 @@ func (a *AutoInt) Reset() {
 	defer autoIntLock.Unlock()
 	*a = 0
 }
+
+// IncrementBy 批量增加指定的值，并返回增加后的值
+func (a *AutoInt) IncrementBy(n int) int {
+	autoIntLock.Lock()
+	defer autoIntLock.Unlock()
+	*a += AutoInt(n)
+	return int(*a)
+}
