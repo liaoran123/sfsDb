@@ -317,7 +317,6 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 	}
 	var rd record.Record
 	var rdany *map[string]any
-	//var fieldsBytes *map[string][]byte
 
 	page := PageNew(limit...)
 	count := 0

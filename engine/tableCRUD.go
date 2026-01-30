@@ -60,7 +60,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 
 	// 转换字段为字节数组
 	fieldsBytes := t.FieldsToBytes(fields)
-
+	defer PutFieldsBytesMap(*fieldsBytes)
 	var batch storage.Batch
 	//是否用户手动控制事务
 	if len(batchs) > 0 { //用户手动控制事务
@@ -125,6 +125,7 @@ func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	//fieldsBytes := t.ParseRecord(record)
 	pk := t.GetPrimaryKey()
 	fieldsBytes, err := pk.Parse(t.fieldsid, record)
+	defer PutFieldsBytesMap(*fieldsBytes)
 	if err != nil {
 		//释放batch资源
 		return err
@@ -192,6 +193,7 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	//fieldsBytes := t.ParseRecord(record)
 	pk := t.GetPrimaryKey()
 	fieldsBytes, err := pk.Parse(t.fieldsid, record)
+	defer PutFieldsBytesMap(*fieldsBytes)
 	if err != nil {
 		return err
 	}
