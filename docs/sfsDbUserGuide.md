@@ -1809,6 +1809,187 @@ records = append(records, record2)
 record.PutRecords(records)
 ```
 
+#### 9.2.3 Map 对象操作
+
+sfsDb 还实现了 `map[any]bool` 类型的对象池管理，用于优化 `TableIter.Map()` 方法返回的映射对象。
+
+```go
+// 从对象池获取 map[any]bool 对象
+import "github.com/liaoran123/sfsDb/engine"
+
+// 从对象池获取 map[any]bool 对象
+m := engine.GetMap()
+
+// 使用 map 对象
+m[1] = true
+m[2] = true
+m[3] = true
+
+// 手动将 map 对象放回对象池（可选）
+engine.PutMap(m)
+```
+
+**核心实现**：
+
+```go
+// mapPool 用于管理 map[any]bool 类型的对象池
+var mapPool = sync.Pool{
+	New: func() any {
+		return make(map[any]bool)
+	},
+}
+
+// GetMap 从对象池获取一个 map[any]bool 对象
+func GetMap() map[any]bool {
+	m := mapPool.Get().(map[any]bool)
+	// 清空 map 中的所有键值对，确保返回的数据干净
+	for k := range m {
+		delete(m, k)
+	}
+	// 创建一个指向 map 的指针，用于设置 finalizer
+	mapPtr := &m
+	// 确保在对象被垃圾回收时清除其中的键值对
+	runtime.SetFinalizer(mapPtr, func(ptr *map[any]bool) {
+		if *ptr != nil {
+			// 清空 map 中的所有键值对，确保对象池中的对象始终是干净的
+			for k := range *ptr {
+				delete(*ptr, k)
+			}
+		}
+	})
+	return m
+}
+
+// PutMap 将 map[any]bool 对象归还到对象池
+func PutMap(m map[any]bool) {
+	// 清空 map 中的所有键值对，确保归还的对象干净
+	for k := range m {
+		delete(m, k)
+	}
+	mapPool.Put(m)
+}
+```
+
+**使用场景**：
+- 主要用于 `TableIter.Map()` 方法返回的映射对象，用于与其他迭代器进行匹配
+- 适合需要频繁创建和销毁大 `map` 的场景，如生成匹配数据集合
+- 自动管理对象生命周期，减少内存分配和垃圾回收开销
+
+#### 9.2.4 动态分析与监控功能
+
+sfsDb 提供了动态分析切换方案，可根据系统状态自动选择最佳的对象创建策略，平衡性能和系统稳定性。
+
+##### 9.2.4.1 策略类型
+
+| 策略类型 | 描述 | 适用场景 |
+|---------|------|----------|
+| 静态分类策略（默认） | 基于对象类型选择创建方式，不进行系统状态监控 | 大多数场景，追求最佳性能 |
+| 动态分析策略 | 基于系统状态自动切换创建方式 | 高并发场景，负载波动大 |
+| 混合策略 | 结合静态和动态策略的优点 | 生产环境，平衡性能和稳定性 |
+
+##### 9.2.4.2 配置方法
+
+```go
+// 设置策略配置
+import "github.com/liaoran123/sfsDb/engine"
+
+// 配置静态策略（默认）
+engine.SetStrategyConfig(engine.StrategyConfig{
+	StrategyType:       engine.StrategyStatic,
+	ConcurrencyThreshold: 1000,
+	MemoryThreshold:    500, // MB
+	RequestThreshold:   1000, // 每分钟请求数
+})
+
+// 配置动态策略
+engine.SetStrategyConfig(engine.StrategyConfig{
+	StrategyType:       engine.StrategyDynamic,
+	ConcurrencyThreshold: 1000,
+	MemoryThreshold:    500,
+	RequestThreshold:   1000,
+})
+
+// 配置混合策略
+engine.SetStrategyConfig(engine.StrategyConfig{
+	StrategyType:       engine.StrategyHybrid,
+	ConcurrencyThreshold: 1000,
+	MemoryThreshold:    500,
+	RequestThreshold:   1000,
+})
+```
+
+##### 9.2.4.3 快速策略切换
+
+```go
+// 切换到静态策略
+engine.SwitchToStaticStrategy()
+
+// 切换到动态策略
+engine.SwitchToDynamicStrategy()
+
+// 切换到混合策略
+engine.SwitchToHybridStrategy()
+
+// 更新策略阈值
+engine.UpdateStrategyThresholds(500, 300, 500)
+```
+
+##### 9.2.4.4 使用示例
+
+```go
+// 使用配置策略获取 []string 切片
+import "github.com/liaoran123/sfsDb/engine"
+
+// 确保使用静态策略（默认）
+engine.SwitchToStaticStrategy()
+
+// 获取切片
+slice := engine.GetStringSliceWithConfigStrategy()
+
+// 使用切片
+slice = append(slice, "field1")
+slice = append(slice, "field2")
+
+// 归还切片
+engine.PutStringSliceWithConfigStrategy(slice)
+
+// 在高负载场景下切换到混合策略
+engine.SwitchToHybridStrategy()
+// 更新阈值以适应具体环境
+engine.UpdateStrategyThresholds(500, 300, 500)
+
+// 继续使用相同的接口
+slice2 := engine.GetStringSliceWithConfigStrategy()
+// 使用并归还...
+```
+
+##### 9.2.4.5 系统状态监控
+
+动态策略和混合策略会监控以下系统状态指标：
+
+- **并发数**：当前系统并发请求数
+- **内存使用**：系统内存使用情况（MB）
+- **请求频率**：单位时间内的请求数（每分钟）
+
+当这些指标超过配置的阈值时，系统会自动调整对象创建策略，以优化性能和资源使用。
+
+##### 9.2.4.6 性能分析
+
+| 策略类型 | 性能表现 | 适用场景 |
+|---------|---------|----------|
+| 静态策略 | 最佳性能，无监控开销 | 低负载场景，性能优先 |
+| 动态策略 | 监控开销较大，性能较差 | 需要详细系统状态数据的场景 |
+| 混合策略 | 平衡性能和稳定性 | 生产环境，负载波动大 |
+
+##### 9.2.4.7 最佳实践
+
+1. **默认使用静态策略**：在大多数场景下，静态策略提供最佳性能
+2. **高负载场景使用混合策略**：在高并发、负载波动大的场景下，混合策略可以自动调整
+3. **调整阈值参数**：根据具体硬件环境和应用场景调整切换阈值
+4. **监控系统状态**：在生产环境中，监控系统状态，了解策略切换的时机
+
+通过灵活使用不同的策略类型，您可以根据具体场景优化 sfsDb 的性能和资源使用，获得最佳的系统表现。
+
 ### 9.3 自动释放机制
 
 sfsDb 实现了智能的自动释放机制，即使忘记手动调用 PutRecord/PutRecords，对象也会在垃圾收集时自动释放回对象池：

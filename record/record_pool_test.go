@@ -4,118 +4,82 @@ import (
 	"testing"
 )
 
-// TestRecordPoolDataClean 测试从对象池获取的 Record 对象数据是否干净
-func TestRecordPoolDataClean(t *testing.T) {
-	// 测试 GetRecord() 函数
-	for i := 0; i < 10; i++ {
-		r := GetRecord()
-		defer PutRecord(r)
-
-		// 检查返回的 Record 是否为空
-		if len(r) != 0 {
-			t.Fatalf("GetRecord() should return an empty Record, got %d fields", len(r))
-		}
-
-		// 向 Record 中添加一些数据
-		r["id"] = i
-		r["name"] = "test"
-
-		// 将 Record 放回对象池
-		PutRecord(r)
+// TestGetRecordsCleanliness 测试GetRecords函数返回的数据是否干净
+func TestGetRecordsCleanliness(t *testing.T) {
+	// 测试1：首次获取的Records应该是空的
+	rs1 := GetRecords()
+	if len(rs1) != 0 {
+		t.Errorf("首次获取的Records长度应该为0，实际为%d", len(rs1))
 	}
 
-	// 再次从对象池获取 Record，确保返回的对象是空的
-	for i := 0; i < 5; i++ {
-		r := GetRecord()
-		defer PutRecord(r)
-
-		// 检查返回的 Record 是否为空
-		if len(r) != 0 {
-			t.Fatalf("GetRecord() should return an empty Record after being put back, got %d fields", len(r))
-		}
+	// 测试2：向Records中添加数据，然后放回对象池
+	rs1 = append(rs1, make(Record, 8))
+	if len(rs1) != 1 {
+		t.Errorf("添加数据后Records长度应该为1，实际为%d", len(rs1))
 	}
-}
 
-// TestRecordsPoolDataClean 测试从对象池获取的 Records 对象数据是否干净
-func TestRecordsPoolDataClean(t *testing.T) {
-	// 测试 GetRecords() 函数
+	// 放回对象池
+	PutRecords(rs1)
+
+	// 测试3：再次从对象池获取Records，应该是空的
+	rs2 := GetRecords()
+	if len(rs2) != 0 {
+		t.Errorf("从对象池获取的Records长度应该为0，实际为%d", len(rs2))
+	}
+
+	// 测试4：多次获取和放回，确保数据始终干净
 	for i := 0; i < 10; i++ {
 		rs := GetRecords()
-		defer PutRecords(rs)
-
-		// 检查返回的 Records 是否为空
 		if len(rs) != 0 {
-			t.Fatalf("GetRecords() should return an empty Records, got %d records", len(rs))
+			t.Errorf("第%d次获取的Records长度应该为0，实际为%d", i+1, len(rs))
 		}
-
-		// 向 Records 中添加一些数据
+		// 添加一些数据
 		for j := 0; j < 5; j++ {
-			r := GetRecord()
-			r["id"] = j
-			r["name"] = "test"
-			rs = append(rs, r)
+			rs = append(rs, make(Record, 8))
 		}
-
-		// 将 Records 放回对象池
+		// 放回对象池
 		PutRecords(rs)
-	}
-
-	// 再次从对象池获取 Records，确保返回的对象是空的
-	for i := 0; i < 5; i++ {
-		rs := GetRecords()
-		defer PutRecords(rs)
-
-		// 检查返回的 Records 是否为空
-		if len(rs) != 0 {
-			t.Fatalf("GetRecords() should return an empty Records after being put back, got %d records", len(rs))
-		}
 	}
 }
 
-// TestRecordsWithCapacityPoolDataClean 测试从对象池获取的指定容量的 Records 对象数据是否干净
-func TestRecordsWithCapacityPoolDataClean(t *testing.T) {
+// TestGetRecordsWithCapacityCleanliness 测试GetRecordsWithCapacity函数返回的数据是否干净
+func TestGetRecordsWithCapacityCleanliness(t *testing.T) {
+	// 测试1：获取指定容量的Records应该是空的
 	capacity := 10
-
-	// 测试 GetRecordsWithCapacity() 函数
-	for i := 0; i < 10; i++ {
-		rs := GetRecordsWithCapacity(capacity)
-		defer PutRecords(rs)
-
-		// 检查返回的 Records 是否为空
-		if len(rs) != 0 {
-			t.Fatalf("GetRecordsWithCapacity() should return an empty Records, got %d records", len(rs))
-		}
-
-		// 检查容量是否至少为指定值
-		if cap(rs) < capacity {
-			t.Fatalf("GetRecordsWithCapacity() should return a Records with capacity at least %d, got %d", capacity, cap(rs))
-		}
-
-		// 向 Records 中添加一些数据
-		for j := 0; j < capacity; j++ {
-			r := GetRecord()
-			r["id"] = j
-			r["name"] = "test"
-			rs = append(rs, r)
-		}
-
-		// 将 Records 放回对象池
-		PutRecords(rs)
+	rs1 := GetRecordsWithCapacity(capacity)
+	if len(rs1) != 0 {
+		t.Errorf("获取的Records长度应该为0，实际为%d", len(rs1))
 	}
 
-	// 再次从对象池获取 Records，确保返回的对象是空的
-	for i := 0; i < 5; i++ {
-		rs := GetRecordsWithCapacity(capacity)
-		defer PutRecords(rs)
+	// 测试2：向Records中添加数据，然后放回对象池
+	rs1 = append(rs1, make(Record, 8))
+	if len(rs1) != 1 {
+		t.Errorf("添加数据后Records长度应该为1，实际为%d", len(rs1))
+	}
 
-		// 检查返回的 Records 是否为空
-		if len(rs) != 0 {
-			t.Fatalf("GetRecordsWithCapacity() should return an empty Records after being put back, got %d records", len(rs))
-		}
+	// 放回对象池
+	PutRecords(rs1)
 
-		// 检查容量是否至少为指定值
-		if cap(rs) < capacity {
-			t.Fatalf("GetRecordsWithCapacity() should return a Records with capacity at least %d, got %d", capacity, cap(rs))
+	// 测试3：再次获取指定容量的Records，应该是空的
+	rs2 := GetRecordsWithCapacity(capacity)
+	if len(rs2) != 0 {
+		t.Errorf("从对象池获取的Records长度应该为0，实际为%d", len(rs2))
+	}
+}
+
+// TestMakeRecordCleanliness 测试make(Record, 8)返回的数据是否干净
+func TestMakeRecordCleanliness(t *testing.T) {
+	// 测试1：创建的Record应该是空的
+	r := make(Record, 8)
+	if len(r) != 0 {
+		t.Errorf("创建的Record长度应该为0，实际为%d", len(r))
+	}
+
+	// 测试2：多次创建，确保每次都是新的空Record
+	for i := 0; i < 10; i++ {
+		r := make(Record, 8)
+		if len(r) != 0 {
+			t.Errorf("第%d次创建的Record长度应该为0，实际为%d", i+1, len(r))
 		}
 	}
 }

@@ -104,11 +104,12 @@ func TestRecordsSelect(t *testing.T) {
 		if len(result[0]) != 2 {
 			t.Errorf("Expected 2 fields in first record, got %d", len(result[0]))
 		}
+		// 添加调试输出
 		if result[0]["name"] != "张三" || result[1]["name"] != "李四" {
-			t.Error("Expected correct names")
+			t.Errorf("Expected correct names, got result[0][\"name\"]=%v, result[1][\"name\"]=%v", result[0]["name"], result[1]["name"])
 		}
 		if result[0]["age"] != 30 || result[1]["age"] != 25 {
-			t.Error("Expected correct ages")
+			t.Errorf("Expected correct ages, got result[0][\"age\"]=%v, result[1][\"age\"]=%v", result[0]["age"], result[1]["age"])
 		}
 	})
 

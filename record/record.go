@@ -23,7 +23,7 @@ func BatchSelect(records Records, fields ...string) Records {
 			continue
 		}
 
-		selected := GetRecord()
+		selected := make(Record, len(fields))
 		for _, field := range fields {
 			selected[field] = r[field]
 		}
@@ -49,14 +49,14 @@ func BatchOperation(records Records, op ...Operation) Records {
 			continue
 		}
 
-		newRecord := GetRecord()
+		newRecord := make(Record, len(r))
 		for k, v := range r {
 			newRecord[k] = v
 		}
 
 		newField := op[0].NewField()
 		if _, exists := newRecord[newField]; exists {
-			PutRecord(newRecord)
+
 			panic(fmt.Sprintf("field '%s' already exists in record, cannot add duplicate field", newField))
 		}
 
@@ -87,21 +87,21 @@ func BatchOperationVertical(records Records, op ...VerticalOperation) Records {
 
 		for i := range result {
 			if result[i] == nil {
-				result[i] = GetRecord()
+				result[i] = make(Record)
 			} else {
 				// 检查字段是否已存在
 				if _, exists := result[i][newField]; exists {
 					// 创建新记录以避免覆盖
-					newRecord := GetRecord()
+					newRecord := make(Record, len(result[i]))
 					for k, v := range result[i] {
 						newRecord[k] = v
 					}
 					newRecord[newField] = opResult
 
 					// 释放旧记录
-					oldRecord := result[i]
+
 					result[i] = newRecord
-					PutRecord(oldRecord)
+
 				} else {
 					// 直接添加字段到现有记录
 					result[i][newField] = opResult
@@ -122,12 +122,15 @@ func (r Record) Select(keys ...string) Record {
 	if len(keys) == 0 {
 		return r
 	}
-	result := GetRecord()
+	result := make(Record, len(keys))
 
 	// 直接添加选中的字段，避免不必要的遍历删除
 	for _, key := range keys {
 		if val, exists := r[key]; exists {
 			result[key] = val
+		} else {
+			// 处理不存在的字段，设为 nil
+			result[key] = nil
 		}
 	}
 	return result
@@ -178,7 +181,7 @@ func (rs Records) Operation(op ...Operation) Records {
 	}
 
 	for _, r := range rs {
-		newRecord := GetRecord()
+		newRecord := make(Record, len(r))
 		// 复制所有字段
 		for k, v := range r {
 			newRecord[k] = v
@@ -186,7 +189,7 @@ func (rs Records) Operation(op ...Operation) Records {
 
 		newField := op[0].NewField()
 		if _, exists := newRecord[newField]; exists {
-			PutRecord(newRecord)
+
 			panic(fmt.Sprintf("field '%s' already exists in record, cannot add duplicate field", newField))
 		}
 
@@ -315,20 +318,19 @@ func (rs Records) OperationVertical(op ...VerticalOperation) Records {
 		// Add the result to each record
 		for i := range result {
 			if result[i] == nil {
-				result[i] = GetRecord()
+				result[i] = make(Record)
 			} else {
 				// Check if the field already exists
 				if _, exists := result[i][newField]; exists {
 					// Create a new record to avoid overwriting
-					newRecord := GetRecord()
+					newRecord := make(Record, len(result[i]))
 					for k, v := range result[i] {
 						newRecord[k] = v
 					}
 					newRecord[newField] = opResult
-					// 释放旧的 Record
-					oldRecord := result[i]
+
 					result[i] = newRecord
-					PutRecord(oldRecord)
+
 				} else {
 					// Directly add the field to the existing record
 					result[i][newField] = opResult

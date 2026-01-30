@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"runtime"
 	"sync"
 )
 
@@ -11,6 +10,29 @@ var (
 		New: func() any {
 
 			return make(map[any]bool)
+		},
+	}
+
+	// fieldsBytesPool 用于管理 map[string][]byte 类型的对象池
+	fieldsBytesPool = sync.Pool{
+		New: func() any {
+			return make(map[string][]byte)
+		},
+	}
+
+	// stringSlicePool 用于管理 []string 类型的对象池
+	stringSlicePool = sync.Pool{
+		New: func() any {
+
+			return make([]string, 0, 10) // 预分配容量为 10
+		},
+	}
+
+	// stringAnyMapPool 用于管理 map[string]any 类型的对象池
+	stringAnyMapPool = sync.Pool{
+		New: func() any {
+
+			return make(map[string]any)
 		},
 	}
 )
@@ -23,17 +45,97 @@ func GetMap() map[any]bool {
 	for k := range m {
 		delete(m, k)
 	}
-	// 创建一个指向 map 的指针，用于设置 finalizer
-	// 注意：由于 Go 中 map 是引用类型，我们需要确保 finalizer 能够正确触发
-	mapPtr := &m
-	//确保在对象被垃圾回收时清除其中的键值对
-	runtime.SetFinalizer(mapPtr, func(ptr *map[any]bool) {
-		if *ptr != nil {
-			// 清空 map 中的所有键值对，确保对象池中的对象始终是干净的
-			for k := range *ptr {
-				delete(*ptr, k)
-			}
-		}
-	})
 	return m
+}
+
+// PutMap 将 map[any]bool 对象归还到对象池
+func PutMap(m map[any]bool) {
+	// 清空 map 中的所有键值对，确保归还的对象干净
+	for k := range m {
+		delete(m, k)
+	}
+	mapPool.Put(m)
+}
+
+// GetFieldsBytesMap 从对象池获取一个 map[string][]byte 对象
+func GetFieldsBytesMap() map[string][]byte {
+	m := fieldsBytesPool.Get().(map[string][]byte)
+	// 清空 map 中的所有键值对，确保返回的数据干净
+	for k := range m {
+		delete(m, k)
+	}
+	return m
+}
+
+// PutFieldsBytesMap 将 map[string][]byte 对象归还到对象池
+func PutFieldsBytesMap(m map[string][]byte) {
+	// 清空 map 中的所有键值对，确保归还的对象干净
+	for k := range m {
+		delete(m, k)
+	}
+	fieldsBytesPool.Put(m)
+}
+
+// ResetFieldsBytesPool 重置 fieldsBytesPool 对象池
+func ResetFieldsBytesPool() {
+	// 由于 sync.Pool 没有直接的重置方法，我们可以通过替换来实现
+	fieldsBytesPool = sync.Pool{
+		New: func() any {
+			return make(map[string][]byte)
+		},
+	}
+}
+
+// GetStringSlice 从对象池获取一个 []string 切片
+func GetStringSlice() []string {
+	s := stringSlicePool.Get().([]string)
+	// 清空切片，确保返回的切片是空的
+	s = s[:0]
+	return s
+}
+
+// PutStringSlice 将 []string 切片归还到对象池
+func PutStringSlice(s []string) {
+	// 清空切片，确保归还的切片是空的
+	s = s[:0]
+	stringSlicePool.Put(s)
+}
+
+// ResetStringSlicePool 重置 stringSlicePool 对象池
+func ResetStringSlicePool() {
+	// 由于 sync.Pool 没有直接的重置方法，我们可以通过替换来实现
+	stringSlicePool = sync.Pool{
+		New: func() any {
+			return make([]string, 0, 10)
+		},
+	}
+}
+
+// GetStringAnyMap 从对象池获取一个 map[string]any 对象
+func GetStringAnyMap() map[string]any {
+	m := stringAnyMapPool.Get().(map[string]any)
+	// 清空 map 中的所有键值对，确保返回的数据干净
+	for k := range m {
+		delete(m, k)
+	}
+	return m
+}
+
+// PutStringAnyMap 将 map[string]any 对象归还到对象池
+func PutStringAnyMap(m map[string]any) {
+	// 清空 map 中的所有键值对，确保归还的对象干净
+	for k := range m {
+		delete(m, k)
+	}
+	stringAnyMapPool.Put(m)
+}
+
+// ResetStringAnyMapPool 重置 stringAnyMapPool 对象池
+func ResetStringAnyMapPool() {
+	// 由于 sync.Pool 没有直接的重置方法，我们可以通过替换来实现
+	stringAnyMapPool = sync.Pool{
+		New: func() any {
+			return make(map[string]any)
+		},
+	}
 }

@@ -2357,7 +2357,6 @@ func TestTableUpdateWithOptimisticLock(t *testing.T) {
 
 // TestTableSearch 测试使用加密数据库表遍历数据和Search方法的功能
 func TestTableSearch1(t *testing.T) {
-
 	// 生成测试密钥
 	masterKey := make([]byte, 32)
 	for i := range masterKey {

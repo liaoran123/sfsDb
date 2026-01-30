@@ -195,7 +195,7 @@ func (t *Table) CheckType(fields *map[string]any) error {
 // *map[string]any ==> *map[string][]byte
 // 与RecordByteToAny相反
 func (t *Table) FieldsToBytes(fields *map[string]any) *map[string][]byte {
-	result := make(map[string][]byte, len(*fields))
+	result := GetStringBytesMapWithStrategy()
 	for k, v := range *fields {
 		//value为nil时，使用默认值
 		//如果是时间类型，则使用当前时间

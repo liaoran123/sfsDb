@@ -175,7 +175,8 @@ func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	if record == nil {
 		return fmt.Errorf("主键值 '%v' 的记录不存在", fields)
 	}
-	var updateFields []string
+	updateFields := GetStringSliceWithStrategy()
+	defer PutStringSliceWithStrategy(updateFields)
 	for field := range *fields {
 		//排除主键字段
 		if t.GetPrimaryKey().MatchFields(field) {
