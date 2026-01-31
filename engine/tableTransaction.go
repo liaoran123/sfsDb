@@ -108,17 +108,79 @@ func (tx *TableTransaction) Update(fields *map[string]any) error {
 		return err
 	}
 
-	// 执行更新操作
-	err := tx.table.Update(fields, tx.batch)
-	if err != nil {
-		return err
-	}
-
 	// 生成缓存键
 	cacheKey := tx.getCacheKey(fields)
 
-	// 从缓存中删除旧记录，强制后续读取从数据库获取最新值
-	delete(tx.cache, cacheKey)
+	// 检查缓存中是否有要更新的记录
+	if record, exists := tx.cache[cacheKey]; exists {
+		// 缓存中有记录，模拟 Table.Update 的行为
+		// 1. 解析记录
+		pk := tx.table.GetPrimaryKey()
+		fieldsBytes, err := pk.Parse(tx.table.fieldsid, record)
+		if err != nil {
+			return err
+		}
+
+		// 2. 准备更新字段列表
+		updateFields := GetStringSliceWithStrategy()
+		defer PutStringSliceWithStrategy(updateFields)
+		for field := range *fields {
+			// 排除主键字段
+			if pk.MatchFields(field) {
+				continue
+			}
+			updateFields = append(updateFields, field)
+		}
+
+		// 3. 检查更新字段个数是否为0
+		if len(updateFields) == 0 {
+			return nil
+		}
+
+		// 4. 执行更新操作（删除旧记录）
+		batchContainer := NewBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
+		batchContainer.Operation(fieldsBytes, updateFields...)
+
+		// 5. 更新字段值
+		for field, val := range *fields {
+			// 排除主键字段
+			if pk.MatchFields(field) {
+				continue
+			}
+			if _, ok := tx.table.fields[field]; ok {
+				(*fieldsBytes)[field] = util.AnyToBytes(val)
+			}
+		}
+
+		// 6. 更新版本号
+		currentVersionbyte, exists := (*fieldsBytes)["v"]
+		if !exists {
+			currentVersionbyte = []byte{1} // 默认版本号
+		}
+		currentVersion := int(util.Bytes(currentVersionbyte).Uint64())
+		(*fields)["v"] = currentVersion + 1
+		(*fieldsBytes)["v"] = util.AnyToBytes(currentVersion + 1)
+
+		// 7. 格式化记录
+		updatedRecord := tx.table.FormatRecord(fieldsBytes)
+
+		// 8. 执行更新操作（添加新记录）
+		batchContainer.SetValue(0, updatedRecord)                               // 添加主键value=record
+		batchContainer.SetValue(1, tx.table.GetPrimaryKey().GetID(fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
+		batchContainer.Operation(fieldsBytes, updateFields...)
+
+		// 9. 更新缓存
+		tx.cache[cacheKey] = updatedRecord
+	} else {
+		// 缓存中没有记录，直接执行更新操作
+		err := tx.table.Update(fields, tx.batch)
+		if err != nil {
+			return err
+		}
+
+		// 从缓存中删除旧记录，强制后续读取从数据库获取最新值
+		delete(tx.cache, cacheKey)
+	}
 
 	return nil
 }

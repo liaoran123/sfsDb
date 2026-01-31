@@ -484,6 +484,9 @@ type encryptedIterator struct {
 
 // First 移动到第一个元素
 func (ei *encryptedIterator) First() bool {
+	if ei.underlyingIterator == nil {
+		return false
+	}
 	if ei.underlyingIterator.First() {
 		// 解密当前值
 		value, err := ei.encryptor.Decrypt(ei.underlyingIterator.Value())
@@ -499,6 +502,9 @@ func (ei *encryptedIterator) First() bool {
 
 // Last 移动到最后一个元素
 func (ei *encryptedIterator) Last() bool {
+	if ei.underlyingIterator == nil {
+		return false
+	}
 	if ei.underlyingIterator.Last() {
 		// 解密当前值
 		value, err := ei.encryptor.Decrypt(ei.underlyingIterator.Value())
@@ -514,6 +520,9 @@ func (ei *encryptedIterator) Last() bool {
 
 // Seek 移动到大于等于指定key的位置
 func (ei *encryptedIterator) Seek(key []byte) bool {
+	if ei.underlyingIterator == nil {
+		return false
+	}
 	if ei.underlyingIterator.Seek(key) {
 		// 解密当前值
 		value, err := ei.encryptor.Decrypt(ei.underlyingIterator.Value())
@@ -529,6 +538,9 @@ func (ei *encryptedIterator) Seek(key []byte) bool {
 
 // Next 移动到下一个元素
 func (ei *encryptedIterator) Next() bool {
+	if ei.underlyingIterator == nil {
+		return false
+	}
 	if ei.underlyingIterator.Next() {
 		// 解密当前值
 		value, err := ei.encryptor.Decrypt(ei.underlyingIterator.Value())
@@ -544,6 +556,9 @@ func (ei *encryptedIterator) Next() bool {
 
 // Prev 移动到前一个元素
 func (ei *encryptedIterator) Prev() bool {
+	if ei.underlyingIterator == nil {
+		return false
+	}
 	if ei.underlyingIterator.Prev() {
 		// 解密当前值
 		value, err := ei.encryptor.Decrypt(ei.underlyingIterator.Value())
@@ -559,6 +574,9 @@ func (ei *encryptedIterator) Prev() bool {
 
 // Key 获取当前元素的key
 func (ei *encryptedIterator) Key() []byte {
+	if ei.underlyingIterator == nil {
+		return nil
+	}
 	return ei.underlyingIterator.Key()
 }
 
@@ -569,12 +587,14 @@ func (ei *encryptedIterator) Value() []byte {
 
 // Valid 检查迭代器是否有效
 func (ei *encryptedIterator) Valid() bool {
-	return ei.underlyingIterator.Valid() && ei.currentValue != nil
+	return ei.underlyingIterator != nil && ei.underlyingIterator.Valid() && ei.currentValue != nil
 }
 
 // Release 释放迭代器资源
 func (ei *encryptedIterator) Release() {
-	ei.underlyingIterator.Release()
+	if ei.underlyingIterator != nil {
+		ei.underlyingIterator.Release()
+	}
 	ei.currentValue = nil
 }
 
