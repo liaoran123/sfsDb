@@ -1829,9 +1829,19 @@ recordsWithCapacity := record.GetRecordsWithCapacity(100)
 records = append(records, record1)
 records = append(records, record2)
 
-// 手动将 Records 对象放回对象池（可选）
+// 手动将 Records 对象放回对象池（重要）
 record.PutRecords(records)
 ```
+
+**重要说明**：
+- 虽然标记为"可选"，但在实际使用中，特别是在测试用例和高频操作场景下，**强烈建议手动调用 PutRecords**
+- 在测试用例中，我们通常使用 defer 语句确保对象正确归还：
+  ```go
+  records := iter.GetRecords(true)
+  defer record.PutRecords(records)
+  ```
+- 手动归还 Records 对象可以显著提高内存使用效率，减少垃圾回收开销
+- 对于频繁创建和销毁 Records 对象的场景，手动归还尤为重要
 
 #### 9.2.3 Map 对象操作
 

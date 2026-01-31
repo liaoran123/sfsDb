@@ -88,6 +88,7 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 	if result["id"] != 2 || result["name"] != "Bob" {
 		t.Fatalf("Expected record with id=2, name=Bob, got %v", result)
 	}
+	defer record.PutRecords(resultRecords)
 
 	// 测试更新记录
 	updateRecord := map[string]any{
@@ -429,6 +430,8 @@ func TestDeleteAllAndAffectOtherTables(t *testing.T) {
 	}
 
 	t.Log("TestDeleteAllAndAffectOtherTables completed successfully!")
+	defer record.PutRecords(records1)
+	defer record.PutRecords(records2)
 }
 
 // 测试表删除操作处理大量数据的情况
@@ -528,6 +531,7 @@ func TestDeleteAllWithLargeData(t *testing.T) {
 	}
 
 	t.Log("TestDeleteAllWithLargeData completed successfully!")
+	defer record.PutRecords(records)
 }
 
 // 测试添加Table.Insert，删除Table.Delete，修改Table.Update，添加一条记录，通过主键进行修改和删除
@@ -566,13 +570,13 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	// 插入记录
-	record := map[string]any{
+	insertRecord := map[string]any{
 		"id":   1,
 		"name": "Alice",
 		"age":  25,
 	}
 
-	_, err = table.Insert(&record)
+	_, err = table.Insert(&insertRecord)
 	if err != nil {
 		t.Fatalf("Failed to insert record: %v", err)
 	}
@@ -748,6 +752,9 @@ func TestTableCRUD(t *testing.T) {
 	if len(emailRecords) != 0 {
 		t.Fatalf("Expected 0 record for email search, got %d", len(emailRecords))
 	}
+	defer record.PutRecords(records)
+	defer record.PutRecords(fdrecords)
+	defer record.PutRecords(emailRecords)
 }
 
 // 测试全文索引搜索
@@ -861,6 +868,7 @@ func TestTable_FullTextSearch(t *testing.T) {
 			defer iter.Release()
 
 			records := iter.GetRecords(true)
+			defer record.PutRecords(records)
 			if len(records) == 0 {
 				t.Logf("No records found for term: %s", st.searchTerm)
 				return
@@ -1119,6 +1127,7 @@ func TestTable_UpdateFieldName_Flow(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("Expected 1 record for email search, got %d", len(records))
 	}
+	defer record.PutRecords(records)
 
 	// 5. 开始修改字段名
 	oldField := "email"
@@ -1407,6 +1416,7 @@ func TestTableSearch(t *testing.T) {
 		defer iter.Release()
 
 		records := iter.GetRecords(true)
+		defer record.PutRecords(records)
 		if len(records) != 1 {
 			t.Fatalf("Expected 1 record for primary key search, got %d", len(records))
 		}
@@ -1425,6 +1435,7 @@ func TestTableSearch(t *testing.T) {
 		defer iter.Release()
 
 		records := iter.GetRecords(true)
+		defer record.PutRecords(records)
 		if len(records) != 1 {
 			t.Fatalf("Expected 1 record for secondary index search, got %d", len(records))
 		}
@@ -1443,6 +1454,7 @@ func TestTableSearch(t *testing.T) {
 		defer iter.Release()
 
 		records := iter.GetRecords(true)
+		defer record.PutRecords(records)
 		// 预期结果: id > 3，即id从4到10，共7条记录
 		if len(records) != 7 {
 			t.Fatalf("Expected 7 records for range search, got %d", len(records))
@@ -1464,6 +1476,7 @@ func TestTableSearch(t *testing.T) {
 		defer iter.Release()
 
 		records := iter.GetRecords(true)
+		defer record.PutRecords(records)
 		// 预期结果: 所有以"user"开头的记录都匹配
 		if len(records) < 1 {
 			t.Fatalf("Expected at least 1 record for like search, got %d", len(records))
@@ -1490,6 +1503,7 @@ func TestTableSearch(t *testing.T) {
 		defer iter.Release()
 
 		records := iter.GetRecords(true)
+		defer record.PutRecords(records)
 		// 预期结果: id != 5，共9条记录
 		if len(records) != 9 {
 			t.Fatalf("Expected 9 records for not equal search, got %d", len(records))
@@ -1505,6 +1519,7 @@ func TestTableSearch(t *testing.T) {
 		defer iter.Release()
 
 		records := iter.GetRecords(true)
+		defer record.PutRecords(records)
 		// 预期结果: id >= 8，即id从8到10，共3条记录
 		if len(records) != 3 {
 			t.Fatalf("Expected 3 records for greater than or equal search, got %d", len(records))
@@ -1525,6 +1540,7 @@ func TestTableSearch(t *testing.T) {
 		defer iter.Release()
 
 		records := iter.GetRecords(true)
+		defer record.PutRecords(records)
 		// 预期结果: id < 3，即id从1到2，共2条记录
 		if len(records) != 2 {
 			t.Fatalf("Expected 2 records for less than search, got %d", len(records))
@@ -1545,6 +1561,7 @@ func TestTableSearch(t *testing.T) {
 		defer iter.Release()
 
 		records := iter.GetRecords(true)
+		defer record.PutRecords(records)
 		// 预期结果: id <= 3，即id从1到3，共3条记录
 		if len(records) != 3 {
 			t.Fatalf("Expected 3 records for less than or equal search, got %d", len(records))
@@ -1778,6 +1795,8 @@ func TestCreateIndexSameID(t *testing.T) {
 		if records2[0]["name"] != "Test2" {
 			t.Errorf("Expected name 'Test2' in table 2, got %v", records2[0]["name"])
 		}
+		defer record.PutRecords(records1)
+		defer record.PutRecords(records2)
 	})
 
 	// Test with the same index name (should get same ID internally)
@@ -1969,6 +1988,8 @@ func TestTable_MultipleFieldUpdates(t *testing.T) {
 	}
 
 	t.Log("✅ Multiple field updates test passed successfully")
+	defer record.PutRecords(records1)
+	defer record.PutRecords(records2)
 }
 
 // 测试修改字段后的数据完整性
@@ -2182,6 +2203,7 @@ func TestCompositePrimaryKeySearch1(t *testing.T) {
 	}
 	//defer dataIter.Release()
 	records := dataIter.GetRecords(true)
+	defer record.PutRecords(records)
 	for i, item := range records {
 		fmt.Printf("结果集 %d: %v\n", i, item)
 	}
@@ -2223,13 +2245,13 @@ func TestTableUpdateWithOptimisticLock(t *testing.T) {
 	}
 
 	// 1. 插入一条记录
-	record := map[string]any{
+	insertRecord := map[string]any{
 		"id":   1,
 		"name": "Alice",
 		"age":  25,
 	}
 
-	_, err = table.Insert(&record)
+	_, err = table.Insert(&insertRecord)
 	if err != nil {
 		t.Fatalf("Failed to insert record: %v", err)
 	}
@@ -2353,6 +2375,7 @@ func TestTableUpdateWithOptimisticLock(t *testing.T) {
 		t.Fatalf("Expected updated record content, got: %v", finalRecord)
 	}
 	t.Logf("Final record content is correct")
+	defer record.PutRecords(records)
 }
 
 // TestTableSearch 测试使用加密数据库表遍历数据和Search方法的功能
@@ -2561,7 +2584,7 @@ func TestTableSearch1(t *testing.T) {
 			//defer dataIter.Release()
 
 			records := dataIter.GetRecords(true)
-			//defer record.PutRecords(records)
+			defer record.PutRecords(records)
 			for _, item := range records.Select("name", "age", "description") {
 				fmt.Printf("搜索:%v -》 records: %v\n", fields["description"], item)
 			}
@@ -2646,7 +2669,7 @@ func TestTableSearch1(t *testing.T) {
 		}
 		//defer dataIter.Release()
 		records := dataIter.GetRecords(true)
-		//defer record.PutRecords(records)
+		defer record.PutRecords(records)
 		for i, item := range records.Select() {
 			fmt.Printf("item %d: %v\n", i, item)
 		}
@@ -2687,13 +2710,13 @@ func TestTableCRUD1(t *testing.T) {
 
 	// 测试1: 添加单条记录
 	t.Log("测试1: 添加单条记录")
-	record := map[string]any{
+	insertRecord := map[string]any{
 		"id":   1,
 		"name": "张三",
 		"age":  25,
 	}
 
-	_, err = table.Insert(&record)
+	_, err = table.Insert(&insertRecord)
 	if err != nil {
 		t.Fatalf("Failed to add record: %v", err)
 	}
@@ -2707,6 +2730,7 @@ func TestTableCRUD1(t *testing.T) {
 	}
 
 	records := dataIter.GetRecords(true)
+	defer record.PutRecords(records)
 	if len(records) == 0 {
 		t.Error("Record not found after adding")
 	} else {
@@ -2739,6 +2763,7 @@ func TestTableCRUD1(t *testing.T) {
 	}
 
 	updatedRecords := dataIter.GetRecords(true)
+	defer record.PutRecords(updatedRecords)
 	if len(updatedRecords) == 0 {
 		t.Error("Updated record not found")
 	} else {
@@ -2766,6 +2791,7 @@ func TestTableCRUD1(t *testing.T) {
 	}
 
 	deletedRecords := dataIter.GetRecords(true)
+	defer record.PutRecords(deletedRecords)
 	if len(deletedRecords) == 0 {
 		t.Log("删除记录成功")
 	} else {
@@ -2883,6 +2909,7 @@ func TestTableCRUD1(t *testing.T) {
 	}
 
 	titleRecords := dataIter.GetRecords(true)
+	defer record.PutRecords(titleRecords)
 	if len(titleRecords) != 1 {
 		t.Errorf("Expected 1 record for title 'Go语言入门', got %d", len(titleRecords))
 	} else {
@@ -2911,6 +2938,7 @@ func TestTableCRUD1(t *testing.T) {
 	} else {
 		t.Logf("通过作者索引查询成功，找到 %d 条记录", len(authorRecords))
 	}
+	defer record.PutRecords(authorRecords)
 
 	// 测试修改记录
 	t.Log("测试修改带索引的记录")
@@ -2934,6 +2962,7 @@ func TestTableCRUD1(t *testing.T) {
 	}
 
 	updatedRecords = dataIter.GetRecords(true)
+	defer record.PutRecords(updatedRecords)
 	if len(updatedRecords) == 0 {
 		t.Error("Updated record not found")
 	} else {
@@ -2961,6 +2990,7 @@ func TestTableCRUD1(t *testing.T) {
 	}
 
 	deletedRecords = dataIter.GetRecords(true)
+	defer record.PutRecords(deletedRecords)
 	if len(deletedRecords) == 0 {
 		t.Log("删除带索引记录成功")
 	} else {
@@ -2976,6 +3006,7 @@ func TestTableCRUD1(t *testing.T) {
 	}
 
 	authorRecordsAfterDelete := dataIter.GetRecords(true)
+	defer record.PutRecords(authorRecordsAfterDelete)
 	if len(authorRecordsAfterDelete) != 1 {
 		t.Errorf("Expected 1 record for author '张三' after delete, got %d", len(authorRecordsAfterDelete))
 	} else {

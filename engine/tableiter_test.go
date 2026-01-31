@@ -163,6 +163,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	fmt.Println("-----------------------------------------------")
 	// 获取table2的ID映射
 	map2 := iter2.Map()
+	defer PutMap(map2)
 	// 创建一个匹配器，匹配table1的ID是否在table2中
 	mach := match.NewAND([]string{"id"}, map2)
 	fmt.Println("-----------------------------------------------")
@@ -196,6 +197,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	fmt.Println("-----------------------------------------------")
 
 	map3 := iter3.Map()
+	defer PutMap(map3)
 	mach2 := match.NewAND([]string{"id"}, map3)
 	iter1.SetMatch(mach, mach2)
 	rd4 := iter1.GetRecords(true)
@@ -210,6 +212,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	fmt.Println("select table1.* from table1,table2,table3 where table1.id=table2.id and table1.id!=table3.id")
 	fmt.Println("-----------------------------------------------")
 	map3 = iter3.Map()
+	defer PutMap(map3)
 	mach2 = match.NewAND([]string{"id"}, map3, false)
 	iter1.SetMatch(mach, mach2)
 	rd5 := iter1.GetRecords(true)
@@ -282,6 +285,7 @@ func TestTableIter_MapDataClean(t *testing.T) {
 
 	// 第一次调用 Map() 方法
 	map1 := iter.Map()
+	defer PutMap(map1)
 	if len(map1) != 3 {
 		t.Fatalf("Map() should return 3 items, got %d", len(map1))
 	}
@@ -296,6 +300,7 @@ func TestTableIter_MapDataClean(t *testing.T) {
 
 	// 第二次调用 Map() 方法
 	map2 := iter.Map()
+	defer PutMap(map2)
 	if len(map2) != 3 {
 		t.Fatalf("Map() should return 3 items, got %d", len(map2))
 	}
@@ -314,6 +319,7 @@ func TestTableIter_MapDataClean(t *testing.T) {
 
 	// 测试使用指定字段调用 Map() 方法
 	map3 := iter.Map("age")
+	defer PutMap(map3)
 	if len(map3) != 3 {
 		t.Fatalf("Map('age') should return 3 items, got %d", len(map3))
 	}
@@ -328,6 +334,7 @@ func TestTableIter_MapDataClean(t *testing.T) {
 
 	// 第三次调用 Map() 方法，再次使用默认字段（id）
 	map4 := iter.Map()
+	defer PutMap(map4)
 	if len(map4) != 3 {
 		t.Fatalf("Map() should return 3 items, got %d", len(map4))
 	}
@@ -342,6 +349,7 @@ func TestTableIter_MapDataClean(t *testing.T) {
 	// 测试多次调用后，对象池中的对象是否被正确重用和清理
 	for i := 0; i < 10; i++ {
 		mapN := iter.Map()
+		defer PutMap(mapN)
 		if len(mapN) != 3 {
 			t.Fatalf("Map() should return 3 items on iteration %d, got %d", i, len(mapN))
 		}
@@ -790,6 +798,7 @@ func TestTableIter_Map(t *testing.T) {
 		defer iter.Release()
 
 		idMap := iter.Map()
+		defer PutMap(idMap)
 		if len(idMap) != 4 {
 			t.Errorf("Expected map with 4 entries, got %d", len(idMap))
 		}
@@ -809,6 +818,7 @@ func TestTableIter_Map(t *testing.T) {
 		defer iter.Release()
 
 		ageMap := iter.Map("age")
+		defer PutMap(ageMap)
 		if len(ageMap) != 4 {
 			t.Errorf("Expected map with 4 entries, got %d", len(ageMap))
 		}

@@ -16,6 +16,7 @@
 /todo
 # 数据库文件
 /engine/KVDB
+/engine/*_test*
 /engine/test_*
 sfsDb商业计划书.md
 /ads
