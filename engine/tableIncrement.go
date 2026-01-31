@@ -48,10 +48,11 @@ func (t *Table) MaxAutoValue() int {
 	rkey := key[len(t.GetPrimaryKey().Prefix(t.id))+1:]
 	var target any
 	// 如果主键字段为空，默认使用"id"
-	if len(t.GetPrimaryKey().GetFields()) == 0 || t.GetPrimaryKey().GetFields()[0] == "" {
+	primaryFields := t.GetPrimaryFields()
+	if len(primaryFields) == 0 || primaryFields[0] == "" {
 		target = 0
 	} else {
-		target = t.fields[t.GetPrimaryKey().GetFields()[0]]
+		target = t.fields[primaryFields[0]]
 	}
 	r := util.Bytes(rkey).ToAny(target)
 	// 使用 reflect 包进行类型转换，更灵活地处理各种数值类型

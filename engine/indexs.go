@@ -136,6 +136,7 @@ func (i *Indexs) DeleteIndex(name string) error {
 			return nil
 		}
 	}
+
 	return errors.New("index \"" + name + "\" does not exist")
 }
 

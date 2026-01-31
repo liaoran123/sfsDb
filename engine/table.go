@@ -114,7 +114,7 @@ func (t *Table) SetFields(fields map[string]any) error {
 
 	// 更新时间字段映射
 	t.initTimeFields()
-
+	t.ResetPrimaryFields()
 	return nil
 }
 
@@ -131,6 +131,7 @@ func (t *Table) UpdateFieldName(oldfield string, newfield string) error {
 	t.fieldIDManager.UpdateKey(fkey, newfield)
 	//2，修改索引中的字段名
 	t.indexs.UpdateFields(oldfield, newfield)
+	t.ResetPrimaryFields()
 	return nil
 }
 
@@ -149,8 +150,8 @@ func (t *Table) GetName() string {
 
 // GetPrimary 获取主键字段名
 func (t *Table) GetPrimary() []string {
-	primaryFields := make([]string, len(t.GetPrimaryKey().GetFields()))
-	for _, field := range t.GetPrimaryKey().GetFields() {
+	primaryFields := make([]string, len(t.GetPrimaryFields()))
+	for _, field := range t.GetPrimaryFields() {
 		primaryFields = append(primaryFields, field)
 	}
 	return primaryFields

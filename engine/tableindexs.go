@@ -28,6 +28,7 @@ func (t *Table) CreateIndex(index Index) error {
 	if isNew {
 		t.createIndexData(index)
 	}
+	t.ResetPrimaryFields()
 	return nil
 }
 
@@ -98,6 +99,7 @@ func (t *Table) GetIndexesByField(field string) []Index {
 // 删除指定名称的索引
 // 删除索引不会删除现存数据，不会对数据产生影响，只是存在冗余。
 func (t *Table) DropIndex(name string) error {
+	t.ResetPrimaryFields()
 	return t.indexs.DeleteIndex(name)
 }
 
@@ -105,8 +107,14 @@ func (t *Table) DropIndex(name string) error {
 func (t *Table) DropPrimaryKey() error {
 	pk := t.GetPrimaryKey()
 	if pk != nil {
-		return t.indexs.DeleteIndex(pk.Name())
+		err := t.indexs.DeleteIndex(pk.Name())
+		if err != nil {
+			return err
+		}
+		t.ResetPrimaryFields()
+		return nil
 	}
+	t.ResetPrimaryFields()
 	return nil
 }
 
