@@ -1,50 +1,34 @@
 package engine
 
-import "sync"
+import "sync/atomic"
 
-type AutoInt int
-
-var autoIntLock sync.Mutex
+type AutoInt int64
 
 func (a *AutoInt) Add(b int) int {
-	//添加读写锁
-	autoIntLock.Lock()
-	defer autoIntLock.Unlock()
-	*a += AutoInt(b)
-	return int(*a)
+	return int(atomic.AddInt64((*int64)(a), int64(b)))
 }
+
 func (a *AutoInt) Get() int {
-	autoIntLock.Lock()
-	defer autoIntLock.Unlock()
-	return int(*a)
+	return int(atomic.LoadInt64((*int64)(a)))
 }
+
 func (a *AutoInt) Set(b int) {
-	autoIntLock.Lock()
-	defer autoIntLock.Unlock()
-	*a = AutoInt(b)
+	atomic.StoreInt64((*int64)(a), int64(b))
 }
+
 func (a *AutoInt) Increment() int {
-	autoIntLock.Lock()
-	defer autoIntLock.Unlock()
-	*a++
-	return int(*a)
+	return int(atomic.AddInt64((*int64)(a), 1))
 }
+
 func (a *AutoInt) Decrement() int {
-	autoIntLock.Lock()
-	defer autoIntLock.Unlock()
-	*a--
-	return int(*a)
+	return int(atomic.AddInt64((*int64)(a), -1))
 }
+
 func (a *AutoInt) Reset() {
-	autoIntLock.Lock()
-	defer autoIntLock.Unlock()
-	*a = 0
+	atomic.StoreInt64((*int64)(a), 0)
 }
 
 // IncrementBy 批量增加指定的值，并返回增加后的值
 func (a *AutoInt) IncrementBy(n int) int {
-	autoIntLock.Lock()
-	defer autoIntLock.Unlock()
-	*a += AutoInt(n)
-	return int(*a)
+	return int(atomic.AddInt64((*int64)(a), int64(n)))
 }
