@@ -151,7 +151,9 @@ func main() {
 	fmt.Println("\n7. 主键查询")
 	iter := userTable.Search(&map[string]any{"id": 1})
 	defer iter.Release()
-	records := iter.GetRecords(true)
+	records := iter.GetRecordSet(true)
+	defer PutRecords(records)
+
 	if len(records) > 0 {
 		fmt.Printf("查询结果: %v\n", records[0])
 	}
@@ -160,7 +162,9 @@ func main() {
 	fmt.Println("\n8. 普通索引查询")
 	nameIter := userTable.Search(&map[string]any{"name": "李四"})
 	defer nameIter.Release()
-	nameRecords := nameIter.GetRecords(true)
+	nameRecords := nameIter.GetRecordSet(true)
+	defer PutRecordSet(nameRecords)
+
 	if len(nameRecords) > 0 {
 		fmt.Printf("按姓名查询结果: %v\n", nameRecords[0])
 	}
@@ -202,14 +206,16 @@ func main() {
 	// 验证删除
 	iter = userTable.Search(&map[string]any{"id": 3})
 	defer iter.Release()
-	records = iter.GetRecords(true)
+	records = iter.GetRecordSet(true)
+	defer PutRecords(records)
 	fmt.Printf("删除后查询结果数: %d\n", len(records))
 
 	// 11. 查询所有数据
 	fmt.Println("\n11. 查询所有数据")
 	allIter := userTable.Search(&map[string]any{})
 	defer allIter.Release()
-	allRecords := allIter.GetRecords(true)
+	allRecords := allIter.GetRecordSet(true)
+	defer PutRecordSet(allRecords)
 	fmt.Printf("当前表中共有 %d 条记录\n", len(allRecords))
 	for i, record := range allRecords {
 		fmt.Printf("记录 %d: %v\n", i+1, record)
