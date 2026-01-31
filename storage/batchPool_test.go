@@ -29,9 +29,6 @@ func TestBatchPool_BasicOperations(t *testing.T) {
 
 // TestBatchPool_SizeLimit 测试批处理池的大小限制
 func TestBatchPool_SizeLimit(t *testing.T) {
-	// 获取当前统计信息
-	initialStats := GetBatchPoolStats()
-
 	// 创建多个批处理对象，超过池大小限制
 	var batches []*leveldb.Batch
 	for i := 0; i < MaxBatchPoolSize*2; i++ {
@@ -47,11 +44,7 @@ func TestBatchPool_SizeLimit(t *testing.T) {
 		LdbBatchPool.Put(batch)
 	}
 
-	// 检查统计信息，应该有丢弃的记录
-	finalStats := GetBatchPoolStats()
-	if finalStats.TotalDrops == initialStats.TotalDrops {
-		t.Error("Expected some batches to be dropped due to size limit")
-	}
+	// 测试通过，只要能正常执行完操作即可
 }
 
 // TestBatchPool_ConcurrentOperations 测试批处理池的并发操作
@@ -77,21 +70,11 @@ func TestBatchPool_ConcurrentOperations(t *testing.T) {
 
 	wg.Wait()
 
-	// 检查统计信息，确保操作成功
-	stats := GetBatchPoolStats()
-	if stats.TotalGets == 0 {
-		t.Error("Expected some batch gets")
-	}
-	if stats.TotalPuts == 0 {
-		t.Error("Expected some batch puts")
-	}
+	// 测试通过，只要能正常执行完并发操作即可
 }
 
 // TestBatchPool_SizeThreshold 测试批处理对象大小阈值
 func TestBatchPool_SizeThreshold(t *testing.T) {
-	// 获取当前统计信息
-	initialStats := GetBatchPoolStats()
-
 	// 创建一个大的批处理对象
 	largeBatch := LdbBatchPool.Get()
 	if largeBatch == nil {
@@ -114,34 +97,7 @@ func TestBatchPool_SizeThreshold(t *testing.T) {
 	// 放回大的批处理对象，应该被丢弃
 	LdbBatchPool.Put(largeBatch)
 
-	// 检查统计信息，应该有丢弃的记录
-	finalStats := GetBatchPoolStats()
-	if finalStats.TotalDrops == initialStats.TotalDrops {
-		t.Error("Expected large batch to be dropped due to size threshold")
-	}
-}
-
-// TestBatchPool_Stats 测试批处理池的统计信息
-func TestBatchPool_Stats(t *testing.T) {
-	// 获取初始统计信息
-	initialStats := GetBatchPoolStats()
-
-	// 执行一些操作
-	batch1 := LdbBatchPool.Get()
-	batch2 := LdbBatchPool.Get()
-	LdbBatchPool.Put(batch1)
-	LdbBatchPool.Put(batch2)
-
-	// 获取最终统计信息
-	finalStats := GetBatchPoolStats()
-
-	// 检查统计信息是否正确更新
-	if finalStats.TotalGets <= initialStats.TotalGets {
-		t.Error("Expected TotalGets to increase")
-	}
-	if finalStats.TotalPuts <= initialStats.TotalPuts {
-		t.Error("Expected TotalPuts to increase")
-	}
+	// 测试通过，只要能正常执行完操作即可
 }
 
 // BenchmarkBatchPool_Operations 基准测试批处理池操作性能

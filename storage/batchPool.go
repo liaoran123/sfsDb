@@ -15,113 +15,76 @@ const (
 	MaxBatchSize = 1024 * 1024 // 1MB
 )
 
-// 批处理对象池统计信息
-type BatchPoolStats struct {
-	TotalGets      uint64 // 总获取次数
-	TotalPuts      uint64 // 总放回次数
-	TotalCreates   uint64 // 总创建次数
-	TotalDrops     uint64 // 总丢弃次数（超过大小限制）
-	CurrentSize    uint64 // 当前池中对象数量
-	MaxSizeReached uint64 // 达到最大容量的次数
-}
-
-// 批处理对象池统计信息
-var batchPoolStats BatchPoolStats
-
-// EnableBatchPoolTracing 是否启用批处理池跟踪
-var EnableBatchPoolTracing bool
-
-// BatchPoolTrace 批处理池跟踪函数类型
-type BatchPoolTrace func(operation string, batch *leveldb.Batch, size int, stats BatchPoolStats)
-
-// BatchPoolTracer 批处理池跟踪函数
-var BatchPoolTracer BatchPoolTrace
-
 // batchPool 包装sync.Pool，添加大小限制和统计功能
 type batchPool struct {
 	pool        sync.Pool
-	currentSize uint64
-	mu          sync.Mutex
+	currentSize uint64 // 当前池中对象数量，使用原子操作管理
 }
 
 // Get 从池中获取批处理对象
 func (p *batchPool) Get() *leveldb.Batch {
-	atomic.AddUint64(&batchPoolStats.TotalGets, 1)
 	batch := p.pool.Get().(*leveldb.Batch)
-
-	// 跟踪获取操作
-	if EnableBatchPoolTracing && BatchPoolTracer != nil {
-		stats := GetBatchPoolStats()
-		BatchPoolTracer("get", batch, batch.Len(), stats)
+	if batch == nil {
+		// 安全保障：如果从池中获取到 nil，创建一个新的批处理对象
+		return new(leveldb.Batch)
 	}
-
+	// 确保返回的是干净的批处理对象
+	batch.Reset()
 	return batch
 }
 
 // Put 将批处理对象放回池中
 func (p *batchPool) Put(batch *leveldb.Batch) {
-	atomic.AddUint64(&batchPoolStats.TotalPuts, 1)
-	batchSize := batch.Len()
+	// 检查批处理对象是否为 nil
+	if batch == nil {
+		// 批处理对象为 nil，直接返回
+		return
+	}
 
 	// 检查批处理对象大小
 	if batch.Len() > MaxBatchSize {
-		atomic.AddUint64(&batchPoolStats.TotalDrops, 1)
-
-		// 跟踪丢弃操作（大小超过限制）
-		if EnableBatchPoolTracing && BatchPoolTracer != nil {
-			stats := GetBatchPoolStats()
-			BatchPoolTracer("drop_size", batch, batchSize, stats)
-		}
-
+		// 批处理对象大小超过阈值，直接丢弃，让垃圾回收器处理这个对象
+		batch.Reset()
 		return
 	}
 
-	// 检查池大小
-	p.mu.Lock()
-	if p.currentSize >= MaxBatchPoolSize {
-		p.mu.Unlock()
-		atomic.AddUint64(&batchPoolStats.TotalDrops, 1)
-		atomic.AddUint64(&batchPoolStats.MaxSizeReached, 1)
-
-		// 跟踪丢弃操作（池已满）
-		if EnableBatchPoolTracing && BatchPoolTracer != nil {
-			stats := GetBatchPoolStats()
-			BatchPoolTracer("drop_full", batch, batchSize, stats)
-		}
-
+	// 检查池大小（使用原子操作）
+	if atomic.LoadUint64(&p.currentSize) >= MaxBatchPoolSize {
+		// 池大小超过限制，直接返回，让垃圾回收器处理这个对象
+		batch.Reset()
 		return
 	}
 
-	p.currentSize++
-	p.mu.Unlock()
+	// 原子递增计数器
+	if atomic.AddUint64(&p.currentSize, 1) > MaxBatchPoolSize {
+		// 如果递增后超过限制，立即递减
+		atomic.AddUint64(&p.currentSize, ^uint64(0))
+		batch.Reset()
+		return
+	}
 
 	// 重置批处理对象
 	batch.Reset()
 
 	// 将对象放回池中
 	p.pool.Put(batch)
-
-	// 更新统计信息
-	atomic.StoreUint64(&batchPoolStats.CurrentSize, p.currentSize)
-
-	// 跟踪放回操作
-	if EnableBatchPoolTracing && BatchPoolTracer != nil {
-		stats := GetBatchPoolStats()
-		BatchPoolTracer("put", batch, 0, stats) // 重置后大小为0
-	}
 }
 
 // 批处理对象池
 var LdbBatchPool = &batchPool{
 	pool: sync.Pool{
 		New: func() any {
-			atomic.AddUint64(&batchPoolStats.TotalCreates, 1)
 			return new(leveldb.Batch)
 		},
 	},
 }
 
-// GetBatchPoolStats 获取批处理对象池统计信息
-func GetBatchPoolStats() BatchPoolStats {
-	return batchPoolStats
+// GetPoolSize 获取当前批处理对象池的大小
+func (p *batchPool) GetPoolSize() uint64 {
+	return atomic.LoadUint64(&p.currentSize)
+}
+
+// GetLdbBatchPoolSize 获取全局批处理对象池的大小
+func GetLdbBatchPoolSize() uint64 {
+	return LdbBatchPool.GetPoolSize()
 }

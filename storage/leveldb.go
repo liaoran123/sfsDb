@@ -104,8 +104,6 @@ func (s *LevelDBStore) GetBatch() Batch {
 	// 从batchPool中获取一个Batch对象
 	// 即使在快照模式下也返回有效的Batch，WriteBatch会使用originalDB执行写操作
 	batch := LdbBatchPool.Get()
-	// 确保返回的是干净的batch对象
-	batch.Reset()
 	return batch
 }
 

@@ -28,13 +28,13 @@ type Transaction interface {
 // TableTransaction 实现Transaction接口的具体结构体
 type TableTransaction struct {
 	table         *Table           // 关联的表
-	batch         storage.Batch    // 事务使用的batch
-	committed     bool             // 是否已提交
-	snapshot      storage.Snapshot // 事务使用的快照
+	batch         storage.Batch    // 事务使用的batch，原子性
+	committed     bool             // 是否已提交，提交成功后则是持久性。
+	snapshot      storage.Snapshot // 事务使用的快照，一致性。
 	originalStore storage.Store    // 原始存储，用于写操作
 	// 事务内修改缓存，用于读取自己的写操作
 	// key: 主键值的字符串表示，value: 记录的字节数组
-	cache map[string][]byte // 事务内修改缓存 //隔离作用
+	cache map[string][]byte // 事务内修改缓存 //隔离性
 }
 
 // Begin 创建一个新的事务
