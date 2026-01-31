@@ -3,7 +3,6 @@ package engine
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/liaoran123/sfsDb/match"
@@ -220,31 +219,7 @@ func (t *TableIter) Match(rd *map[string]any, match []match.Match) bool {
 	return true
 }
 
-// 遍历迭代器返回解析后的记录，不包含版本号字段。
-// 用于外部调用，不包含版本号字段。
-func (t *TableIter) GetRecordSet(esc bool, limit ...int) (r record.Records) {
-	Count := PageNew(limit...).Count
-	if Count > 0 {
-		r = record.GetRecordsWithCapacity(Count)
-	} else {
-		r = record.GetRecords()
-	}
-	r = r[:0]
-	t.ExportRecord(func(rd *record.Record) bool {
-		if len(*rd) == 0 { //删除记录后，数据为空，但是迭代器依然存在，只是返回空。
-			return true
-		}
-		ird := rd.Select(t.selects...)
-		//删除版本号字段
-		delete(ird, "v")
-		r = append(r, ird)
-		return true
-	}, esc, limit...)
-	return r
-}
-
-// 遍历迭代器返回解析后的记录，包含版本号字段。
-// 用于系统内部调用，包含版本号字段。
+// 遍历迭代器返回解析后的记录
 func (t *TableIter) GetRecords(esc bool, limit ...int) (r record.Records) {
 	Count := PageNew(limit...).Count
 	if Count > 0 {
@@ -277,8 +252,10 @@ func (t *TableIter) hasPrimaryKey(rd record.Record) bool {
 
 // 删除迭代器中的记录
 func (t *TableIter) Delete(limit ...int) error {
+	existpk := false
 	var err error
 	var batch storage.Batch
+	var batchContainer *batchContainer
 	deleteCount := 0
 	maxLimit := -1
 	if len(limit) > 0 {
@@ -290,9 +267,13 @@ func (t *TableIter) Delete(limit ...int) error {
 
 	// 获取批量操作对象
 	batch = t.table.kvStore.GetBatch()
-	if batch == nil {
-		return fmt.Errorf("创建批量操作对象失败")
-	}
+	defer func() {
+		// 确保在发生错误时也能释放batch资源
+		if batch != nil && deleteCount > 0 {
+			// 只有在有删除操作时才写入batch
+			t.table.kvStore.WriteBatch(batch)
+		}
+	}()
 
 	// 批量删除处理
 	t.ExportRecord(func(rd *record.Record) bool {
@@ -301,11 +282,26 @@ func (t *TableIter) Delete(limit ...int) error {
 			return false
 		}
 
+		// 判断是否存在主键字段
+		if !existpk { //只需要判断一次，因为所有的记录字段是一样。
+			existpk = t.hasPrimaryKey(*rd)
+			if !existpk {
+				err = fmt.Errorf("记录不存在主键字段，无法删除")
+				return false
+			}
+			// 初始化批量操作容器
+			batchContainer = NewBatchContainer(batch, t.table.indexs, t.table.id, t.table.kvStore)
+			if batchContainer == nil {
+				err = fmt.Errorf("初始化批量操作容器失败")
+				return false
+			}
+		}
+
 		// 检查批量操作大小，如果达到限制，执行写入并创建新的批量操作
 		if batch != nil && batch.Len() >= batchSizeLimit {
 			// 执行当前批量操作
-			if writeErr := t.table.kvStore.WriteBatch(batch); writeErr != nil {
-				err = fmt.Errorf("执行批量操作失败: %v", writeErr)
+			if err = t.table.kvStore.WriteBatch(batch); err != nil {
+				err = fmt.Errorf("执行批量操作失败: %v", err)
 				return false
 			}
 
@@ -315,29 +311,46 @@ func (t *TableIter) Delete(limit ...int) error {
 				err = fmt.Errorf("创建新的批量操作对象失败")
 				return false
 			}
-		}
 
-		// 转换记录为map[string]any并调用Table.Delete
-		rdMap := map[string]any(*rd)
-		if deleteErr := t.table.Delete(&rdMap, batch); deleteErr != nil {
-			// 记录不存在的错误可以忽略，继续删除其他记录
-			if !strings.Contains(deleteErr.Error(), "记录不存在") {
-				err = deleteErr
+			// 重新初始化批量操作容器
+			batchContainer = NewBatchContainer(batch, t.table.indexs, t.table.id, t.table.kvStore)
+			if batchContainer == nil {
+				err = fmt.Errorf("初始化批量操作容器失败")
 				return false
 			}
-			// 记录不存在，不增加删除计数
-		} else {
-			// 删除成功，增加删除计数
+		}
+
+		// 反序列化记录并添加到批量操作
+		rdMap := map[string]any(*rd)
+		recordBytes, readErr := t.table.Read(&rdMap)
+		if readErr != nil {
+			err = fmt.Errorf("读取记录失败: %v", readErr)
+			return false
+		}
+		if recordBytes == nil {
+			// 记录不存在，跳过
+			return true
+		}
+
+		// 解析记录并添加到批量操作
+		pk := t.table.GetPrimaryKey()
+		fieldsBytes, parseErr := pk.Parse(t.table.fieldsid, recordBytes)
+		if parseErr != nil {
+			err = fmt.Errorf("解析记录失败: %v", parseErr)
+			return false
+		}
+
+		// 添加到批量操作
+		if batchContainer != nil {
+			batchContainer.Operation(fieldsBytes)
 			deleteCount++
 		}
 		return true
 	}, true, limit...)
 
-	// 如果有删除操作，执行批量写入
-	if deleteCount > 0 && batch != nil {
-		if writeErr := t.table.kvStore.WriteBatch(batch); writeErr != nil && err == nil {
-			err = fmt.Errorf("执行批量操作失败: %v", writeErr)
-		}
+	// 如果没有错误且有删除操作，执行批量写入
+	if err == nil && deleteCount > 0 && batch != nil {
+		t.table.kvStore.WriteBatch(batch)
 	}
 
 	return err

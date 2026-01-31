@@ -56,8 +56,8 @@ func TestTableSchemaSerialization(t *testing.T) {
 		t.Errorf("Schema名称错误，预期: test_table, 实际: %s", schema.Name)
 	}
 
-	if len(schema.Fields) != 3 {
-		t.Errorf("Schema字段数量错误，预期: 3, 实际: %d", len(schema.Fields))
+	if len(schema.Fields) != 4 {
+		t.Errorf("Schema字段数量错误，预期: 4, 实际: %d", len(schema.Fields))
 	}
 
 	if len(schema.Indexes) != 3 {

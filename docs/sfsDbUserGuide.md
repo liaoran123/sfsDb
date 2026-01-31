@@ -3449,6 +3449,24 @@ func (t *TableIter) GetIndexName() string
 func (t *TableIter) GetIndexId() uint8
 // 返回值：
 //   uint8: 索引ID
+
+// 遍历迭代器返回解析后的记录，不包含版本号字段
+// 用于外部调用，不包含版本号字段
+func (t *TableIter) GetRecordSet(esc bool, limit ...int) (r record.Records)
+// 参数：
+//   esc: 遍历方向，true为正序，false为倒序
+//   limit: 可选参数，限制返回记录数量
+// 返回值：
+//   record.Records: 解析后的记录集合，不包含版本号字段
+
+// 遍历迭代器返回解析后的记录，包含版本号字段
+// 用于系统内部调用，包含版本号字段
+func (t *TableIter) GetRecords(esc bool, limit ...int) (r record.Records)
+// 参数：
+//   esc: 遍历方向，true为正序，false为倒序
+//   limit: 可选参数，限制返回记录数量
+// 返回值：
+//   record.Records: 解析后的记录集合，包含版本号字段
 ```
 
 **使用示例**：
@@ -3461,12 +3479,26 @@ if iter == nil {
 }
 defer iter.Release()
 
-// 执行查询操作
-records := iter.GetRecords(true)
+// 执行查询操作 - 使用 GetRecords 获取包含版本号的记录
+recordsWithVersion := iter.GetRecords(true)
+
+// 执行查询操作 - 使用 GetRecordSet 获取不包含版本号的记录
+recordsWithoutVersion := iter.GetRecordSet(true)
 
 // 获取索引详细信息
 fmt.Printf("使用的索引名称: %s\n", iter.GetIndexName())
 fmt.Printf("使用的索引ID (直接获取): %d\n", iter.GetIndexId())
+
+// 打印记录
+fmt.Println("包含版本号的记录:")
+for _, record := range recordsWithVersion {
+    fmt.Printf("  %v\n", record) // 会包含 "v" 字段
+}
+
+fmt.Println("不包含版本号的记录:")
+for _, record := range recordsWithoutVersion {
+    fmt.Printf("  %v\n", record) // 不会包含 "v" 字段
+}
 ```
 
 
