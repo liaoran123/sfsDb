@@ -31,7 +31,6 @@ func TestTableEncryption(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open encrypted database: %v", err)
 	}
-	defer storage.CloseDb()
 
 	// 1. 创建表
 	table, err := TableNew("test_encrypted_table")

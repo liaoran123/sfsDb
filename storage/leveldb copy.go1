@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
@@ -99,13 +100,20 @@ func (s *LevelDBStore) Delete(key []byte) error {
 	return db.Delete(key, nil)
 }
 
+var LdbBatchPool = sync.Pool{
+	New: func() any {
+		return new(leveldb.Batch)
+	},
+}
+
 // Batch 创建批量操作对象
 func (s *LevelDBStore) GetBatch() Batch {
-	// 从batchPool中获取一个Batch对象
+	// 从sync.Pool中获取一个Batch对象
 	// 即使在快照模式下也返回有效的Batch，WriteBatch会使用originalDB执行写操作
-	batch := LdbBatchPool.Get()
-	// 确保返回的是干净的batch对象
-	batch.Reset()
+	batch, ok := LdbBatchPool.Get().(*leveldb.Batch)
+	if !ok {
+		return nil
+	}
 	return batch
 }
 
@@ -130,24 +138,11 @@ func (s *LevelDBStore) WriteBatch(batch Batch, put ...bool) error {
 		return NewError("invalid batch type")
 	}
 
-	// 检查batch是否为空
-	if ldbBatch.Len() == 0 {
-		// 空batch直接返回，无需写入
-		if len(put) == 0 || put[0] {
-			LdbBatchPool.Put(ldbBatch)
-		}
-		return nil
-	}
-
 	err := db.Write(ldbBatch, nil)
 	if err != nil {
-		// 写入失败，也可以将batch放回池中
-		if len(put) == 0 || put[0] {
-			LdbBatchPool.Put(ldbBatch)
-		}
 		return err
 	}
-
+	ldbBatch.Reset()
 	// 是否需要将batch放回对象池，默认是true
 	if len(put) == 0 || put[0] {
 		LdbBatchPool.Put(ldbBatch)

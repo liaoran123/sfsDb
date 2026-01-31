@@ -30,6 +30,9 @@ type ExportRecord func(rd *record.Record) bool
 type Export func(k, v []byte) bool
 
 func TableIterNew(table *Table, iter storage.Iterator, index Index, selects ...string) *TableIter {
+	if iter == nil {
+		return nil
+	}
 	return &TableIter{
 		table:   table,
 		selects: selects,
@@ -150,7 +153,8 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		}
 	}
 
-	//版本号字段是乐观锁内部机制，不应该返回给用户
+	//版本号字段是乐观锁内部机制，不应该返回给用户。
+	// 不返回会导致事务等操作失败。
 	//delete(rd, "v")  //测试的时候需要屏蔽该句，否则相关测试会错误。
 
 	return rd
@@ -608,8 +612,17 @@ func (t *TableIter) Count() int {
 	return i
 }
 func (t *TableIter) Release() {
-	t.iter.Release()
-	for _, jumpRange := range t.jumpRanges {
-		jumpRange.Release()
+	if t == nil {
+		return
+	}
+	if t.iter != nil {
+		t.iter.Release()
+	}
+	if t.jumpRanges != nil {
+		for _, jumpRange := range t.jumpRanges {
+			if jumpRange != nil {
+				jumpRange.Release()
+			}
+		}
 	}
 }

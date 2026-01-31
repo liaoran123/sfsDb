@@ -2373,7 +2373,6 @@ func TestTableSearch1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open encrypted database: %v", err)
 	}
-	defer storage.CloseDb()
 	// 创建测试表
 	table, err := TableNew("test_search")
 	if err != nil {

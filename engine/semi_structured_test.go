@@ -14,7 +14,6 @@ func TestSemiStructuredData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开数据库失败: %v", err)
 	}
-	defer storage.CloseDb()
 
 	// 创建一个表
 	tableName := "test_semi_structured"

@@ -34,7 +34,7 @@ type TableTransaction struct {
 	originalStore storage.Store    // 原始存储，用于写操作
 	// 事务内修改缓存，用于读取自己的写操作
 	// key: 主键值的字符串表示，value: 记录的字节数组
-	cache map[string][]byte // 事务内修改缓存
+	cache map[string][]byte // 事务内修改缓存 //隔离作用
 }
 
 // Begin 创建一个新的事务
