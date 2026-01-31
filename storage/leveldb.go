@@ -142,23 +142,36 @@ func (s *LevelDBStore) WriteBatch(batch Batch, put ...bool) error {
 		// 空batch直接返回，无需写入
 		if len(put) == 0 || put[0] {
 			LdbBatchPool.Put(ldbBatch)
+		} else {
+			// 即使不放回对象池，也需要重置batch，以便后续使用
+			ldbBatch.Reset()
 		}
 		return nil
 	}
 
+	// 执行批量写入操作
 	err := db.Write(ldbBatch, nil)
+
+	// 处理写入结果
 	if err != nil {
 		// 写入失败，也可以将batch放回池中
 		if len(put) == 0 || put[0] {
 			LdbBatchPool.Put(ldbBatch)
+		} else {
+			// 即使不放回对象池，也需要重置batch，以便后续使用
+			ldbBatch.Reset()
 		}
 		return err
 	}
 
-	// 是否需要将batch放回对象池，默认是true
+	// 写入成功，处理batch
 	if len(put) == 0 || put[0] {
 		LdbBatchPool.Put(ldbBatch)
+	} else {
+		// 即使不放回对象池，也需要重置batch，以便后续使用
+		ldbBatch.Reset()
 	}
+
 	return nil
 }
 

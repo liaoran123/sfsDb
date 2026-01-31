@@ -7,13 +7,12 @@ import (
 )
 
 type batchContainer struct {
-	indexs  *Indexs          // 索引集合
-	values  map[uint8][]byte // 操作值集合
-	kvStore storage.Store
-	batch   storage.Batch
-	tbid    uint8 //表ID
-	len     int   // 操作数量
-
+	indexs       *Indexs          // 索引集合
+	values       map[uint8][]byte // 操作值集合
+	kvStore      storage.Store
+	batch        storage.Batch
+	tbid         uint8 //表ID
+	maxBatchSize int   // 最大批量操作数量，负数时不限制。
 }
 
 func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore storage.Store) *batchContainer {
@@ -38,6 +37,9 @@ func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore 
 			1: nil, //普通索引值
 			2: nil, //全文索引值
 		},
+		//如果batch存在并发竞争，则不能开启批量操作，否则会导致数据不一致。例如：
+		// 因为批量操作是原子操作，所以如果在批量操作过程中，其他goroutine也对batch进行了操作，会导致数据不一致。
+		maxBatchSize: -1, //默认批量操作数量为-1。不开启批量操作，因为其他批量操作都自行处理。
 	}
 }
 func (c *batchContainer) Add(key []byte, ValueMapKey uint8) {
@@ -51,7 +53,6 @@ func (c *batchContainer) Add(key []byte, ValueMapKey uint8) {
 		//添加索引计数器
 		monitor.AtomicMap(monitor.AtomicInt).Inc(key[0], key[2]) //key[0]为表ID，key[2]为索引ID
 	}
-	c.len++
 }
 
 func (c *batchContainer) SetValue(key uint8, val []byte) error {
@@ -95,8 +96,14 @@ func (c *batchContainer) Operation(fieldsBytes *map[string][]byte, existFields .
 			c.Add(append([]byte{}, joinValue...), 2) //添加全文索引key=joinValue,value=t.primaryKey.ID()
 		}
 	}
-
+	// 检查是否超过最大批量操作数量
+	if c.maxBatchSize > 0 && c.batch.Len() >= c.maxBatchSize {
+		c.kvStore.WriteBatch(c.batch, false) //写入批量操作，重置batch，false，但是不put，继续使用原来的batch
+	}
+}
+func (c *batchContainer) SetMaxBatchSize(size int) {
+	c.maxBatchSize = size
 }
 func (c *batchContainer) Len() int {
-	return c.len
+	return c.batch.Len()
 }
