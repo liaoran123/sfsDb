@@ -80,7 +80,7 @@ func TestBatchPoolSizeLimit(t *testing.T) {
 	defer store.Close()
 
 	// 先获取一些批处理对象
-	const testSize = MaxBatchPoolSize * 2 // 测试超过限制的情况
+	testSize := MaxBatchPoolSize * 2 // 测试超过限制的情况
 	batches := make([]interface{}, testSize)
 
 	for i := 0; i < testSize; i++ {

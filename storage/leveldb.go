@@ -99,12 +99,21 @@ func (s *LevelDBStore) Delete(key []byte) error {
 	return db.Delete(key, nil)
 }
 
-// Batch 创建批量操作对象
+// GetBatch 获取批处理操作对象
+//
+// 返回值：
+//
+//	Batch - 批处理操作对象，可用于执行多个写操作
+//
+// 说明：
+//   - 从批处理对象池中获取一个批处理对象，实现了对象复用
+//   - 即使在快照模式下也返回有效的批处理对象
+//   - 批处理对象的写操作会通过WriteBatch方法使用originalDB执行
+//   - 如果对象池获取失败，会创建一个新的批处理对象
 func (s *LevelDBStore) GetBatch() Batch {
 	// 从batchPool中获取一个Batch对象
 	// 即使在快照模式下也返回有效的Batch，WriteBatch会使用originalDB执行写操作
-	batch := LdbBatchPool.Get()
-	return batch
+	return LdbBatchPool.Get()
 }
 
 // WriteBatch 执行批量写入操作

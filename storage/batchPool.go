@@ -8,10 +8,32 @@ import (
 )
 
 // 批处理对象池配置
-const (
-	// 最大批处理对象缓存数量
+var (
+	// MaxBatchPoolSize 最大批处理对象缓存数量，防止批处理对象池占用过多内存
+	// 默认值 1000 适用于大多数场景
+	/*
+				- 过大的池大小可能导致内存使用过多，影响系统性能
+				- 过小的池大小可能导致对象创建频繁，影响并发性能
+
+				### 低并发场景
+		在低并发场景下：
+
+		- 较小的池大小 ：足够满足需求，避免内存浪费
+		- 默认值适用 ：默认值 1000 通常足够满足低并发场景的需求
+		## 合理设置建议
+		### 1. 根据系统内存设置
+		- 内存充足 ：可以设置较大的池大小，如 2000-5000
+		- 内存有限 ：应设置较小的池大小，如 500-1000
+		### 2. 根据并发操作数量设置
+		- 高并发 ：较大的池大小，如 2000-5000
+		- 中等并发 ：默认池大小，如 1000
+		- 低并发 ：较小的池大小，如 500
+		### 3. 根据批处理操作大小设置
+		- 大型批处理 ：较小的池大小，如 500
+		- 小型批处理 ：较大的池大小，如 2000-5000
+	*/
 	MaxBatchPoolSize = 1000
-	// 批处理对象大小阈值（字节），超过此值的批处理对象不会被缓存
+	// MaxBatchSize 批处理对象大小阈值（字节），超过此值的批处理对象不会被缓存
 	MaxBatchSize = 1024 * 1024 // 1MB
 )
 
@@ -49,17 +71,18 @@ func (p *batchPool) Put(batch *leveldb.Batch) {
 	}
 
 	// 检查池大小（使用原子操作）
-	if atomic.LoadUint64(&p.currentSize) >= MaxBatchPoolSize {
+	if atomic.LoadUint64(&p.currentSize) >= uint64(MaxBatchPoolSize) {
 		// 池大小超过限制，直接返回，让垃圾回收器处理这个对象
 		batch.Reset()
 		return
 	}
 
 	// 原子递增计数器
-	if atomic.AddUint64(&p.currentSize, 1) > MaxBatchPoolSize {
+	if atomic.AddUint64(&p.currentSize, 1) > uint64(MaxBatchPoolSize) {
 		// 如果递增后超过限制，立即递减
 		atomic.AddUint64(&p.currentSize, ^uint64(0))
 		batch.Reset()
+		//让垃圾回收器处理这个对象
 		return
 	}
 
@@ -87,4 +110,30 @@ func (p *batchPool) GetPoolSize() uint64 {
 // GetLdbBatchPoolSize 获取全局批处理对象池的大小
 func GetLdbBatchPoolSize() uint64 {
 	return LdbBatchPool.GetPoolSize()
+}
+
+// SetMaxBatchPoolSize 设置最大批处理对象缓存数量
+// size: 最大批处理对象缓存数量
+func SetMaxBatchPoolSize(size int) {
+	if size > 0 {
+		MaxBatchPoolSize = size
+	}
+}
+
+// GetMaxBatchPoolSize 获取最大批处理对象缓存数量
+func GetMaxBatchPoolSize() int {
+	return MaxBatchPoolSize
+}
+
+// SetMaxBatchSize 设置批处理对象大小阈值（字节）
+// size: 批处理对象大小阈值（字节）
+func SetMaxBatchSize(size int) {
+	if size > 0 {
+		MaxBatchSize = size
+	}
+}
+
+// GetMaxBatchSize 获取批处理对象大小阈值（字节）
+func GetMaxBatchSize() int {
+	return MaxBatchSize
 }
