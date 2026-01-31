@@ -31,15 +31,14 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	pklen := len(primaryFields)
 	pkfield := primaryFields[0]
 	supportDefault := pklen == 1 && pkfield == "id"
-
 	if supportDefault {
 		// 检查是否提供了主键字段
-		//使用默认自动增值主键时，不需要提供主键字段，系统自动生成
+		//使用默认自动增值主键时，不需要提供主键字段，系统自动生成，强制使用"id"字段和自动增值主键
 		_, ok := (*fields)[pkfield]
 		if !ok { //未提供主键字段，自动生成主键值
 			currentID = t.GetAutoInc()
 			(*fields)[pkfield] = currentID
-		} else { //提供了主键字段，但是值为nil，自动生成主键值
+		} else { //提供了主键字段id，但是值为nil，自动生成主键值
 			if (*fields)[pkfield] == nil {
 				currentID = t.GetAutoInc()
 				(*fields)[pkfield] = currentID
