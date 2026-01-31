@@ -241,7 +241,7 @@ func (tx *TableTransaction) Read(fields *map[string]any) ([]byte, error) {
 	return tx.originalStore.Get(pkKey)
 }
 
-// Search 在事务中搜索记录（支持读一致性）
+// Search 在事务中搜索记录（支持读一致性，即使用快照）
 func (tx *TableTransaction) Search(fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
 	if tx.committed {
 		return nil

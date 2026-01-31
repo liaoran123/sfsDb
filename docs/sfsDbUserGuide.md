@@ -5074,7 +5074,83 @@ func main() {
 2. **避免全表扫描**：使用索引字段进行查询
 3. **合理设置字段类型**：根据实际数据选择合适的字段类型
 4. **及时释放资源**：使用 `defer iter.Release()` 确保迭代器资源被释放
-5. **批量操作**：对于大量数据，使用批量插入和更新
+5. **批量操作**：对于大量数据，使用批量插入、更新和删除
+
+#### 11.1.2 批量删除和更新优化
+
+sfsDb 实现了批量删除和更新功能的性能优化，通过以下方式提高操作效率：
+
+**批量删除优化**：
+- 自动检测批量操作大小，避免超过存储引擎限制
+- 当记录数超过阈值时，自动分批处理
+- 减少存储引擎操作次数，提高删除性能
+
+**批量更新优化**：
+- 自动检测批量操作大小，避免超过存储引擎限制
+- 当记录数超过阈值时，自动分批处理
+- 减少存储引擎操作次数，提高更新性能
+- 保持事务一致性，确保所有更新操作要么全部成功，要么全部失败
+
+**性能优势**：
+- 减少存储引擎 I/O 操作次数，提高处理速度
+- 避免因批量操作过大而导致的存储引擎错误
+- 保持 API 兼容性，无需修改现有代码
+- 支持限制删除/更新记录数，提供更灵活的控制
+
+**使用示例**：
+
+```go
+// 批量删除示例
+iter := table.Search(&searchFields)
+defer iter.Release()
+
+// 删除所有匹配的记录（自动分批处理）
+err := iter.Delete()
+if err != nil {
+    // 处理错误
+}
+
+// 限制删除记录数
+iter = table.Search(&searchFields)
+defer iter.Release()
+
+// 最多删除100条记录
+err = iter.Delete(100)
+if err != nil {
+    // 处理错误
+}
+
+// 批量更新示例
+iter = table.Search(&searchFields)
+defer iter.Release()
+
+updateFields := map[string]any{
+    "status": "active",
+    "updated_at": time.Now(),
+}
+
+// 更新所有匹配的记录（自动分批处理）
+err = iter.Update(&updateFields)
+if err != nil {
+    // 处理错误
+}
+
+// 限制更新记录数
+iter = table.Search(&searchFields)
+defer iter.Release()
+
+// 最多更新50条记录
+err = iter.Update(&updateFields, 50)
+if err != nil {
+    // 处理错误
+}
+```
+
+**最佳实践**：
+- 对于大量数据的删除和更新操作，使用批量操作而非逐条处理
+- 合理设置批量操作的限制，根据实际需要控制操作范围
+- 始终检查并处理批量操作的错误
+- 对于特别大的批量操作，考虑使用事务确保数据一致性
 
 #### 11.1.1 对象池和 Finalizer 机制
 
@@ -5141,6 +5217,73 @@ for _, r := range records {
 - 对于复杂代码，依赖 finalizer 机制作为安全保障
 
 通过对象池和 finalizer 机制，sfsDb 在处理大量记录时能够保持更好的性能和内存使用效率。
+
+#### 11.1.3 事务优化
+
+sfsDb 对事务操作也进行了优化，特别是针对只存在于事务缓存中的记录：
+
+**事务更新优化**：
+- 优先检查事务缓存，避免不必要的存储引擎操作
+- 当记录只存在于缓存中时，直接更新缓存中的数据
+- 保持事务的 ACID 特性，确保数据一致性
+
+**性能优势**：
+- 减少存储引擎 I/O 操作，提高事务处理速度
+- 避免因记录只存在于缓存而导致的更新失败
+- 保持事务的隔离性，确保并发操作的正确性
+
+**使用示例**：
+
+```go
+// 事务示例
+tx, err := table.BeginTransaction()
+if err != nil {
+    // 处理错误
+}
+defer func() {
+    if err != nil {
+        tx.Rollback()
+        return
+    }
+    err = tx.Commit()
+}()
+
+// 插入新记录
+record := engine.GetRecord()
+defer engine.PutRecord(record)
+
+record["id"] = 1
+record["name"] = "Alice"
+record["age"] = 30
+
+if err := tx.Insert(record); err != nil {
+    // 处理错误
+    return
+}
+
+// 更新刚刚插入的记录（只存在于缓存中）
+updateFields := map[string]any{
+    "age": 31,
+    "updated_at": time.Now(),
+}
+
+// 现在可以直接更新，即使记录还未提交到存储引擎
+if err := tx.Update(&updateFields); err != nil {
+    // 处理错误
+    return
+}
+
+// 提交事务
+if err := tx.Commit(); err != nil {
+    // 处理错误
+}
+```
+
+**最佳实践**：
+- 对于需要多次操作同一记录的事务，使用事务 API 确保数据一致性
+- 避免在事务中执行长时间运行的操作，减少锁竞争
+- 始终正确处理事务的提交和回滚
+- 对于批量操作，考虑在事务外使用批量 API 以获得更好的性能
 
 ### 11.2 数据安全
 
