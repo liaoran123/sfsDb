@@ -12,6 +12,8 @@ import (
 	"github.com/liaoran123/sfsDb/util"
 )
 
+// 发现其他测试用例会使用交叉使用相同的表，导致数据不正确。
+// 因此，需要为每个测试生成唯一的表名，避免测试之间的数据冲突。
 // 测试复合主键搜索
 func TestCompositePrimaryKeySearch(t *testing.T) {
 	// 使用唯一表名，避免测试数据累积
@@ -2391,13 +2393,16 @@ func TestTableSearch1(t *testing.T) {
 		Algorithm: "AES-256-GCM",
 		MasterKey: masterKey,
 	}
+	// 生成唯一的数据库路径和表名，避免测试之间的数据冲突
+	dbPath := "./test_encrypted_table_db_" + t.Name()
+	tableName := "test_search_" + t.Name()
 	// 初始化加密的全局KVDb
-	_, err := storage.OpenDefaultDbWithEncryption("./test_encrypted_table_db", encryptConfig)
+	_, err := storage.OpenDefaultDbWithEncryption(dbPath, encryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to open encrypted database: %v", err)
 	}
 	// 创建测试表
-	table, err := TableNew("test_search")
+	table, err := TableNew(tableName)
 	if err != nil {
 		t.Fatalf("TableNew 失败: %v", err)
 	}

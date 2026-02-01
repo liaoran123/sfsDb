@@ -11,9 +11,16 @@ import (
 
 // 测试多表组合查询功能
 // 使用索引功能。
+// 发现其他测试用例会使用到这个测试函数，例如TestTableTransaction_CommitQuery、TestTableTransaction_CommitQuery_3等，导致数据不正确。
+// 因此，需要为每个测试生成唯一的表名，避免测试之间的数据冲突。
 func TestTestSelectForJoin(t *testing.T) {
+	// 生成唯一的表名，避免测试之间的数据冲突
+	table1Name := "test_search_comprehensive1_" + t.Name()
+	table2Name := "test_search_comprehensive2_" + t.Name()
+	table3Name := "test_search_comprehensive3_" + t.Name()
+
 	// Create test table
-	table1, err := TableNew("test_search_comprehensive1")
+	table1, err := TableNew(table1Name)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -58,7 +65,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	}
 
 	// Create test table
-	table2, err := TableNew("test_search_comprehensive2")
+	table2, err := TableNew(table2Name)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -104,7 +111,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	}
 
 	// Create test table
-	table3, err := TableNew("test_search_comprehensive3")
+	table3, err := TableNew(table3Name)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -157,6 +164,18 @@ func TestTestSelectForJoin(t *testing.T) {
 	// 获取迭代器记录
 	fmt.Println("---------table1 records--------------------------------------")
 	rd := iter1.GetRecords(true)
+	for _, record := range rd {
+		fmt.Println(record)
+	}
+	fmt.Println("-----------------------------------------------")
+	fmt.Println("---------table2 records--------------------------------------")
+	rd = iter2.GetRecords(true)
+	for _, record := range rd {
+		fmt.Println(record)
+	}
+	fmt.Println("-----------------------------------------------")
+	fmt.Println("---------table3 records--------------------------------------")
+	rd = iter3.GetRecords(true)
 	for _, record := range rd {
 		fmt.Println(record)
 	}
