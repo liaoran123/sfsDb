@@ -247,73 +247,17 @@ func (tx *TableTransaction) Search(fields *map[string]any, ops ...util.Compariso
 		return nil
 	}
 
-	// 复制table.Search方法的核心逻辑，但使用事务的快照或原始存储
-	var field []string
-	for k := range *fields {
-		//判断字段是否在表中
-		if _, ok := tx.table.fields[k]; !ok {
-			return nil
-		}
-		field = append(field, k)
-	}
-
-	//匹配索引
-	idx := tx.table.MatchIndex(field...)
-	if idx == nil {
-		return nil
-	}
-
-	//生成搜索键
-	fieldsBytes := tx.table.FieldsToBytesNil(fields)
-	key := idx.JoinValue(fieldsBytes, tx.table.id)
-
-	//确定比较操作符
-	var op util.ComparisonOperator
-	if len(ops) == 0 {
-		op = util.Like
-	} else {
-		op = ops[0]
-	}
-
-	//生成迭代器的前缀范围
-	pfx := idx.Prefix(tx.table.id)
-	pfx = append(pfx, SPLIT[0])
-	rangeHelper := util.NewRangeHelper(pfx)
-
-	//根据操作符生成范围并获取迭代器
-	var iter storage.Iterator
-	var slice *util.Range
-	var tbiter *TableIter
-
-	if op != util.NotEqual {
-		slice = rangeHelper.FromComparison(op, key)
-	} else {
-		slice = rangeHelper.FromComparison(util.Like, pfx)
-	}
-
-	//获取迭代器
-	if tx.snapshot != nil {
-		iter = tx.snapshot.Iterator(slice.Start, slice.Limit)
-	} else {
-		iter = tx.originalStore.Iterator(slice.Start, slice.Limit)
-	}
-
-	//创建TableIter
-	tbiter = TableIterNew(tx.table, iter, idx)
-
-	//如果是NotEqual操作，设置跳跃区间
-	if op == util.NotEqual {
-		neslice := rangeHelper.FromComparison(util.Like, key)
-		var jumpIter storage.Iterator
+	// 创建一个函数，根据是否有快照选择不同的存储获取迭代器
+	funIter := func(start, limit []byte) storage.Iterator {
 		if tx.snapshot != nil {
-			jumpIter = tx.snapshot.Iterator(neslice.Start, neslice.Limit)
+			return tx.snapshot.Iterator(start, limit)
 		} else {
-			jumpIter = tx.originalStore.Iterator(neslice.Start, neslice.Limit)
+			return tx.originalStore.Iterator(start, limit)
 		}
-		tbiter.SetJumpRanges(jumpIter)
 	}
 
-	return tbiter
+	// 调用table.Searchs方法，传入funIter函数
+	return tx.table.Searchs(funIter, fields, ops...)
 }
 
 // Commit 提交事务

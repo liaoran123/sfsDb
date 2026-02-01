@@ -921,6 +921,59 @@ type Indexs struct {
 - 匹配索引（优先匹配主键索引，再匹配普通索引，最后匹配全文索引）
 - 管理索引的生命周期
 
+### 4.7.2 索引类型限制
+
+#### 4.7.2.1 不支持布尔类型作为索引
+
+sfsDb **不支持使用布尔类型（bool）作为索引字段**，原因如下：
+
+- **索引键冲突**：布尔类型只有两个可能的值（true/false），会导致多个记录生成相同的索引键
+- **记录覆盖**：在KV存储中，相同的索引键会被覆盖，只保留最后插入的记录
+- **查询不准确**：由于索引键冲突，查询时只能找到最后插入的记录，而不是所有符合条件的记录
+- **性能提升有限**：布尔字段的选择性通常不高，索引带来的性能提升有限
+
+#### 4.7.2.2 替代方案
+
+**方案1：使用主键索引过滤**
+
+```go
+// 1. 使用主键索引获取所有记录
+searchData := map[string]any{"id": nil}
+iter := table.Search(&searchData)
+if iter != nil {
+    defer iter.Release()
+}
+
+// 2. 获取所有记录并过滤
+allResults := iter.GetRecords(true)
+var activeRecords []map[string]any
+for _, record := range allResults {
+    if active, ok := record["active"].(bool); ok && active {
+        activeRecords = append(activeRecords, record)
+    }
+}
+```
+
+**方案2：使用整数类型代替布尔类型**
+
+- 将 `active` 字段定义为 `int` 类型
+- 使用 `0` 表示 false，`1` 表示 true
+- 这样可以利用现有的整数索引实现，避免索引键冲突
+
+```go
+// 定义字段时使用整数类型
+fields := map[string]any{
+    "id":     0,
+    "name":   "",
+    "active": 0, // 使用整数类型，0=false, 1=true
+}
+
+// 创建索引
+activeIndex, err := engine.DefaultNormalIndexNew("idx_active")
+activeIndex.AddFields("active")
+err = table.CreateIndex(activeIndex)
+```
+
 #### 4.7.2 表级索引管理方法
 
 `sfsDb` 提供了丰富的表级索引管理方法，方便用户创建和管理索引：

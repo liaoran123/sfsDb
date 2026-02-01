@@ -177,10 +177,13 @@ func (s *LevelDBStore) WriteBatch(batch Batch, put ...bool) error {
 
 /*
 // Iterator 创建迭代器
-func (s *LevelDBStore) Iterator1(slice *util.Range) Iterator {
-	return s.ldb.NewIterator(slice, nil)
-}
+
+	func (s *LevelDBStore) Iterator1(slice *util.Range) Iterator {
+		return s.ldb.NewIterator(slice, nil)
+	}
 */
+type FunIter func(start, limit []byte) Iterator
+
 // Iterator 创建迭代器
 func (s *LevelDBStore) Iterator(start, limit []byte) Iterator {
 	if s.ldb == nil {

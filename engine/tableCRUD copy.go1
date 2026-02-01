@@ -510,59 +510,6 @@ func (t *Table) FieldsToBytesNil(fields *map[string]any) *map[string][]byte {
 
 // 默认ComparisonOperator是like，前缀匹配功能
 func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
-	return t.Searchs(t.kvStore.Iterator, fields, ops...)
-}
-
-/*
-	func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
-		var field []string
-		for k := range *fields {
-			//判断字段是否在表中
-			if _, ok := t.fields[k]; !ok {
-				//写错误日志
-				log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
-				return nil
-			}
-			field = append(field, k)
-		}
-		//匹配索引
-		idx := t.MatchIndex(field...)
-		var key []byte
-		var fieldsBytes *map[string][]byte
-		if idx != nil {
-			fieldsBytes = t.FieldsToBytesNil(fields)
-			key = idx.JoinValue(fieldsBytes, t.id)
-		} else {
-
-			return nil
-		}
-		var op util.ComparisonOperator
-		if len(ops) == 0 { //默认是Like操作
-			op = util.Like
-		} else {
-			op = ops[0]
-		}
-		pfx := idx.Prefix(t.id)
-		pfx = append(pfx, SPLIT[0])
-		rangeHelper := util.NewRangeHelper(pfx)
-		var iter storage.Iterator
-		var tbiter *TableIter
-		if op != util.NotEqual {
-			slice := rangeHelper.FromComparison(op, key)
-			iter = t.kvStore.Iterator(slice.Start, slice.Limit)
-			tbiter = TableIterNew(t, iter, idx)
-		} else { //不等于将会通过主键或索引进行全表扫描，并且设置跳跃区间
-			slice := rangeHelper.FromComparison(util.Like, pfx) //遍历前缀，即通过主键或索引全表扫描
-			iter = t.kvStore.Iterator(slice.Start, slice.Limit)
-			tbiter = TableIterNew(t, iter, idx)
-			//设置跳跃区间
-			neslice := rangeHelper.FromComparison(util.Like, key) //跳跃区间key=0-1-100==>0-1-101
-			tbiter.SetJumpRanges(t.kvStore.Iterator(neslice.Start, neslice.Limit))
-		}
-		return tbiter
-	}
-*/
-func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
 	var field []string
 	for k := range *fields {
 		//判断字段是否在表中
@@ -601,15 +548,15 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 	var tbiter *TableIter
 	if op != util.NotEqual {
 		slice := rangeHelper.FromComparison(op, key)
-		iter = funIter(slice.Start, slice.Limit)
+		iter = t.kvStore.Iterator(slice.Start, slice.Limit)
 		tbiter = TableIterNew(t, iter, idx)
 	} else { //不等于将会通过主键或索引进行全表扫描，并且设置跳跃区间
 		slice := rangeHelper.FromComparison(util.Like, pfx) //遍历前缀，即通过主键或索引全表扫描
-		iter = funIter(slice.Start, slice.Limit)
+		iter = t.kvStore.Iterator(slice.Start, slice.Limit)
 		tbiter = TableIterNew(t, iter, idx)
 		//设置跳跃区间
 		neslice := rangeHelper.FromComparison(util.Like, key) //跳跃区间key=0-1-100==>0-1-101
-		tbiter.SetJumpRanges(funIter(neslice.Start, neslice.Limit))
+		tbiter.SetJumpRanges(t.kvStore.Iterator(neslice.Start, neslice.Limit))
 	}
 	return tbiter
 }
