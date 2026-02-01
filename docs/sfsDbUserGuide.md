@@ -2508,13 +2508,346 @@ func main() {
 - 优化批量操作，减少对象创建
 - 考虑使用对象池的手动管理模式
 
-## 10. 其他功能
+## 10. 事务管理
 
-### 10.1 记录集合操作
+### 10.1 基本事务概念
+
+sfsDb 支持事务操作，确保数据操作的原子性、一致性、隔离性和持久性（ACID特性）。
+
+#### 10.1.1 事务接口
+
+```go
+// Transaction 定义事务接口
+type Transaction interface {
+	// Insert 在事务中插入记录
+	Insert(fields *map[string]any) (int, error)
+	// Update 在事务中更新记录
+	Update(fields *map[string]any) error
+	// Delete 在事务中删除记录
+	Delete(fields *map[string]any) error
+	// Search 在事务中搜索记录（支持读一致性）
+	Search(fields *map[string]any, ops ...util.ComparisonOperator) *TableIter
+	// Read 在事务中读取单条记录（支持读一致性）
+	Read(fields *map[string]any) ([]byte, error)
+	// Commit 提交事务
+	Commit() error
+	// Rollback 回滚事务
+	Rollback() error
+}
+```
+
+#### 10.1.2 开始事务
+
+```go
+// 开始一个事务
+tx, err := table.Begin()
+if err != nil {
+    panic(err)
+}
+
+defer func() {
+    if err != nil {
+        tx.Rollback()
+    }
+}()
+
+// 在事务中操作
+_, err = tx.Insert(&record)
+if err != nil {
+    return err
+}
+
+// 提交事务
+err = tx.Commit()
+```
+
+### 10.2 多表事务
+
+#### 10.2.1 基本多表事务
+
+多表事务允许在一个原子操作中操作多个表，确保数据一致性。
+
+```go
+// 创建共享的 batch
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    panic("failed to create batch")
+}
+
+// 为每个表创建使用同一个 batch 的事务
+tx1, err := table1.BeginWithBatch(batch)
+tx2, err := table2.BeginWithBatch(batch)
+
+// 在事务中操作表
+tx1.Insert(&user)
+tx2.Insert(&order)
+
+// 提交事务（只需提交一次）
+tx1.Commit()
+tx2.Rollback() // 释放资源
+```
+
+#### 10.2.2 TransactionManager 事务管理器
+
+TransactionManager 用于简化多表事务的管理，自动处理事务的提交和回滚。
+
+##### 10.2.2.1 核心 API
+
+```go
+// NewTransactionManager 创建一个新的事务管理器
+func NewTransactionManager(batch storage.Batch) *TransactionManager
+
+// AddTable 添加一个表到事务管理器
+func (tm *TransactionManager) AddTable(table *Table) (Transaction, error)
+
+// Commit 提交所有事务
+func (tm *TransactionManager) Commit() error
+
+// Rollback 回滚所有事务
+func (tm *TransactionManager) Rollback() error
+```
+
+##### 10.2.2.2 使用示例
+
+```go
+// 创建共享的 batch
+batch := storage.KVDb.GetBatch()
+
+// 创建事务管理器
+tm := NewTransactionManager(batch)
+
+// 添加表到事务管理器
+tx1, err := tm.AddTable(table1)
+tx2, err := tm.AddTable(table2)
+
+// 在事务中操作表
+userID, err := tx1.Insert(&user)
+if err != nil {
+    tm.Rollback()
+    return err
+}
+
+orderID, err := tx2.Insert(&order)
+if err != nil {
+    tm.Rollback()
+    return err
+}
+
+// 提交所有事务
+err = tm.Commit()
+```
+
+#### 10.2.3 WithTransaction 便捷函数
+
+WithTransaction 是一个便捷函数，用于简化多表事务的错误处理。
+
+##### 10.2.3.1 核心 API
+
+```go
+// WithTransaction 执行多表事务
+func WithTransaction(batch storage.Batch, tables []*Table, fn func(transactions map[*Table]Transaction) error) error
+```
+
+##### 10.2.3.2 使用示例
+
+```go
+// 创建共享的 batch
+batch := storage.KVDb.GetBatch()
+
+// 使用 WithTransaction 执行多表事务
+err = WithTransaction(batch, []*Table{table1, table2}, func(transactions map[*Table]Transaction) error {
+    // 获取表的事务
+    tx1 := transactions[table1]
+    tx2 := transactions[table2]
+
+    // 在事务中操作表
+    userID, err := tx1.Insert(&user)
+    if err != nil {
+        return err
+    }
+
+    orderID, err := tx2.Insert(&order)
+    if err != nil {
+        return err
+    }
+
+    return nil
+})
+
+if err != nil {
+    panic(err)
+}
+```
+
+### 10.3 事务内复杂查询
+
+#### 10.3.1 基本搜索示例
+
+```go
+// 在事务中执行基本搜索
+tx, err := table.Begin()
+if err != nil {
+    panic(err)
+}
+defer tx.Rollback()
+
+// 搜索年龄大于 25 的用户
+searchFields := map[string]any{"age": 25}
+iter := tx.Search(&searchFields, util.GreaterThan)
+if iter != nil {
+    defer iter.Release()
+}
+
+records := iter.GetRecords(true)
+fmt.Printf("Found %d records for age > 25\n", len(records))
+
+// 提交事务
+tx.Commit()
+```
+
+#### 10.3.2 多条件搜索示例
+
+```go
+// 在事务中执行多条件搜索
+tx, err := table.Begin()
+if err != nil {
+    panic(err)
+}
+defer tx.Rollback()
+
+// 获取所有记录的迭代器
+iter := tx.Search(&map[string]any{"id": nil})
+if iter != nil {
+    defer iter.Release()
+}
+
+// 使用多个匹配器（年龄大于25且城市为北京）
+ageMatcher := match.NewGreaterThanMatch("age", 25)
+cityMatcher := match.NewEqualMatch("city", "北京")
+
+// 设置匹配器（多个匹配器之间是 AND 关系）
+iter.SetMatch(ageMatcher, cityMatcher)
+
+records := iter.GetRecords(true)
+fmt.Printf("Found %d records for age > 25 and city = '北京'\n", len(records))
+
+// 提交事务
+tx.Commit()
+```
+
+#### 10.3.3 多表连接查询示例
+
+```go
+// 创建共享的 batch
+batch := storage.KVDb.GetBatch()
+
+// 使用 WithTransaction 执行多表事务
+err = WithTransaction(batch, []*Table{userTable, orderTable}, func(transactions map[*Table]Transaction) error {
+    // 获取表的事务
+    userTx := transactions[userTable]
+    orderTx := transactions[orderTable]
+
+    // 插入用户和订单
+    user := map[string]any{"name": "张三"}
+    userID, err := userTx.Insert(&user)
+    if err != nil {
+        return err
+    }
+
+    order := map[string]any{"user_id": userID, "amount": 100.50}
+    _, err = orderTx.Insert(&order)
+    if err != nil {
+        return err
+    }
+
+    // 测试多表连接查询
+    // 获取订单表的 user_id 映射
+    orderIter := orderTx.Search(&map[string]any{"id": nil})
+    if orderIter == nil {
+        return fmt.Errorf("Search orders failed")
+    }
+    userIDMap := orderIter.Map("user_id")
+
+    // 获取用户表的迭代器
+    userIter := userTx.Search(&map[string]any{"id": nil})
+    if userIter == nil {
+        return fmt.Errorf("Search users failed")
+    }
+
+    // 创建 AND 匹配器
+    andMatcher := match.NewAND([]string{"id"}, userIDMap)
+
+    // 设置匹配器
+    userIter.SetMatch(andMatcher)
+
+    // 获取结果
+    matchedUsers := userIter.GetRecords(true)
+    fmt.Printf("Found %d users with orders\n", len(matchedUsers))
+
+    return nil
+})
+
+if err != nil {
+    panic(err)
+}
+```
+
+#### 10.3.4 验证事务内修改
+
+```go
+// 在事务中验证修改
+tx, err := table.Begin()
+if err != nil {
+    panic(err)
+}
+defer tx.Rollback()
+
+// 插入新记录
+newUser := map[string]any{"name": "周八", "age": 28}
+userID, err := tx.Insert(&newUser)
+if err != nil {
+    panic(err)
+}
+
+// 使用 Read 方法验证事务内的修改（可以读取未提交的修改）
+readFields := map[string]any{"id": userID}
+readData, err := tx.Read(&readFields)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("Read data for new user: %v\n", string(readData))
+
+// 提交事务
+tx.Commit()
+```
+
+### 10.4 事务优化
+
+#### 10.4.1 性能优化
+
+1. **共享 Batch**：多表事务使用共享的 Batch，减少事务开销
+2. **批量操作**：将多个操作组合在一个事务中，减少网络往返
+3. **适当的事务粒度**：避免事务过大，影响并发性能
+4. **错误处理**：使用 WithTransaction 简化错误处理，确保事务正确回滚
+5. **匹配器复用**：重用匹配器对象，减少内存分配
+
+#### 10.4.2 最佳实践
+
+1. **明确事务边界**：只将相关操作放在一个事务中
+2. **使用事务管理器**：对于多表操作，使用 TransactionManager 简化管理
+3. **及时提交或回滚**：避免长时间占用事务资源
+4. **错误处理**：确保所有错误都能正确触发事务回滚
+5. **测试事务逻辑**：编写测试用例验证事务的原子性和一致性
+6. **合理使用匹配器**：对于复杂查询，选择合适的匹配器类型
+7. **读操作策略**：根据需要选择使用 Search（基于快照）或 Read（基于缓存）
+
+## 11. 其他功能
+
+### 11.1 记录集合操作
 
  sfsDb 提供了强大的记录集合操作功能，支持交集（Intersect）、并集（Union）和差集（Difference）等操作。此外，还支持动态操作函数，允许用户根据需求自定义集合操作：
 
-#### 10.1.1 动态操作函数
+#### 11.1.1 动态操作函数
 
 sfsDb 提供了 `RecordsOperation` 类型和 `Apply` 方法，允许用户动态定义和应用集合操作：
 
@@ -2687,7 +3020,7 @@ func main() {
 }
 ```
 
-### 9.2 迭代器使用
+### 11.2 迭代器使用
 
 **TableIter 结构创建方式**：
 - TableIter 结构是由表的 `ForData()` 方法或 `Search()` 方法产生的
