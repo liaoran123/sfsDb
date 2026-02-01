@@ -39,6 +39,7 @@ func NewBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore 
 		},
 		//如果batch存在并发竞争，则不能开启批量操作，否则会导致数据不一致。例如：
 		// 因为批量操作是原子操作，所以如果在批量操作过程中，其他goroutine也对batch进行了操作，会导致数据不一致。
+		//事务需要关闭不开启，否则，可能会导致数据不一致。
 		maxBatchSize: -1, //默认批量操作数量为-1。不开启批量操作，因为其他批量操作都自行处理。
 	}
 }
