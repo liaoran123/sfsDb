@@ -238,6 +238,7 @@ func main() {
 ### 其他文档
 - [API 文档](./docs/guide.md)
 - [性能基准测试报告](./engine/comprehensive_benchmark_report.md)
+- [迭代器资源管理指南](./docs/iterator_management.md) - 详细说明迭代器的管理方式和生命周期
 
 ## 贡献
 

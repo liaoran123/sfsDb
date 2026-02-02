@@ -1,0 +1,274 @@
+package indexCache
+
+import (
+	"sync"
+
+	"github.com/golang/groupcache/lru"
+)
+
+// 由于使用了迭代器缓存，可以代替这些缓存，而且更加简单。
+// 所以弃用这些缓存体。
+// 主键缓存结构体
+type PrimaryKeyCache struct {
+	cache    *lru.Cache // 使用LRU缓存
+	mutex    sync.RWMutex
+	capacity int
+}
+
+// 初始化主键缓存
+func NewPrimaryKeyCache(capacity int) *PrimaryKeyCache {
+	return &PrimaryKeyCache{
+		cache:    lru.New(capacity),
+		capacity: capacity,
+	}
+}
+
+// 获取主键对应的记录
+func (pkc *PrimaryKeyCache) Get(key []byte) ([]byte, bool) {
+	pkc.mutex.RLock()
+	defer pkc.mutex.RUnlock()
+
+	value, ok := pkc.cache.Get(string(key))
+	if ok {
+		return value.([]byte), true
+	}
+	return nil, false
+}
+
+// 设置主键对应的记录
+func (pkc *PrimaryKeyCache) Set(key, value []byte) {
+	pkc.mutex.Lock()
+	defer pkc.mutex.Unlock()
+
+	pkc.cache.Add(string(key), value)
+}
+
+// 调整主键缓存容量
+func (pkc *PrimaryKeyCache) Resize(capacity int) {
+	pkc.mutex.Lock()
+	defer pkc.mutex.Unlock()
+
+	if capacity != pkc.capacity {
+		newCache := lru.New(capacity)
+		// 复制现有缓存项（可选）
+		// 注意：这里没有实现复制逻辑，因为LRU缓存不提供遍历方法
+		// 实际应用中可能需要考虑缓存项的迁移
+		pkc.cache = newCache
+		pkc.capacity = capacity
+	}
+}
+
+// 普通索引缓存结构体
+type NormalIndexCache struct {
+	cache    map[string]*lru.Cache // 每个索引一个缓存
+	mutex    sync.RWMutex
+	capacity int
+}
+
+// 初始化普通索引缓存
+func NewNormalIndexCache(capacity int) *NormalIndexCache {
+	return &NormalIndexCache{
+		cache:    make(map[string]*lru.Cache),
+		capacity: capacity,
+	}
+}
+
+// 获取索引对应的主键
+func (nic *NormalIndexCache) Get(indexName, indexKey string) ([]byte, bool) {
+	nic.mutex.RLock()
+	defer nic.mutex.RUnlock()
+
+	if indexCache, ok := nic.cache[indexName]; ok {
+		if value, ok := indexCache.Get(indexKey); ok {
+			return value.([]byte), true
+		}
+	}
+	return nil, false
+}
+
+// 设置索引对应的主键
+func (nic *NormalIndexCache) Set(indexName, indexKey string, primaryKey []byte) {
+	nic.mutex.Lock()
+	defer nic.mutex.Unlock()
+
+	if _, ok := nic.cache[indexName]; !ok {
+		nic.cache[indexName] = lru.New(nic.capacity)
+	}
+
+	nic.cache[indexName].Add(indexKey, primaryKey)
+}
+
+// 调整普通索引缓存容量
+func (nic *NormalIndexCache) Resize(capacity int) {
+	nic.mutex.Lock()
+	defer nic.mutex.Unlock()
+
+	if capacity != nic.capacity {
+		nic.capacity = capacity
+		// 调整现有所有索引缓存的容量
+		for indexName := range nic.cache {
+			newCache := lru.New(capacity)
+			// 复制现有缓存项（可选）
+			nic.cache[indexName] = newCache
+		}
+	}
+}
+
+// 全文索引缓存结构体
+type FullTextIndexCache struct {
+	tokenCache    *lru.Cache // 文本到分词的映射，使用LRU缓存
+	resultCache   *lru.Cache // 搜索词到结果的映射
+	tokenMutex    sync.RWMutex
+	resultMutex   sync.RWMutex
+	capacity      int
+	tokenCapacity int
+}
+
+// 初始化全文索引缓存
+func NewFullTextIndexCache(capacity, tokenCapacity int) *FullTextIndexCache {
+	return &FullTextIndexCache{
+		tokenCache:    lru.New(tokenCapacity),
+		resultCache:   lru.New(capacity),
+		capacity:      capacity,
+		tokenCapacity: tokenCapacity,
+	}
+}
+
+// 获取分词结果
+func (ftic *FullTextIndexCache) GetTokens(text string) ([]string, bool) {
+	ftic.tokenMutex.RLock()
+	defer ftic.tokenMutex.RUnlock()
+
+	if tokens, ok := ftic.tokenCache.Get(text); ok {
+		return tokens.([]string), true
+	}
+	return nil, false
+}
+
+// 设置分词结果
+func (ftic *FullTextIndexCache) SetTokens(text string, tokens []string) {
+	ftic.tokenMutex.Lock()
+	defer ftic.tokenMutex.Unlock()
+
+	ftic.tokenCache.Add(text, tokens)
+}
+
+// 获取搜索结果
+func (ftic *FullTextIndexCache) GetResult(query string) ([]byte, bool) {
+	ftic.resultMutex.RLock()
+	defer ftic.resultMutex.RUnlock()
+
+	if result, ok := ftic.resultCache.Get(query); ok {
+		return result.([]byte), true
+	}
+	return nil, false
+}
+
+// 设置搜索结果
+func (ftic *FullTextIndexCache) SetResult(query string, result []byte) {
+	ftic.resultMutex.Lock()
+	defer ftic.resultMutex.Unlock()
+
+	ftic.resultCache.Add(query, result)
+}
+
+// 调整全文索引缓存容量
+func (ftic *FullTextIndexCache) Resize(capacity, tokenCapacity int) {
+	// 调整结果缓存容量
+	ftic.resultMutex.Lock()
+	if capacity != ftic.capacity {
+		newResultCache := lru.New(capacity)
+		// 复制现有缓存项（可选）
+		ftic.resultCache = newResultCache
+		ftic.capacity = capacity
+	}
+	ftic.resultMutex.Unlock()
+
+	// 调整分词缓存容量
+	ftic.tokenMutex.Lock()
+	if tokenCapacity != ftic.tokenCapacity {
+		newTokenCache := lru.New(tokenCapacity)
+		// 复制现有缓存项（可选）
+		ftic.tokenCache = newTokenCache
+		ftic.tokenCapacity = tokenCapacity
+	}
+	ftic.tokenMutex.Unlock()
+}
+
+// 缓存配置
+type CacheConfig struct {
+	PkCacheCapacity       int
+	NormalCacheCapacity   int
+	FullTextCacheCapacity int
+	TokenCacheCapacity    int
+	EnableSecondaryCache  bool
+}
+
+// 索引缓存管理器
+type IndexCacheManager struct {
+	pkCache       *PrimaryKeyCache
+	normalCache   *NormalIndexCache
+	fullTextCache *FullTextIndexCache
+	config        CacheConfig
+}
+
+// 初始化缓存管理器
+func NewIndexCacheManager(config CacheConfig) *IndexCacheManager {
+	return &IndexCacheManager{
+		pkCache:       NewPrimaryKeyCache(config.PkCacheCapacity),
+		normalCache:   NewNormalIndexCache(config.NormalCacheCapacity),
+		fullTextCache: NewFullTextIndexCache(config.FullTextCacheCapacity, config.TokenCacheCapacity),
+		config:        config,
+	}
+}
+
+// 获取主键缓存
+func (icm *IndexCacheManager) GetPrimaryKeyCache() *PrimaryKeyCache {
+	return icm.pkCache
+}
+
+// 获取普通索引缓存
+func (icm *IndexCacheManager) GetNormalIndexCache() *NormalIndexCache {
+	return icm.normalCache
+}
+
+// 获取全文索引缓存
+func (icm *IndexCacheManager) GetFullTextIndexCache() *FullTextIndexCache {
+	return icm.fullTextCache
+}
+
+// 获取缓存配置
+func (icm *IndexCacheManager) GetConfig() CacheConfig {
+	return icm.config
+}
+
+// 调整缓存容量
+func (icm *IndexCacheManager) Resize(config CacheConfig) {
+	// 调整主键缓存容量
+	icm.pkCache.Resize(config.PkCacheCapacity)
+
+	// 调整普通索引缓存容量
+	icm.normalCache.Resize(config.NormalCacheCapacity)
+
+	// 调整全文索引缓存容量
+	icm.fullTextCache.Resize(config.FullTextCacheCapacity, config.TokenCacheCapacity)
+
+	// 更新配置
+	icm.config = config
+}
+
+// 默认缓存配置
+func DefaultCacheConfig() CacheConfig {
+	return CacheConfig{
+		PkCacheCapacity:       10000, // 默认缓存 10000 个主键
+		NormalCacheCapacity:   5000,  // 默认缓存 5000 个普通索引项
+		FullTextCacheCapacity: 2000,  // 默认缓存 2000 个全文搜索结果
+		TokenCacheCapacity:    3000,  // 默认缓存 3000 个分词结果
+		EnableSecondaryCache:  false, // 默认禁用二级缓存
+	}
+}
+
+// 创建默认缓存管理器
+func NewDefaultIndexCacheManager() *IndexCacheManager {
+	return NewIndexCacheManager(DefaultCacheConfig())
+}

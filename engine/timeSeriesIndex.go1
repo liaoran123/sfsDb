@@ -1,0 +1,68 @@
+package engine
+
+// time_series_index.go
+
+import (
+	"errors"
+	"time"
+
+	"github.com/liaoran123/sfsDb/storage"
+)
+
+// 时序索引接口
+type TimeSeriesIndex interface {
+	Index
+	// 时间字段名称
+	TimeField() string
+	// 设置时间字段
+	SetTimeField(field string) error
+	// 范围查询
+	RangeQuery(start, end time.Time) storage.Iterator
+	// 设置数据过期时间
+	SetRetentionPolicy(duration time.Duration)
+	// 获取数据过期时间
+	RetentionPolicy() time.Duration
+}
+
+// 默认时序索引实现
+type DefaultTimeSeriesIndex struct {
+	BaseIndex
+	timeField       string        //timeField 是从 BaseIndex.fields 中选择的一个特定字段，专门用于时间相关操作。类似全文索引SetFullField指定字段
+	retentionPolicy time.Duration //数据过期时间，默认单位为天
+}
+
+// 创建时序索引
+func DefaultTimeSeriesIndexNew(name string) (*DefaultTimeSeriesIndex, error) {
+	dtsi := &DefaultTimeSeriesIndex{
+		BaseIndex: BaseIndex{
+			name: name,
+		},
+	}
+	if err := dtsi.SetName(name); err != nil {
+		return nil, err
+	}
+	return dtsi, nil
+}
+
+// 实现 TimeSeriesIndex 接口方法
+func (dtsi *DefaultTimeSeriesIndex) TimeField() string {
+	return dtsi.timeField
+}
+
+func (dtsi *DefaultTimeSeriesIndex) SetTimeField(field string) error {
+	// 检查字段是否在索引字段中
+	if !exist(dtsi.fields, field) {
+		return errors.New("time field not in index fields")
+	}
+	dtsi.timeField = field
+	return nil
+}
+
+// 设置数据过期时间，单位为天
+func (dtsi *DefaultTimeSeriesIndex) SetRetentionPolicy(duration time.Duration) {
+	dtsi.retentionPolicy = duration
+}
+
+func (dtsi *DefaultTimeSeriesIndex) RetentionPolicy() time.Duration {
+	return dtsi.retentionPolicy
+}

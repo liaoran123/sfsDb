@@ -1,0 +1,379 @@
+package indexCache
+
+import (
+	"sync"
+
+	"github.com/liaoran123/sfsDb/engine"
+	"github.com/liaoran123/sfsDb/storage"
+)
+
+var ItersCache = NewIteratorLRU(1000)
+
+// 自定义LRU缓存节点
+type lruNode struct {
+	key   string
+	value *Iters // 直接使用 *Iters 作为值类型
+	prev  *lruNode
+	next  *lruNode
+}
+
+// 自定义LRU缓存，支持迭代
+type IteratorLRU struct {
+	capacity int
+	size     int
+	head     *lruNode // 最近使用的节点
+	tail     *lruNode // 最久未使用的节点
+	nodes    sync.Map // 使用sync.Map提高并发性能
+	mutex    sync.RWMutex
+}
+
+// 创建新的自定义LRU缓存
+func NewIteratorLRU(capacity int) *IteratorLRU {
+	return &IteratorLRU{
+		capacity: capacity,
+		// sync.Map不需要显式初始化
+	}
+}
+
+// 添加单个迭代器到缓存
+func (lru *IteratorLRU) Add(key string, iter storage.Iterator) {
+	// 将单个迭代器包装成 Iters
+	iters := &Iters{
+		iters: []storage.Iterator{iter},
+	}
+	lru.AddIters(key, iters)
+}
+
+// 添加多个迭代器到缓存
+func (lru *IteratorLRU) AddMultiple(key string, iters []storage.Iterator) {
+	// 将多个迭代器包装成 Iters
+	itersObj := &Iters{
+		iters: iters,
+	}
+	lru.AddIters(key, itersObj)
+}
+
+// 辅助方法：释放节点值
+func (lru *IteratorLRU) releaseValue(value *Iters) {
+	if value != nil {
+		for _, iter := range value.iters {
+			iter.Release()
+		}
+	}
+}
+
+// 获取第一个迭代器（向后兼容）
+func (lru *IteratorLRU) Get(key string) (storage.Iterator, bool) {
+	iters, ok := lru.GetMultiple(key)
+	if !ok || len(iters) == 0 {
+		return nil, false
+	}
+	return iters[0], true
+}
+
+// 获取多个迭代器
+func (lru *IteratorLRU) GetMultiple(key string) ([]storage.Iterator, bool) {
+	lru.mutex.RLock()
+
+	// 如果size为0，直接返回nil, false
+	if lru.size == 0 {
+		lru.mutex.RUnlock()
+		return nil, false
+	}
+
+	if _, exists := lru.nodes.Load(key); exists {
+		// 移到头部
+		lru.mutex.RUnlock()
+		lru.mutex.Lock()
+		if node, exists := lru.nodes.Load(key); exists {
+			lru.moveToHead(node.(*lruNode))
+		}
+		lru.mutex.Unlock()
+
+		// 重新获取读锁并加载节点
+		lru.mutex.RLock()
+		if node, exists := lru.nodes.Load(key); exists {
+			// 直接返回迭代器切片
+			if node.(*lruNode).value != nil {
+				return node.(*lruNode).value.iters, true
+			}
+		}
+		lru.mutex.RUnlock()
+		return nil, false
+	}
+
+	lru.mutex.RUnlock()
+	return nil, false
+}
+
+// 移除元素
+func (lru *IteratorLRU) Remove(key string) bool {
+	lru.mutex.Lock()
+	defer lru.mutex.Unlock()
+
+	if node, exists := lru.nodes.Load(key); exists {
+		lru.removeNode(node.(*lruNode))
+		lru.nodes.Delete(key)
+		// 释放所有迭代器资源
+		lru.releaseValue(node.(*lruNode).value)
+		lru.size--
+		return true
+	}
+
+	return false
+}
+
+// 清空缓存
+func (lru *IteratorLRU) Clear() {
+	lru.mutex.Lock()
+	defer lru.mutex.Unlock()
+
+	// 释放所有值
+	lru.nodes.Range(func(key, value interface{}) bool {
+		lru.releaseValue(value.(*lruNode).value)
+		return true
+	})
+
+	// 重置缓存
+	// 注意：sync.Map没有Clear方法，我们通过重置指针和大小来实现
+	lru.head = nil
+	lru.tail = nil
+	lru.size = 0
+	// 虽然sync.Map中的元素还在，但由于我们已经重置了head和tail
+	// 并且size为0，这些元素不会再被访问到，会被垃圾回收
+}
+
+// 迭代所有元素，执行回调函数（向后兼容，只回调第一个迭代器）
+func (lru *IteratorLRU) Iterate(callback func(key string, value storage.Iterator)) {
+	lru.mutex.RLock()
+	defer lru.mutex.RUnlock()
+
+	lru.nodes.Range(func(key, value interface{}) bool {
+		nodeValue := value.(*lruNode).value
+		if nodeValue != nil && len(nodeValue.iters) > 0 {
+			callback(key.(string), nodeValue.iters[0])
+		}
+		return true
+	})
+}
+
+// 迭代所有元素，执行回调函数（支持多个迭代器）
+func (lru *IteratorLRU) IterateMultiple(callback func(key string, values []storage.Iterator)) {
+	lru.mutex.RLock()
+	defer lru.mutex.RUnlock()
+
+	lru.nodes.Range(func(key, value interface{}) bool {
+		nodeValue := value.(*lruNode).value
+		if nodeValue != nil {
+			callback(key.(string), nodeValue.iters)
+		}
+		return true
+	})
+}
+
+// 获取缓存大小
+func (lru *IteratorLRU) Size() int {
+	lru.mutex.RLock()
+	defer lru.mutex.RUnlock()
+
+	return lru.size
+}
+
+// 获取缓存容量
+func (lru *IteratorLRU) Capacity() int {
+	return lru.capacity
+}
+
+// 调整缓存容量
+func (lru *IteratorLRU) Resize(capacity int) {
+	lru.mutex.Lock()
+	defer lru.mutex.Unlock()
+
+	// 释放所有元素
+	lru.nodes.Range(func(key, value interface{}) bool {
+		lru.releaseValue(value.(*lruNode).value)
+		return true
+	})
+
+	// 重置缓存
+	lru.head = nil
+	lru.tail = nil
+	lru.size = 0
+	lru.capacity = capacity
+	// 虽然sync.Map中的元素还在，但由于我们已经重置了head和tail
+	// 并且size为0，这些元素不会再被访问到，会被垃圾回收
+}
+
+// 添加Iters到缓存
+func (lru *IteratorLRU) AddIters(key string, iters *Iters) {
+	lru.mutex.Lock()
+	defer lru.mutex.Unlock()
+
+	// 如果size为0，视为空缓存，所有键都视为新键
+	if lru.size == 0 {
+		// 创建新节点
+		newNode := &lruNode{
+			key:   key,
+			value: iters,
+		}
+
+		// 添加到头部
+		lru.addToHead(newNode)
+		lru.nodes.Store(key, newNode)
+		lru.size++
+
+		// 如果超出容量，移除尾部节点
+		if lru.size > lru.capacity {
+			tailNode := lru.removeTail()
+			lru.nodes.Delete(tailNode.key)
+			// 释放尾部节点的值
+			lru.releaseValue(tailNode.value)
+			lru.size--
+		}
+		return
+	}
+
+	// 如果键已存在，更新值并移到头部
+	if node, exists := lru.nodes.Load(key); exists {
+		// 释放旧值
+		lru.releaseValue(node.(*lruNode).value)
+		// 更新值
+		node.(*lruNode).value = iters
+		// 移到头部
+		lru.moveToHead(node.(*lruNode))
+		return
+	}
+
+	// 创建新节点
+	newNode := &lruNode{
+		key:   key,
+		value: iters,
+	}
+
+	// 添加到头部
+	lru.addToHead(newNode)
+	lru.nodes.Store(key, newNode)
+	lru.size++
+
+	// 如果超出容量，移除尾部节点
+	if lru.size > lru.capacity {
+		tailNode := lru.removeTail()
+		lru.nodes.Delete(tailNode.key)
+		// 释放尾部节点的值
+		lru.releaseValue(tailNode.value)
+		lru.size--
+	}
+}
+
+// 辅助方法：添加节点到头部
+func (lru *IteratorLRU) addToHead(node *lruNode) {
+	if lru.head == nil {
+		lru.head = node
+		lru.tail = node
+	} else {
+		node.next = lru.head
+		lru.head.prev = node
+		lru.head = node
+	}
+	node.prev = nil
+}
+
+// 辅助方法：移除节点
+func (lru *IteratorLRU) removeNode(node *lruNode) {
+	if node.prev != nil {
+		node.prev.next = node.next
+	} else {
+		lru.head = node.next
+	}
+
+	if node.next != nil {
+		node.next.prev = node.prev
+	} else {
+		lru.tail = node.prev
+	}
+}
+
+// 辅助方法：移节点到头部
+func (lru *IteratorLRU) moveToHead(node *lruNode) {
+	if node == lru.head {
+		return
+	}
+
+	lru.removeNode(node)
+	lru.addToHead(node)
+}
+
+// 辅助方法：移除尾部节点
+func (lru *IteratorLRU) removeTail() *lruNode {
+	node := lru.tail
+	if node != nil {
+		lru.removeNode(node)
+	}
+	return node
+}
+
+// 迭代器缓存结构体
+// 用于缓存TableIter中的iter字段（storage.Iterator类型）
+type IteratorCache struct {
+	cache    *IteratorLRU // 使用自定义LRU缓存
+	capacity int
+}
+
+// 初始化迭代器缓存
+func NewIteratorCache(capacity int) *IteratorCache {
+	return &IteratorCache{
+		cache:    NewIteratorLRU(capacity),
+		capacity: capacity,
+	}
+}
+
+// 获取第一个迭代器（向后兼容）
+func (ic *IteratorCache) Get(key []byte) (storage.Iterator, bool) {
+	return ic.cache.Get(string(key))
+}
+
+// 获取多个迭代器
+func (ic *IteratorCache) GetMultiple(key []byte) ([]storage.Iterator, bool) {
+	return ic.cache.GetMultiple(string(key))
+}
+
+// 设置单个迭代器（向后兼容）
+func (ic *IteratorCache) Set(key []byte, iter storage.Iterator) {
+	ic.cache.Add(string(key), iter)
+}
+
+// 设置多个迭代器
+func (ic *IteratorCache) SetMultiple(key []byte, iters []storage.Iterator) {
+	ic.cache.AddMultiple(string(key), iters)
+}
+
+// 设置Iters
+func (ic *IteratorCache) SetIters(key []byte, iters *Iters) {
+	ic.cache.AddIters(string(key), iters)
+}
+
+// 删除迭代器
+func (ic *IteratorCache) Delete(key []byte) {
+	ic.cache.Remove(string(key))
+}
+
+// 调整迭代器缓存容量
+func (ic *IteratorCache) Resize(capacity int) {
+	if capacity != ic.capacity {
+		// 使用自定义LRU的Resize方法
+		ic.cache.Resize(capacity)
+		// 更新容量
+		ic.capacity = capacity
+	}
+}
+
+// 清空迭代器缓存
+func (ic *IteratorCache) Clear() {
+	// 使用自定义LRU的Clear方法
+	ic.cache.Clear()
+}
+
+type Iters struct {
+	iters []storage.Iterator
+	index engine.Index
+}

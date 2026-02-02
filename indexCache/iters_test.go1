@@ -1,0 +1,125 @@
+package indexCache
+
+import (
+	"testing"
+)
+
+// 模拟的迭代器实现，用于测试
+
+type mockIterator struct {
+	released bool
+}
+
+func (mi *mockIterator) First() bool {
+	return false
+}
+
+func (mi *mockIterator) Last() bool {
+	return false
+}
+
+func (mi *mockIterator) Seek(key []byte) bool {
+	return false
+}
+
+func (mi *mockIterator) Next() bool {
+	return false
+}
+
+func (mi *mockIterator) Prev() bool {
+	return false
+}
+
+func (mi *mockIterator) Key() []byte {
+	return nil
+}
+
+func (mi *mockIterator) Value() []byte {
+	return nil
+}
+
+func (mi *mockIterator) Valid() bool {
+	return false
+}
+
+func (mi *mockIterator) Error() error {
+	return nil
+}
+
+func (mi *mockIterator) Release() {
+	mi.released = true
+}
+
+// TestIteratorCache 测试迭代器缓存
+func TestIteratorCache(t *testing.T) {
+	// 创建迭代器缓存
+	cache := NewIteratorCache(10)
+
+	// 测试基本操作
+	key1 := []byte("key1")
+	iter1 := &mockIterator{}
+
+	// 测试Set和Get
+	cache.Set(key1, iter1)
+	iter, ok := cache.Get(key1)
+	if !ok || iter != iter1 {
+		t.Errorf("Expected iter1, got %v", iter)
+	}
+
+	// 测试覆盖迭代器（应释放旧迭代器）
+	iter2 := &mockIterator{}
+	cache.Set(key1, iter2)
+	if !iter1.released {
+		t.Errorf("Expected iter1 to be released")
+	}
+
+	// 测试获取新迭代器
+	iter, ok = cache.Get(key1)
+	if !ok || iter != iter2 {
+		t.Errorf("Expected iter2, got %v", iter)
+	}
+
+	// 测试Delete方法
+	cache.Delete(key1)
+	if !iter2.released {
+		t.Errorf("Expected iter2 to be released")
+	}
+
+	// 测试删除后是否不存在
+	iter, ok = cache.Get(key1)
+	if ok || iter != nil {
+		t.Errorf("Expected nil, got %v", iter)
+	}
+
+	// 测试Clear方法
+	key2 := []byte("key2")
+	iter3 := &mockIterator{}
+	cache.Set(key2, iter3)
+	cache.Clear()
+	if !iter3.released {
+		t.Errorf("Expected iter3 to be released")
+	}
+
+	// 测试清空后是否不存在
+	iter, ok = cache.Get(key2)
+	if ok || iter != nil {
+		t.Errorf("Expected nil, got %v", iter)
+	}
+
+	// 测试Resize方法
+	key3 := []byte("key3")
+	iter4 := &mockIterator{}
+	cache.Set(key3, iter4)
+	cache.Resize(20)
+	if !iter4.released {
+		t.Errorf("Expected iter4 to be released")
+	}
+
+	// 测试调整大小后是否可以设置新迭代器
+	iter5 := &mockIterator{}
+	cache.Set(key3, iter5)
+	iter, ok = cache.Get(key3)
+	if !ok || iter != iter5 {
+		t.Errorf("Expected iter5, got %v", iter)
+	}
+}

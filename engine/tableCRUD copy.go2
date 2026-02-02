@@ -563,9 +563,7 @@ func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *
 	}
 */
 func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
-	var tbiter *TableIter
-	field := GetStringSlice()
-	defer PutStringSlice(field)
+	var field []string
 	for k := range *fields {
 		//判断字段是否在表中
 		if _, ok := t.fields[k]; !ok {
@@ -600,6 +598,7 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 	pfx = append(pfx, SPLIT[0])
 	rangeHelper := util.NewRangeHelper(pfx)
 	var iter storage.Iterator
+	var tbiter *TableIter
 	if op != util.NotEqual {
 		slice := rangeHelper.FromComparison(op, key)
 		iter = funIter(slice.Start, slice.Limit)
