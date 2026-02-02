@@ -70,7 +70,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("获取迭代器失败")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		// 设置匹配条件：删除 inactive 记录
 		iter.SetMatch(match.NewFieldComparison("active", match.Equal, false))
@@ -84,7 +84,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 		// 验证删除结果
 		iterAfter := table.Search(&map[string]any{"id": nil})
 		if iterAfter != nil {
-			defer iterAfter.Release()
+			defer GlobalTableIterPool.Put(iterAfter)
 			iterAfter.SetMatch(match.NewFieldComparison("active", match.Equal, false))
 			recordsAfter := iterAfter.GetRecords(true)
 			if len(recordsAfter) != 0 {
@@ -118,7 +118,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("获取迭代器失败")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		// 设置匹配条件：更新 age < 30 的记录
 		iter.SetMatch(match.NewFieldComparison("age", match.LessThan, 30))
@@ -138,10 +138,10 @@ func TestTableIter_BatchOperations(t *testing.T) {
 		// 验证更新结果
 		iterAfter := table.Search(&map[string]any{"id": nil})
 		if iterAfter != nil {
-			defer iterAfter.Release()
+			defer GlobalTableIterPool.Put(iterAfter)
 			// 查找 age < 30 且 active = true 的记录
 			iterAfter.SetMatch(match.NewAND(
-				[]string{"age"}, 
+				[]string{"age"},
 				map[any]bool{22: true, 28: true}, // Ken 和 Lily
 			))
 			recordsAfter := iterAfter.GetRecords(true)
@@ -169,7 +169,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("获取迭代器失败")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		// 准备更新字段
 		updateFields := map[string]any{
@@ -185,7 +185,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 		// 验证更新结果
 		iterAfter := table.Search(&map[string]any{"id": nil})
 		if iterAfter != nil {
-			defer iterAfter.Release()
+			defer GlobalTableIterPool.Put(iterAfter)
 			// 查找 score = 100.0 的记录
 			iterAfter.SetMatch(match.NewFieldComparison("score", match.Equal, 100.0))
 			recordsAfter := iterAfter.GetRecords(true)
@@ -259,7 +259,7 @@ func TestTableIter_BatchPerformance(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("获取迭代器失败")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		// 设置匹配条件：删除 inactive 记录
 		iter.SetMatch(match.NewFieldComparison("active", match.Equal, false))
@@ -283,7 +283,7 @@ func TestTableIter_BatchPerformance(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("获取迭代器失败")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		// 准备更新字段
 		updateFields := map[string]any{

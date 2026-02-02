@@ -94,7 +94,7 @@ func TestTableInsertWithAllTypes(t *testing.T) {
 
 	// 验证插入的数据
 	iter := table.Search(&map[string]any{"id": nil})
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	records := iter.GetRecords(true)
 	if len(records) != 3 {
 		t.Fatalf("Expected 3 records, got %d", len(records))
@@ -283,7 +283,7 @@ func TestTableUpdateWithAllTypes(t *testing.T) {
 
 	// 验证更新后的数据
 	iter := table.Search(&map[string]any{"id": 1})
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	records := iter.GetRecords(true)
 	if len(records) != 1 {
 		t.Fatalf("Expected 1 record, got %d", len(records))

@@ -87,7 +87,7 @@ func TestTableTransaction(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search record after transaction")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		if len(records) != 1 {
@@ -126,7 +126,7 @@ func TestTableTransaction(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search record after rollback")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		if len(records) != 0 {
@@ -167,7 +167,7 @@ func TestTableTransaction(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search record after delete")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		if len(records) != 0 {
@@ -203,7 +203,7 @@ func TestTableTransaction(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search records in transaction")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		searchResults := iter.GetRecords(true)
 		if len(searchResults) == 0 {
@@ -328,7 +328,7 @@ func TestTableTransaction_Concurrent(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search records after concurrent transactions")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	records := iter.GetRecords(true)
 	if len(records) != concurrentCount {
@@ -397,7 +397,7 @@ func TestTableTransaction_ReadOnly(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search record in transaction")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	records := iter.GetRecords(true)
 	if len(records) != 1 {

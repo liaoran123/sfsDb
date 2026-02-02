@@ -59,6 +59,6 @@ func TestTableKeyGenerationDebug(t *testing.T) {
 				fmt.Printf("Record %d: %v\n", i, record)
 			}
 		}
-		iter.Release()
+		GlobalTableIterPool.Put(iter)
 	}
 }

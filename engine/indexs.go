@@ -163,6 +163,36 @@ func (i *Indexs) Len() int {
 // 匹配索引，优先匹配唯一索引PrimaryKey，再匹配普通索引NormalIndex，FullTextIndex
 func (i *Indexs) MatchIndex(fields ...string) Index {
 	// 1. 优先匹配唯一索引PrimaryKey
+	if i.primaryKeyLoaded && i.primaryKey.MatchFields(fields...) {
+		return i.primaryKey
+	}
+
+	// 2. 再匹配普通索引NormalIndex
+	if i.normalIndexsLoaded {
+		for _, index := range i.normalIndexs {
+			if index.MatchFields(fields...) {
+				return index
+			}
+		}
+	}
+
+	// 3. 最后匹配全文索引FullTextIndex
+	if i.fullTextIndexsLoaded {
+		for _, index := range i.fullTextIndexs {
+			if index.MatchFields(fields...) {
+				return index
+			}
+		}
+	}
+
+	return nil
+}
+
+/*
+
+// 匹配索引，优先匹配唯一索引PrimaryKey，再匹配普通索引NormalIndex，FullTextIndex
+func (i *Indexs) MatchIndex(fields ...string) Index {
+	// 1. 优先匹配唯一索引PrimaryKey
 	for _, index := range i.indexs {
 		if _, ok := index.(PrimaryKey); ok {
 			if index.MatchFields(fields...) {
@@ -191,6 +221,7 @@ func (i *Indexs) MatchIndex(fields ...string) Index {
 
 	return nil
 }
+*/
 
 // 修改所有包含字段名称的索引
 func (i *Indexs) UpdateFields(oldfields string, newfields string) {

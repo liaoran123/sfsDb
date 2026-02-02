@@ -120,7 +120,7 @@ func TestTableTransaction_BasicOperations(t *testing.T) {
 		if iterAfter == nil {
 			t.Fatalf("Failed to search records after transaction")
 		}
-		defer iterAfter.Release()
+		defer GlobalTableIterPool.Put(iterAfter)
 
 		recordsAfter := iterAfter.GetRecords(true)
 		if len(recordsAfter) != 1 {
@@ -177,7 +177,7 @@ func TestTableTransaction_BasicOperations(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search records after rollback")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		if len(records) != 1 {
@@ -221,7 +221,7 @@ func TestTableTransaction_BasicOperations(t *testing.T) {
 		if iterAll == nil {
 			t.Fatalf("Failed to search all records in transaction")
 		}
-		defer iterAll.Release()
+		defer GlobalTableIterPool.Put(iterAll)
 
 		allRecords := iterAll.GetRecords(true)
 		if len(allRecords) != 1 { // 只有Alice一条记录
@@ -234,7 +234,7 @@ func TestTableTransaction_BasicOperations(t *testing.T) {
 		if iterActive == nil {
 			t.Fatalf("Failed to search active records in transaction")
 		}
-		defer iterActive.Release()
+		defer GlobalTableIterPool.Put(iterActive)
 
 		activeRecords := iterActive.GetRecords(true)
 		if len(activeRecords) != 1 { // 只有Alice一条active记录
@@ -505,7 +505,7 @@ func TestTableTransaction_SearchWithOperators(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search records with age > 25")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		if len(records) != 3 { // Charlie, David, Eve
@@ -520,7 +520,7 @@ func TestTableTransaction_SearchWithOperators(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search records with score <= 85.5")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		if len(records) != 3 { // Alice, Charlie, Eve

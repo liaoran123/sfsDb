@@ -79,7 +79,7 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search composite primary key")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	resultRecords := iter.GetRecords(true)
 	if len(resultRecords) != 1 {
@@ -112,7 +112,7 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search composite primary key after update")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	resultRecords = iter.GetRecords(true)
 	if len(resultRecords) != 1 {
@@ -135,7 +135,7 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search composite primary key after delete")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	resultRecords = iter.GetRecords(true)
 	if len(resultRecords) != 0 {
@@ -250,7 +250,7 @@ func TestTableForMethod(t *testing.T) {
 	// 验证table2的数据是否仍然正确
 	t.Log("Verifying table2 data...")
 	iter2 := table2.Search(&map[string]any{"id": nil})
-	defer iter2.Release()
+	defer GlobalTableIterPool.Put(iter2)
 
 	records2 := iter2.GetRecords(true)
 	if len(records2) != len(testData2) {
@@ -358,7 +358,7 @@ func TestDeleteAllAndAffectOtherTables(t *testing.T) {
 
 	// 验证初始状态下两个表的数据都正确
 	iter1 := table1.Search(&map[string]any{"id": nil})
-	defer iter1.Release()
+	defer GlobalTableIterPool.Put(iter1)
 	records1 := iter1.GetRecords(true)
 	if len(records1) != len(testData1) {
 		t.Errorf("Expected %d records in table1 initially, got %d", len(testData1), len(records1))
@@ -367,7 +367,7 @@ func TestDeleteAllAndAffectOtherTables(t *testing.T) {
 	}
 
 	iter2 := table2.Search(&map[string]any{"id": nil})
-	defer iter2.Release()
+	defer GlobalTableIterPool.Put(iter2)
 	records2 := iter2.GetRecords(true)
 	if len(records2) != len(testData2) {
 		t.Errorf("Expected %d records in table2 initially, got %d", len(testData2), len(records2))
@@ -384,7 +384,7 @@ func TestDeleteAllAndAffectOtherTables(t *testing.T) {
 
 	// 验证table1的数据是否已被删除
 	iter1 = table1.Search(&map[string]any{"id": nil})
-	defer iter1.Release()
+	defer GlobalTableIterPool.Put(iter1)
 	records1 = iter1.GetRecords(true)
 	if len(records1) != 0 {
 		t.Errorf("Expected 0 records in table1 after DeleteAll(), got %d", len(records1))
@@ -395,7 +395,7 @@ func TestDeleteAllAndAffectOtherTables(t *testing.T) {
 	// 验证table2的数据是否仍然正确
 	t.Log("Verifying table2 data after table1.DeleteAll()...")
 	iter2 = table2.Search(&map[string]any{"id": nil})
-	defer iter2.Release()
+	defer GlobalTableIterPool.Put(iter2)
 	records2 = iter2.GetRecords(true)
 	if len(records2) != len(testData2) {
 		t.Errorf("Expected %d records in table2 after table1.DeleteAll(), got %d", len(testData2), len(records2))
@@ -423,7 +423,7 @@ func TestDeleteAllAndAffectOtherTables(t *testing.T) {
 
 	// 验证新数据是否成功插入
 	iter1 = table1.Search(&map[string]any{"id": nil})
-	defer iter1.Release()
+	defer GlobalTableIterPool.Put(iter1)
 	records1 = iter1.GetRecords(true)
 	if len(records1) != 1 {
 		t.Errorf("Expected 1 record in table1 after re-insertion, got %d", len(records1))
@@ -489,7 +489,7 @@ func TestDeleteAllWithLargeData(t *testing.T) {
 
 	// 验证初始状态下表的数据量是否正确
 	iter := table.Search(&map[string]any{"id": nil})
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	records := iter.GetRecords(true)
 	if len(records) != largeDataCount {
 		t.Errorf("Expected %d records initially, got %d", largeDataCount, len(records))
@@ -506,7 +506,7 @@ func TestDeleteAllWithLargeData(t *testing.T) {
 
 	// 验证表的数据是否已被删除
 	iter = table.Search(&map[string]any{"id": nil})
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	records = iter.GetRecords(true)
 	if len(records) != 0 {
 		t.Errorf("Expected 0 records after DeleteAll(), got %d", len(records))
@@ -524,7 +524,7 @@ func TestDeleteAllWithLargeData(t *testing.T) {
 
 	// 验证新数据是否成功插入
 	iter = table.Search(&map[string]any{"id": nil})
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	records = iter.GetRecords(true)
 	if len(records) != 1 {
 		t.Errorf("Expected 1 record after re-insertion, got %d", len(records))
@@ -588,7 +588,7 @@ func TestTableCRUD(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search record")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	records := iter.GetRecords(true)
 	if len(records) != 1 {
@@ -612,7 +612,7 @@ func TestTableCRUD(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search record after update")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	records = iter.GetRecords(true)
 	if len(records) != 1 {
@@ -635,7 +635,7 @@ func TestTableCRUD(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search record after delete")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	records = iter.GetRecords(true)
 	if len(records) != 0 {
@@ -707,7 +707,7 @@ func TestTableCRUD(t *testing.T) {
 	}
 	//遍历表
 	fditer := tableWithIndex.ForData()
-	defer fditer.Release()
+	defer GlobalTableIterPool.Put(fditer)
 	fdrecords := fditer.GetRecords(true)
 	for _, record := range fdrecords {
 		fmt.Println(record)
@@ -727,7 +727,7 @@ func TestTableCRUD(t *testing.T) {
 	if emailIter == nil {
 		t.Fatalf("Failed to search by email")
 	}
-	defer emailIter.Release()
+	defer GlobalTableIterPool.Put(emailIter)
 
 	emailRecords := emailIter.GetRecords(true)
 	if len(emailRecords) != 1 {
@@ -742,13 +742,13 @@ func TestTableCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to delete record: %v", err)
 	}
-	defer emailIter.Release()
+	defer GlobalTableIterPool.Put(emailIter)
 	//再次搜索邮箱
 	emailIter = tableWithIndex.Search(&map[string]any{"email": "user1.updated@example.com"})
 	if emailIter == nil {
 		t.Fatalf("Failed to search by email")
 	}
-	defer emailIter.Release()
+	defer GlobalTableIterPool.Put(emailIter)
 
 	emailRecords = emailIter.GetRecords(true)
 	if len(emailRecords) != 0 {
@@ -867,7 +867,7 @@ func TestTable_FullTextSearch(t *testing.T) {
 			if iter == nil {
 				t.Fatalf("Search failed for term: %s", st.searchTerm)
 			}
-			defer iter.Release()
+			defer GlobalTableIterPool.Put(iter)
 
 			records := iter.GetRecords(true)
 			defer record.PutRecords(records)
@@ -1006,7 +1006,7 @@ func TestTable_FullTextSearch_CompositePK(t *testing.T) {
 			if iter == nil {
 				t.Fatalf("Search failed for term: %s", st.searchTerm)
 			}
-			defer iter.Release()
+			defer GlobalTableIterPool.Put(iter)
 
 			records := iter.GetRecords(true)
 			if len(records) != st.expectedCount {
@@ -1059,7 +1059,7 @@ func TestTable_FullTextSearch_CompositePK(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Search failed for term: %s", "测试")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		if len(records) < 1 {
@@ -1123,7 +1123,7 @@ func TestTable_UpdateFieldName_Flow(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search by initial email field")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	records := iter.GetRecords(true)
 	if len(records) != 1 {
@@ -1174,7 +1174,7 @@ func TestTable_UpdateFieldName_Flow(t *testing.T) {
 	if iter2 == nil {
 		t.Fatalf("Failed to search by new email_address field")
 	}
-	defer iter2.Release()
+	defer GlobalTableIterPool.Put(iter2)
 
 	records2 := iter2.GetRecords(true)
 	if len(records2) != 1 {
@@ -1186,7 +1186,7 @@ func TestTable_UpdateFieldName_Flow(t *testing.T) {
 	if iter3 == nil {
 		t.Fatalf("Failed to search old record by new field name")
 	}
-	defer iter3.Release()
+	defer GlobalTableIterPool.Put(iter3)
 
 	records3 := iter3.GetRecords(true)
 	if len(records3) != 1 {
@@ -1415,7 +1415,7 @@ func TestTableSearch(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search by primary key")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		defer record.PutRecords(records)
@@ -1434,7 +1434,7 @@ func TestTableSearch(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search by secondary index")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		defer record.PutRecords(records)
@@ -1453,7 +1453,7 @@ func TestTableSearch(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search by range")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		defer record.PutRecords(records)
@@ -1475,7 +1475,7 @@ func TestTableSearch(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search by like")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		defer record.PutRecords(records)
@@ -1502,7 +1502,7 @@ func TestTableSearch(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search by not equal")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		defer record.PutRecords(records)
@@ -1518,7 +1518,7 @@ func TestTableSearch(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search by greater than or equal")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		defer record.PutRecords(records)
@@ -1539,7 +1539,7 @@ func TestTableSearch(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search by less than")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		defer record.PutRecords(records)
@@ -1560,7 +1560,7 @@ func TestTableSearch(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Failed to search by less than or equal")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		records := iter.GetRecords(true)
 		defer record.PutRecords(records)
@@ -1773,7 +1773,7 @@ func TestCreateIndexSameID(t *testing.T) {
 		if iter1 == nil {
 			t.Fatalf("Failed to search table 1")
 		}
-		defer iter1.Release()
+		defer GlobalTableIterPool.Put(iter1)
 
 		records1 := iter1.GetRecords(true)
 		if len(records1) != 1 {
@@ -1788,7 +1788,7 @@ func TestCreateIndexSameID(t *testing.T) {
 		if iter2 == nil {
 			t.Fatalf("Failed to search table 2")
 		}
-		defer iter2.Release()
+		defer GlobalTableIterPool.Put(iter2)
 
 		records2 := iter2.GetRecords(true)
 		if len(records2) != 1 {
@@ -1965,7 +1965,7 @@ func TestTable_MultipleFieldUpdates(t *testing.T) {
 	if iter1 == nil {
 		t.Fatalf("Failed to search old record by new email_address field")
 	}
-	defer iter1.Release()
+	defer GlobalTableIterPool.Put(iter1)
 
 	records1 := iter1.GetRecords(true)
 	if len(records1) != 1 {
@@ -1977,7 +1977,7 @@ func TestTable_MultipleFieldUpdates(t *testing.T) {
 	if iter2 == nil {
 		t.Fatalf("Failed to search new record by new phone_number field")
 	}
-	defer iter2.Release()
+	defer GlobalTableIterPool.Put(iter2)
 
 	records2 := iter2.GetRecords(true)
 	if len(records2) != 1 {
@@ -2199,11 +2199,11 @@ func TestCompositePrimaryKeySearch1(t *testing.T) {
 	}
 
 	dataIter := table.Search(&fields1)
-	defer dataIter.Release()
+	defer GlobalTableIterPool.Put(dataIter)
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败: %v", err)
 	}
-	//defer dataIter.Release()
+	//defer GlobalTableIterPool.Put(dataIter)
 	records := dataIter.GetRecords(true)
 	defer record.PutRecords(records)
 	for i, item := range records {
@@ -2265,7 +2265,7 @@ func TestTableUpdateWithOptimisticLock(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search record")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	records := iter.GetRecords(true)
 	if len(records) != 1 {
@@ -2299,7 +2299,7 @@ func TestTableUpdateWithOptimisticLock(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search record after update")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	records = iter.GetRecords(true)
 	if len(records) != 1 {
@@ -2354,7 +2354,7 @@ func TestTableUpdateWithOptimisticLock(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search record after second update")
 	}
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	records = iter.GetRecords(true)
 	if len(records) != 1 {
@@ -2486,7 +2486,7 @@ func TestTableSearch1(t *testing.T) {
 	t.Run("ForData", func(t *testing.T) {
 		// 使用ForData方法遍历所有数据
 		dataIter := table.ForData()
-		defer dataIter.Release()
+		defer GlobalTableIterPool.Put(dataIter)
 		rs := dataIter.GetRecords(true)
 		defer record.PutRecords(rs)
 
@@ -2503,11 +2503,11 @@ func TestTableSearch1(t *testing.T) {
 			"id": 1,
 		}
 		dataIter := table.Search(&fields)
-		defer dataIter.Release()
+		defer GlobalTableIterPool.Put(dataIter)
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
-		//defer dataIter.Release()
+		//defer GlobalTableIterPool.Put(dataIter)
 		records := dataIter.GetRecords(true)
 		defer record.PutRecords(records)
 		fmt.Printf("records: %v\n", records)
@@ -2532,11 +2532,11 @@ func TestTableSearch1(t *testing.T) {
 			"name": "Charlie",
 		}
 		dataIter := table.Search(&fields)
-		defer dataIter.Release()
+		defer GlobalTableIterPool.Put(dataIter)
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
-		//defer dataIter.Release()
+		//defer GlobalTableIterPool.Put(dataIter)
 		records := dataIter.GetRecords(true)
 		defer record.PutRecords(records)
 		for _, item := range records.Select("name", "age", "description") {
@@ -2555,11 +2555,11 @@ func TestTableSearch1(t *testing.T) {
 			"description": "Bob",
 		}
 		dataIter := table.Search(&fields)
-		defer dataIter.Release()
+		defer GlobalTableIterPool.Put(dataIter)
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
-		//defer dataIter.Release()
+		//defer GlobalTableIterPool.Put(dataIter)
 		records := dataIter.GetRecords(true)
 		defer record.PutRecords(records)
 		fmt.Printf("records: %v\n", records)
@@ -2582,11 +2582,11 @@ func TestTableSearch1(t *testing.T) {
 				"description": item["description"],
 			}
 			dataIter := table.Search(&fields)
-			defer dataIter.Release()
+			defer GlobalTableIterPool.Put(dataIter)
 			if dataIter.iter == nil {
 				t.Fatalf("Search 失败")
 			}
-			//defer dataIter.Release()
+			//defer GlobalTableIterPool.Put(dataIter)
 
 			records := dataIter.GetRecords(true)
 			defer record.PutRecords(records)
@@ -2621,11 +2621,11 @@ func TestTableSearch1(t *testing.T) {
 				"description": item["description"],
 			}
 			dataIter := table.Search(&fields)
-			defer dataIter.Release()
+			defer GlobalTableIterPool.Put(dataIter)
 			if dataIter.iter == nil {
 				t.Fatalf("Search 失败")
 			}
-			//defer dataIter.Release()
+			//defer GlobalTableIterPool.Put(dataIter)
 
 			records := dataIter.GetRecords(true)
 			defer record.PutRecords(records)
@@ -2646,11 +2646,11 @@ func TestTableSearch1(t *testing.T) {
 		}
 		// 使用Search方法搜索不存在的id
 		dataIter := table.Search(&fields)
-		defer dataIter.Release()
+		defer GlobalTableIterPool.Put(dataIter)
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
-		//defer dataIter.Release()
+		//defer GlobalTableIterPool.Put(dataIter)
 		records := dataIter.GetRecords(true)
 		defer record.PutRecords(records)
 		//判断data[1]和records是否相等
@@ -2668,11 +2668,11 @@ func TestTableSearch1(t *testing.T) {
 			"id": nil, // id=nil或空，将获取所有表记录
 		}
 		dataIter := table.Search(&fields)
-		defer dataIter.Release()
+		defer GlobalTableIterPool.Put(dataIter)
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
-		//defer dataIter.Release()
+		//defer GlobalTableIterPool.Put(dataIter)
 		records := dataIter.GetRecords(true)
 		defer record.PutRecords(records)
 		for i, item := range records.Select() {
@@ -2729,7 +2729,7 @@ func TestTableCRUD1(t *testing.T) {
 	// 验证记录存在
 	searchFields := map[string]any{"id": 1}
 	dataIter := table.Search(&searchFields)
-	defer dataIter.Release()
+	defer GlobalTableIterPool.Put(dataIter)
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}
@@ -2762,7 +2762,7 @@ func TestTableCRUD1(t *testing.T) {
 	// 验证修改成功
 	searchFields = map[string]any{"id": 1}
 	dataIter = table.Search(&searchFields)
-	defer dataIter.Release()
+	defer GlobalTableIterPool.Put(dataIter)
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}
@@ -2790,7 +2790,7 @@ func TestTableCRUD1(t *testing.T) {
 	// 验证记录已删除
 	searchFields = map[string]any{"id": 1}
 	dataIter = table.Search(&searchFields)
-	defer dataIter.Release()
+	defer GlobalTableIterPool.Put(dataIter)
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}
@@ -2908,7 +2908,7 @@ func TestTableCRUD1(t *testing.T) {
 	t.Log("测试通过普通索引查询")
 	searchByTitle := map[string]any{"title": "Go语言入门"}
 	dataIter = tableWithIndex.Search(&searchByTitle)
-	defer dataIter.Release()
+	defer GlobalTableIterPool.Put(dataIter)
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}
@@ -2932,7 +2932,7 @@ func TestTableCRUD1(t *testing.T) {
 	t.Log("测试通过复合索引查询")
 	searchByAuthor := map[string]any{"author": "张三"}
 	dataIter = tableWithIndex.Search(&searchByAuthor)
-	defer dataIter.Release()
+	defer GlobalTableIterPool.Put(dataIter)
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}
@@ -2961,7 +2961,7 @@ func TestTableCRUD1(t *testing.T) {
 	// 验证修改成功
 	searchUpdated := map[string]any{"id": 1}
 	dataIter = tableWithIndex.Search(&searchUpdated)
-	defer dataIter.Release()
+	defer GlobalTableIterPool.Put(dataIter)
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}
@@ -2989,7 +2989,7 @@ func TestTableCRUD1(t *testing.T) {
 	// 验证记录已删除
 	searchDeleted := map[string]any{"id": 3}
 	dataIter = tableWithIndex.Search(&searchDeleted)
-	defer dataIter.Release()
+	defer GlobalTableIterPool.Put(dataIter)
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}
@@ -3005,7 +3005,7 @@ func TestTableCRUD1(t *testing.T) {
 	// 验证索引仍然有效
 	searchByAuthorAfterDelete := map[string]any{"author": "张三"}
 	dataIter = tableWithIndex.Search(&searchByAuthorAfterDelete)
-	defer dataIter.Release()
+	defer GlobalTableIterPool.Put(dataIter)
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}

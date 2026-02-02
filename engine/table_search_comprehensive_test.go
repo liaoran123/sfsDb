@@ -188,11 +188,11 @@ func TestTableSearchComprehensive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Search with the specified operator
 			iter := table.Search(&tc.searchData, tc.operator)
-			defer iter.Release()
+			defer GlobalTableIterPool.Put(iter)
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for case: %s", tc.name)
 			}
-			//defer iter.Release()
+			//defer GlobalTableIterPool.Put(iter)
 
 			// Collect results
 			var count int
@@ -294,11 +294,11 @@ func TestTableSearchEdgeCases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Search with the specified operator
 			iter := table.Search(&tc.searchData, tc.operator)
-			defer iter.Release()
+			defer GlobalTableIterPool.Put(iter)
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for case: %s", tc.name)
 			}
-			//defer iter.Release()
+			//defer GlobalTableIterPool.Put(iter)
 
 			// Collect results
 			var count int
@@ -358,14 +358,14 @@ func TestTableSearchMultipleFields(t *testing.T) {
 	t.Run("Search with multiple fields using TableIter and SetMatch", func(t *testing.T) {
 		// 创建复合条件匹配器（这里简化处理，只检查id=3的记录）
 		searchData := map[string]any{"id": 3}
-		
+
 		// 使用主键索引进行精确匹配
 		iter := table.Search(&searchData, util.Equal)
 		if iter == nil {
 			t.Fatalf("Search returned nil iterator")
 		}
-		defer iter.Release()
-		
+		defer GlobalTableIterPool.Put(iter)
+
 		records := iter.GetRecords(true)
 		if len(records) != 1 {
 			t.Errorf("Expected 1 result, got %d", len(records))

@@ -590,9 +590,6 @@ func (t *TableIter) Count() int {
 
 	return i
 }
-
-/*
-//由于TableIter本身使用对象池，put的时候同时释放iter器和跳跃区间，所以这里不需要
 func (t *TableIter) Release() {
 	if t == nil {
 		return
@@ -608,4 +605,3 @@ func (t *TableIter) Release() {
 		}
 	}
 }
-*/

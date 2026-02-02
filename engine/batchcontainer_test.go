@@ -10,7 +10,7 @@ import (
 // TestBatchContainerMaxBatchSize 测试 batchContainer 的批量大小检查逻辑
 func TestBatchContainerMaxBatchSize(t *testing.T) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./batchcontainer_test_db")
+	_, err := storage.OpenDefaultDb("./batchcontainer_test_db1")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestBatchContainerMaxBatchSize(t *testing.T) {
 // TestBatchContainerDifferentMaxBatchSizes 测试不同的 maxBatchSize 值
 func TestBatchContainerDifferentMaxBatchSizes(t *testing.T) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./batchcontainer_test_db")
+	_, err := storage.OpenDefaultDb("./batchcontainer_test_db2")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
@@ -138,17 +138,17 @@ func TestBatchContainerDifferentMaxBatchSizes(t *testing.T) {
 
 				// 检查是否触发了写入
 				afterLen := container.Len()
-				if beforeLen >= size && afterLen < size {
+				// 每个Operation调用会添加1个操作到batch中（只有主键索引）
+				// 所以如果操作前的batch长度加上1大于等于maxBatchSize，那么操作后batch长度应该小于操作前的batch长度
+				if beforeLen+1 >= size && afterLen < beforeLen {
 					writeCount++
 					t.Logf("Write batch triggered at operation %d", i)
 				}
 			}
 
 			// 验证写入次数
+			// 计算期望的写入次数：每次写入处理size个操作
 			expectedWrites := 20 / size
-			if 20%size > 0 {
-				expectedWrites++
-			}
 
 			if writeCount != expectedWrites {
 				t.Errorf("Expected %d writes for maxBatchSize=%d, got %d", expectedWrites, size, writeCount)
@@ -162,7 +162,7 @@ func TestBatchContainerDifferentMaxBatchSizes(t *testing.T) {
 // TestBatchContainerNoMaxBatchSize 测试当 maxBatchSize <= 0 时的行为
 func TestBatchContainerNoMaxBatchSize(t *testing.T) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./batchcontainer_test_db")
+	_, err := storage.OpenDefaultDb("./batchcontainer_test_db3")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}

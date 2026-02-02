@@ -37,7 +37,7 @@ func (t *Table) InitAuto() {
 func (t *Table) MaxAutoValue() int {
 	fields := map[string]any{"id": nil} //id为nil时，全表扫描。
 	tableIter := t.Search(&fields)
-	defer tableIter.Release()
+	defer GlobalTableIterPool.Put(tableIter)
 	if tableIter == nil {
 		return 0
 	}

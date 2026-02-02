@@ -62,7 +62,7 @@ func TestBatchInsert(t *testing.T) {
 	for i, id := range ids {
 		searchFields := map[string]any{"id": id}
 		iter := table.Search(&searchFields)
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 		if !iter.Next() {
 			t.Errorf("Record with ID %d not found", id)
 			continue

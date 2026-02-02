@@ -236,7 +236,7 @@ func TestKeyChangeTracking(t *testing.T) {
 
 	// 最终应该有2条记录（id:1, 3）
 	iter := table.ForData()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	finalRecords := iter.GetRecords(true)
 	if len(finalRecords) != 2 {
 		t.Fatalf("Expected 2 final records, got %d", len(finalRecords))
@@ -341,7 +341,7 @@ func TestKeyChange_AddDeleteEqual(t *testing.T) {
 
 	// 验证最终记录数为0
 	iter := table.ForData()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	finalRecords := iter.GetRecords(true)
 	if len(finalRecords) != 0 {
 		t.Fatalf("Expected 0 final records, got %d", len(finalRecords))
@@ -577,7 +577,7 @@ func TestKeyChange_UpdateIndexFieldsSeparately(t *testing.T) {
 
 	// 验证最终记录数为0
 	iter := table.ForData()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	finalRecords := iter.GetRecords(true)
 	if len(finalRecords) != 0 {
 		t.Fatalf("Expected 0 final records, got %d", len(finalRecords))
@@ -724,7 +724,7 @@ func TestKeyChange_ConcurrentOperations(t *testing.T) {
 
 	// 验证最终记录数为0
 	iter := table.ForData()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	finalRecords := iter.GetRecords(true)
 	if len(finalRecords) != 0 {
 		t.Fatalf("Expected 0 final records, got %d", len(finalRecords))
@@ -875,7 +875,7 @@ func TestKeyChange_UpdateIndexField(t *testing.T) {
 
 	// 验证最终记录数为0
 	iter := table.ForData()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	finalRecords := iter.GetRecords(true)
 	if len(finalRecords) != 0 {
 		t.Fatalf("Expected 0 final records, got %d", len(finalRecords))

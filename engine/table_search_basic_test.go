@@ -85,7 +85,7 @@ func TestTableSearchBasic(t *testing.T) {
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for case: %s", tc.name)
 			}
-			defer iter.Release()
+			defer GlobalTableIterPool.Put(iter)
 
 			// Collect results
 			var count int
@@ -160,7 +160,7 @@ func TestTableSearchWithSecondaryIndex(t *testing.T) {
 		if iter == nil {
 			t.Fatalf("Search returned nil iterator")
 		}
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 
 		// Collect results
 		var count int

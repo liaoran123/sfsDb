@@ -112,7 +112,7 @@ func TestTableSearchComparisonOperators(t *testing.T) {
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for operator %s", tc.operator)
 			}
-			defer iter.Release()
+			defer GlobalTableIterPool.Put(iter)
 
 			// Collect results
 			var results []int
@@ -224,7 +224,7 @@ func TestTableSearchComparisonOperatorsWithAgeField(t *testing.T) {
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for operator %s", tc.operator)
 			}
-			defer iter.Release()
+			defer GlobalTableIterPool.Put(iter)
 
 			// Collect results
 			var results []int

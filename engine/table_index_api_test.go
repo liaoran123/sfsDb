@@ -159,7 +159,7 @@ func TestCreateIndexWithExistingData(t *testing.T) {
 
 	// 验证数据已插入
 	iter := table.ForData()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	records := iter.GetRecords(true)
 	if len(records) != len(testData) {
 		t.Errorf("Expected %d records, got %d", len(testData), len(records))
@@ -179,7 +179,7 @@ func TestCreateIndexWithExistingData(t *testing.T) {
 
 	// 验证所有数据是否仍然存在
 	allIter := table.ForData()
-	defer allIter.Release()
+	defer GlobalTableIterPool.Put(allIter)
 	allRecords := allIter.GetRecords(true)
 	if len(allRecords) != len(testData) {
 		t.Errorf("Expected %d records in total, got %d", len(testData), len(allRecords))
@@ -211,7 +211,7 @@ func TestCreateIndexWithExistingData(t *testing.T) {
 	// 测试搜索张三
 	searchCriteria := map[string]any{"name": "张三"}
 	searchIter := table.Search(&searchCriteria)
-	defer searchIter.Release()
+	defer GlobalTableIterPool.Put(searchIter)
 	searchRecords := searchIter.GetRecords(true)
 
 	t.Logf("Search for '张三' returned %d records", len(searchRecords))
@@ -222,7 +222,7 @@ func TestCreateIndexWithExistingData(t *testing.T) {
 	// 测试搜索李四
 	searchCriteria2 := map[string]any{"name": "李四"}
 	searchIter2 := table.Search(&searchCriteria2)
-	defer searchIter2.Release()
+	defer GlobalTableIterPool.Put(searchIter2)
 	searchRecords2 := searchIter2.GetRecords(true)
 
 	t.Logf("Search for '李四' returned %d records", len(searchRecords2))
@@ -275,7 +275,7 @@ func TestCreateFullTextIndexWithExistingData(t *testing.T) {
 
 	// 验证数据已插入
 	iter := table.ForData()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 	records := iter.GetRecords(true)
 	if len(records) != len(testData) {
 		t.Errorf("Expected %d records, got %d", len(testData), len(records))
@@ -286,7 +286,7 @@ func TestCreateFullTextIndexWithExistingData(t *testing.T) {
 	searchCriteriaBefore := map[string]any{"content": "Go语言"}
 	searchIterBefore := table.Search(&searchCriteriaBefore)
 	if searchIterBefore != nil {
-		defer searchIterBefore.Release()
+		defer GlobalTableIterPool.Put(searchIterBefore)
 		searchRecordsBefore := searchIterBefore.GetRecords(true)
 		t.Logf("Search for 'Go语言' without full text index returned %d records", len(searchRecordsBefore))
 		// 没有全文索引时，搜索可能返回空结果
@@ -320,7 +320,7 @@ func TestCreateFullTextIndexWithExistingData(t *testing.T) {
 
 	// 验证所有数据是否仍然存在
 	allIter := table.ForData()
-	defer allIter.Release()
+	defer GlobalTableIterPool.Put(allIter)
 	allRecords := allIter.GetRecords(true)
 	if len(allRecords) != len(testData) {
 		t.Errorf("Expected %d records in total, got %d", len(testData), len(allRecords))
@@ -332,8 +332,9 @@ func TestCreateFullTextIndexWithExistingData(t *testing.T) {
 	// 测试搜索包含"Go语言"的文档
 	searchCriteria := map[string]any{"content": "Go语言"}
 	searchIter := table.Search(&searchCriteria)
+	defer GlobalTableIterPool.Put(searchIter)
 	if searchIter != nil {
-		defer searchIter.Release()
+		defer GlobalTableIterPool.Put(searchIter)
 		searchRecords := searchIter.GetRecords(true)
 		t.Logf("Search for 'Go语言' returned %d records", len(searchRecords))
 		for i, record := range searchRecords {

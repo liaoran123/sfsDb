@@ -65,7 +65,7 @@ func TestTableEncryption(t *testing.T) {
 	// 4. 读取记录
 	// 使用迭代器获取记录
 	iter := table.ForData()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	// 获取所有记录
 	allRecords := iter.GetRecords(true)
@@ -106,7 +106,7 @@ func TestTableEncryption(t *testing.T) {
 	// 验证更新
 	// 重新获取所有记录
 	iter2 := table.ForData()
-	defer iter2.Release()
+	defer GlobalTableIterPool.Put(iter2)
 
 	updatedRecords := iter2.GetRecords(true)
 	var updatedResult map[string]any
@@ -141,7 +141,7 @@ func TestTableEncryption(t *testing.T) {
 	// 验证删除
 	// 重新获取所有记录
 	iter3 := table.ForData()
-	defer iter3.Release()
+	defer GlobalTableIterPool.Put(iter3)
 
 	remainingRecords := iter3.GetRecords(true)
 	recordFound := false

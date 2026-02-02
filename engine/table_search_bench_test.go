@@ -47,7 +47,7 @@ func BenchmarkTableSearchPrimaryKey(b *testing.B) {
 		searchData := map[string]any{"id": (i % 1000) + 1}
 		iter := table.Search(&searchData)
 		if iter != nil {
-			iter.Release()
+			defer GlobalTableIterPool.Put(iter)
 		}
 	}
 }
@@ -100,7 +100,7 @@ func BenchmarkTableSearchIndex(b *testing.B) {
 		searchData := map[string]any{"name": "User" + string(rune('A'+(i%26)))}
 		iter := table.Search(&searchData)
 		if iter != nil {
-			iter.Release()
+			defer GlobalTableIterPool.Put(iter)
 		}
 	}
 }
@@ -148,7 +148,7 @@ func BenchmarkTableSearchFullScan(b *testing.B) {
 		searchData := map[string]any{"non_existent_field": "value"}
 		iter := table.Search(&searchData)
 		if iter != nil {
-			iter.Release()
+			defer GlobalTableIterPool.Put(iter)
 		}
 	}
 }

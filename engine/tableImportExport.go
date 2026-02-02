@@ -27,7 +27,7 @@ func (t *Table) ExportToCSV(filePath string) error {
 
 	// 获取所有记录
 	iter := t.ForData()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	// 获取字段列表
 	fields := make([]string, 0, len(t.fields))
@@ -120,7 +120,7 @@ func (t *Table) ImportFromCSV(filePath string, batchSize int) error {
 			field := header[i]
 			// 获取字段的默认值作为类型模板
 			fieldTemplate := t.fields[field]
-			
+
 			// 使用util.StrToAny转换值为正确的类型
 			typedValue, err := util.StrToAny(value, fieldTemplate)
 			if err != nil {
@@ -167,7 +167,7 @@ func (t *Table) ExportToJSON(filePath string) error {
 
 	// 获取所有记录
 	iter := t.ForData()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	// 开始JSON数组
 	if _, err := file.WriteString("[\n"); err != nil {
@@ -242,7 +242,7 @@ func (t *Table) ImportFromJSON(filePath string, batchSize int) error {
 			if !exists {
 				continue
 			}
-			
+
 			// 将float64转换为正确的数值类型
 			if floatVal, ok := value.(float64); ok {
 				// 根据字段模板的类型进行转换
@@ -269,7 +269,7 @@ func (t *Table) ImportFromJSON(filePath string, batchSize int) error {
 					record[field] = uint64(floatVal)
 				case float32:
 					record[field] = float32(floatVal)
-				// float64类型不需要转换
+					// float64类型不需要转换
 				}
 			}
 		}
@@ -330,7 +330,7 @@ func (t *Table) ExportToSQL(filePath string) error {
 
 	// 获取所有记录
 	iter := t.ForData()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put(iter)
 
 	// 写入创建表语句
 	createSQL := fmt.Sprintf("CREATE TABLE %s (\n", t.name)

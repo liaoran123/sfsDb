@@ -166,7 +166,7 @@ func BenchmarkTableNonACIDSearch(b *testing.B) {
 			// 获取记录
 			records := iter.GetRecords(true, 1)
 			_ = records
-			iter.Release()
+			GlobalTableIterPool.Put(iter)
 		}
 	}
 }
@@ -406,7 +406,7 @@ func BenchmarkTableACIDSearch(b *testing.B) {
 			// 获取记录
 			records := iter.GetRecords(true, 1)
 			_ = records
-			iter.Release()
+			GlobalTableIterPool.Put(iter)
 		}
 
 		// 提交事务

@@ -373,8 +373,9 @@ fmt.Println("手动事务批量插入完成")
 // 5. 验证插入结果
 fmt.Println("\n验证插入结果:")
 allIter := table.ForData()
-defer allIter.Release()
+defer GlobalTableIterPool.Put(allIter)
 records := allIter.GetRecords(true)
+defer record.PutRecords(records)
 fmt.Printf("表中共有%d条记录\n", len(records))
 
 // 手动事务批量操作支持多种组合
@@ -541,7 +542,7 @@ func (t *Table) createIndexData(index Index) error {
     slice := util.NewRangeHelper(pkPrefix).FromComparison(util.Like, pkPrefix)
     //pkPrefix创建迭代器
     iter := t.kvStore.Iterator(slice.Start, slice.Limit)
-    defer iter.Release()
+    defer GlobalTableIterPool.Put( iter)
     //遍历所有数据
     var value []byte
     for iter.Next() {
@@ -941,11 +942,12 @@ sfsDb **不支持使用布尔类型（bool）作为索引字段**，原因如下
 searchData := map[string]any{"id": nil}
 iter := table.Search(&searchData)
 if iter != nil {
-    defer iter.Release()
+    defer GlobalTableIterPool.Put( iter)
 }
 
 // 2. 获取所有记录并过滤
 allResults := iter.GetRecords(true)
+defer record.PutRecords(allResults)
 var activeRecords []map[string]any
 for _, record := range allResults {
     if active, ok := record["active"].(bool); ok && active {
@@ -1166,8 +1168,9 @@ fmt.Println("=== 全文搜索示例 ===")
 fmt.Println("\n1. 搜索 '笔记本':")
 search1 := map[string]any{"description": "笔记本"}
 iter1 := table.Search(&search1)
-defer iter1.Release()
+defer GlobalTableIterPool.Put(iter1)
 records1 := iter1.GetRecords(true)
+defer record.PutRecords(records1)   
 for _, record := range records1 {
     fmt.Printf("   - %s: %s\n", record["name"], record["description"])
 }
@@ -1176,8 +1179,9 @@ for _, record := range records1 {
 fmt.Println("\n2. 搜索 '智能':")
 search2 := map[string]any{"description": "智能"}
 iter2 := table.Search(&search2)
-defer iter2.Release()
+defer GlobalTableIterPool.Put(iter2)
 records2 := iter2.GetRecords(true)
+defer record.PutRecords(records2)   
 for _, record := range records2 {
     fmt.Printf("   - %s: %s\n", record["name"], record["description"])
 }
@@ -1186,9 +1190,9 @@ for _, record := range records2 {
 fmt.Println("\n3. 搜索结果字段选择:")
 search3 := map[string]any{"description": "智能"}
 iter3 := table.Search(&search3)
-defer iter3.Release()
+defer GlobalTableIterPool.Put(iter3)
 records3 := iter3.GetRecords(true)
-
+defer record.PutRecords(records3)   
 // 使用 Select 方法只选择 name 字段
 selectedNames := records3.Select("name")
 fmt.Println("只显示匹配记录的名称:")
@@ -1207,10 +1211,11 @@ searchFields := map[string]any{
     "name": "张三",
 }
 iter := table.Search(&searchFields)
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 // 获取所有匹配记录
 records := iter.GetRecords(true)
+defer record.PutRecords(records)   
 for _, record := range records {
     fmt.Printf("找到记录: %v\n", record)
 }
@@ -1245,8 +1250,9 @@ ageGt30 := map[string]any{
     "age": 30,
 }
 iterGt30 := table.Search(&ageGt30, util.GreaterThan) // 传递比较操作符作为第二个参数
-defer iterGt30.Release()
+defer GlobalTableIterPool.Put(iterGt30)
 recordsGt30 := iterGt30.GetRecords(true)
+defer record.PutRecords(recordsGt30)   
 for _, record := range recordsGt30 {
     fmt.Printf("   - %s: %d岁\n", record["name"], record["age"])
 }
@@ -1257,8 +1263,9 @@ emailPrefix := map[string]any{
     "email": "user",
 }
 iterPrefix := table.Search(&emailPrefix) // 默认使用util.Like操作符，这里的like实则是前缀匹配
-defer iterPrefix.Release()
+defer GlobalTableIterPool.Put(iterPrefix)
 recordsPrefix := iterPrefix.GetRecords(true)
+defer record.PutRecords(recordsPrefix)      
 for _, record := range recordsPrefix {
     fmt.Printf("   - %s: %s\n", record["name"], record["email"])
 }
@@ -1269,8 +1276,9 @@ namePrefix := map[string]any{
     "name": "张",
 }
 iterName := table.Search(&namePrefix, util.Like) // 显式指定util.Like操作符
-defer iterName.Release()
+defer GlobalTableIterPool.Put( iterName)
 recordsName := iterName.GetRecords(true)
+defer record.PutRecords(recordsName)      
 for _, record := range recordsName {
     fmt.Printf("   - %s: %s\n", record["name"], record["email"])
 }
@@ -1281,8 +1289,9 @@ exactSearch := map[string]any{
     "name": "张三",
 }
 iterExact := table.Search(&exactSearch, util.Equal) // 显式指定util.Equal操作符
-defer iterExact.Release()
+defer GlobalTableIterPool.Put(iterExact)
 recordsExact := iterExact.GetRecords(true)
+defer record.PutRecords(recordsExact)   
 for _, record := range recordsExact {
     fmt.Printf("   - %s: %s\n", record["name"], record["email"])
 }
@@ -1293,7 +1302,8 @@ notEqualSearch := map[string]any{
     "id": 1,
 }
 iterNotEqual := table.Search(&notEqualSearch, util.NotEqual) // 使用util.NotEqual操作符
-defer iterNotEqual.Release()
+defer GlobalTableIterPool.Put(iterNotEqual)
+defer record.PutRecords(recordsNotEqual)   
 recordsNotEqual := iterNotEqual.GetRecords(true)
 for _, record := range recordsNotEqual {
     fmt.Printf("   - %s: ID=%d\n", record["name"], record["id"])
@@ -1385,10 +1395,11 @@ andMatcher := match.NewAND([]string{"id"}, idMap)
 
 // 3. 使用匹配器
 iter := table.Search(&map[string]any{"id": nil})
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 iter.SetMatch(andMatcher)
 records := iter.GetRecords(true)
+defer record.PutRecords(records)   
 
 // 结果：返回 ID 为 1、3、5 的用户
 ```
@@ -1406,10 +1417,11 @@ andMatcher := match.NewAND([]string{"id"}, idMap, false)
 
 // 3. 使用匹配器
 iter := table.Search(&map[string]any{"id": nil})
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 iter.SetMatch(andMatcher)
 records := iter.GetRecords(true)
+defer record.PutRecords(records)   
 
 // 结果：返回 ID 不为 1、3、5 的用户
 ```
@@ -1421,14 +1433,15 @@ records := iter.GetRecords(true)
 
 // 1. 获取两个表的迭代器
 iter1 := table1.Search(&map[string]any{"id": nil})
-defer iter1.Release()
+defer GlobalTableIterPool.Put(iter1)
 
 iter2 := table2.Search(&map[string]any{"id": nil})
-defer iter2.Release()
+defer GlobalTableIterPool.Put(iter2)
 
 // 2. 获取 table2 的 ID 映射
 // Map() 方法生成 map[any]bool，键为指定字段的值
 idMap := iter2.Map()
+defer PutMap(map2)
 
 // 3. 创建 AND 匹配器
 // 匹配 table1 的 id 字段是否在 table2 的 id 集合中
@@ -1437,6 +1450,7 @@ andMatcher := match.NewAND([]string{"id"}, idMap)
 // 4. 设置匹配器并获取结果
 iter1.SetMatch(andMatcher)
 records := iter1.GetRecords(true)
+defer record.PutRecords(records)   
 
 // 结果：返回 table1 中 ID 与 table2 中 ID 匹配的记录
 ```
@@ -1448,13 +1462,14 @@ records := iter1.GetRecords(true)
 
 // 1. 获取两个表的迭代器
 iter1 := table1.Search(&map[string]any{"id": nil})
-defer iter1.Release()
+defer GlobalTableIterPool.Put(iter1)
 
 iter2 := table2.Search(&map[string]any{"id": nil})
-defer iter2.Release()
+defer GlobalTableIterPool.Put(iter2)
 
 // 2. 获取 table2 的 ID 映射
 idMap := iter2.Map()
+defer PutMap(map2)
 
 // 3. 创建 AND 匹配器，设置 rule=false 表示 NOT IN
 andMatcher := match.NewAND([]string{"id"}, idMap, false)
@@ -1462,6 +1477,7 @@ andMatcher := match.NewAND([]string{"id"}, idMap, false)
 // 4. 设置匹配器并获取结果
 iter1.SetMatch(andMatcher)
 records := iter1.GetRecords(true)
+defer record.PutRecords(records)   
 
 // 结果：返回 table1 中 ID 与 table2 中 ID 不匹配的记录
 ```
@@ -1485,6 +1501,7 @@ andMatcher := match.NewAND([]string{"user_id", "product_id"}, combinedKeyMap)
 // 3. 使用匹配器
 iter1.SetMatch(andMatcher)
 records := iter1.GetRecords(true)
+defer record.PutRecords(records)   
 
 // 结果：返回组合主键与另一个表匹配的记录
 ```
@@ -1521,11 +1538,12 @@ ageMatcher := &AgeGreaterThanMatcher{MinAge: 25}
 
 // 3. 使用组合匹配器
 iter := table.Search(&map[string]any{"id": nil})
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 // 设置多个匹配器，它们之间是 AND 关系
 iter.SetMatch(idMatcher, ageMatcher)
 records := iter.GetRecords(true)
+defer record.PutRecords(records)   
 
 // 结果：返回 ID 为 1、3、5 且年龄大于 25 的用户
 ```
@@ -1607,7 +1625,7 @@ func main() {
     // 1. 使用 FieldComparison 进行比较
     // 获取迭代器
     iter := table.Search(&map[string]any{"id": nil})
-    defer iter.Release()
+    defer GlobalTableIterPool.Put( iter)
 
     // 创建 FieldComparison 匹配器
     matcher := match.NewFieldComparison("age", match.GreaterThan, 25)
@@ -1617,6 +1635,7 @@ func main() {
 
     // 获取过滤后的记录
     records := iter.GetRecords(true)
+    defer record.PutRecords(records)   
     fmt.Printf("年龄大于25的记录 (%d 条):\n", len(records))
     for _, record := range records {
         fmt.Printf("   - %v\n", record)
@@ -1624,13 +1643,14 @@ func main() {
 
     // 2. 使用便捷函数创建匹配器
     iter2 := table.Search(&map[string]any{"id": nil})
-    defer iter2.Release()
+    defer GlobalTableIterPool.Put(iter2)
 
     // 使用 GreaterThanMatch 便捷函数
     highScoreMatcher := match.NewGreaterThanMatch("score", 90.0)
     iter2.SetMatch(highScoreMatcher)
 
     highScoreRecords := iter2.GetRecords(true)
+    defer record.PutRecords(highScoreRecords)   
     fmt.Printf("\n分数大于90的记录 (%d 条):\n", len(highScoreRecords))
     for _, record := range highScoreRecords {
         fmt.Printf("   - %v\n", record)
@@ -1638,12 +1658,13 @@ func main() {
 
     // 3. 使用 EqualMatch 便捷函数
     iter3 := table.Search(&map[string]any{"id": nil})
-    defer iter3.Release()
+    defer GlobalTableIterPool.Put(iter3)
 
     inactiveMatcher := match.NewEqualMatch("active", false)
     iter3.SetMatch(inactiveMatcher)
 
     inactiveRecords := iter3.GetRecords(true)
+    defer record.PutRecords(inactiveRecords)   
     fmt.Printf("\n非活跃用户 (%d 条):\n", len(inactiveRecords))
     for _, record := range inactiveRecords {
         fmt.Printf("   - %v\n", record)
@@ -1752,7 +1773,7 @@ searchCriteria := map[string]any{
     "age": map[util.ComparisonOperator]any{util.LessThan: 25},
 }
 iter := table.Search(&searchCriteria)
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 // 使用迭代器的 Delete 方法批量删除符合条件的记录
 // 直接删除所有符合条件的记录（无限制）
@@ -1771,7 +1792,7 @@ sfsDb 提供了 `DeleteAll()` 方法，用于删除表中的所有数据。这�
 func (t *Table) DeleteAll() error {
 	// 获取表的所有kv键值对迭代器
 	iter := t.For()
-	defer iter.Release()
+	defer GlobalTableIterPool.Put( iter)
 	
 	// 创建批量操作
 	batch := t.kvStore.GetBatch()
@@ -2695,7 +2716,7 @@ defer tx.Rollback()
 searchFields := map[string]any{"age": 25}
 iter := tx.Search(&searchFields, util.GreaterThan)
 if iter != nil {
-    defer iter.Release()
+    defer GlobalTableIterPool.Put( iter)
 }
 
 records := iter.GetRecords(true)
@@ -2718,7 +2739,7 @@ defer tx.Rollback()
 // 获取所有记录的迭代器
 iter := tx.Search(&map[string]any{"id": nil})
 if iter != nil {
-    defer iter.Release()
+    defer GlobalTableIterPool.Put( iter)
 }
 
 // 使用多个匹配器（年龄大于25且城市为北京）
@@ -3036,7 +3057,7 @@ TableIter 结构体包含一个 `jumpRanges` 字段（位于 `d:\MyGo\src\sfsDb\
 - **定义**：`jumpRanges []storage.Iterator` - 存储多个跳跃区间的迭代器
 - **设置方法**：`TableIter.SetJumpRanges(jumpRanges ...storage.Iterator)` - 设置跳跃区间
 - **使用场景**：主要用于不等于（!=）操作，当需要排除某些特定值的记录时
-- **资源管理**：迭代器的 `Release()` 方法会自动释放所有跳跃区间的迭代器资源
+- **资源管理**：迭代器的 `defer GlobalTableIterPool.Put` 方法会自动释放所有跳跃区间的迭代器资源
 
 #### 代码示例
 
@@ -3064,7 +3085,7 @@ TableIter 结构体包含一个 `jumpRanges` 字段（位于 `d:\MyGo\src\sfsDb\
 
 #### 使用建议
 - **合理使用**：对于需要排除特定值的查询，跳跃区间可以显著提高性能
-- **资源管理**：不需要手动管理跳跃区间的迭代器资源，`TableIter.Release()` 会自动处理
+- **资源管理**：不需要手动管理跳跃区间的迭代器资源，`defer GlobalTableIterPool.Put` 会自动处理
 - **内存考虑**：过多的跳跃区间可能会增加内存使用，应根据实际需求合理设置
 
 ### 9.2.1 遍历表所有键值对
@@ -3097,7 +3118,7 @@ func (t *Table) For() storage.Iterator {
 ```go
 // 使用 For() 方法遍历表的所有键值对
 iter := table.For()
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 for iter.Next() {
     key := iter.Key()
@@ -3107,7 +3128,7 @@ for iter.Next() {
 ```
 
 **注意事项**：
-- `For()` 方法返回的是存储引擎级别的迭代器，需要手动调用 `Release()` 方法释放资源
+- `For()` 方法返回的是存储引擎级别的迭代器，需要手动调用 `defer GlobalTableIterPool.Put` 方法释放资源
 - 这个方法会遍历表的所有键值对，包括数据和索引数据
 - 对于大型表，遍历可能会比较耗时，建议在适当的场景中使用
 - `For()` 方法是 `DeleteAll()` 方法的基础，用于实现表数据的全量删除
@@ -3115,7 +3136,7 @@ for iter.Next() {
 ```go
 // 遍历所有记录
 iter := table.ForData()
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 // 推荐方法：使用 GetRecords() // 获取所有记录（正序）
 records := iter.GetRecords(true)
@@ -3297,7 +3318,7 @@ func main() {
         "age": map[util.ComparisonOperator]any{util.LessThan: 25},
     }
     iter := table.Search(&searchCriteria)
-    defer iter.Release()
+    defer GlobalTableIterPool.Put( iter)
 
     // 准备更新的字段
     updateFields := map[string]any{
@@ -3897,7 +3918,7 @@ iter := table.Search(&map[string]any{"name": "Alice"})
 if iter == nil {
     panic("查询失败")
 }
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 // 执行查询操作 - 使用 GetRecords 获取包含版本号的记录
 recordsWithVersion := iter.GetRecords(true)
@@ -4347,7 +4368,7 @@ func main() {
     
     // 查询所有记录
     iter := table.ForData()
-    defer iter.Release()
+    defer GlobalTableIterPool.Put( iter)
     records := iter.GetRecords(true)
     
     // 创建求和垂直运算：计算总工资
@@ -4612,7 +4633,7 @@ if err != nil {
 // 事务内读取刚插入的记录
 readRecord := map[string]any{"name": "测试回滚"}
 iter := tx.Search(&readRecord)
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 records := iter.GetRecords(true)
 fmt.Printf("事务内读取到%d条记录\n", len(records))
 
@@ -4626,7 +4647,7 @@ fmt.Println("事务回滚成功")
 // 验证记录是否被回滚
 readRecordAfterRollback := map[string]any{"name": "测试回滚"}
 iterAfterRollback := table.Search(&readRecordAfterRollback)
-defer iterAfterRollback.Release()
+defer GlobalTableIterPool.Put(iterAfterRollback)
 recordsAfterRollback := iterAfterRollback.GetRecords(true)
 fmt.Printf("回滚后读取到%d条记录\n", len(recordsAfterRollback))
 ```
@@ -5148,7 +5169,7 @@ func main() {
 func printAccountBalance(table *engine.Table, id int) {
     readRecord := map[string]any{"id": id}
     iter := table.Search(&readRecord)
-    defer iter.Release()
+    defer GlobalTableIterPool.Put( iter)
     records := iter.GetRecords(true)
     if len(records) == 1 {
         fmt.Printf("%s: %.2f\n", records[0]["name"], records[0]["balance"])
@@ -5159,7 +5180,7 @@ func printAccountBalance(table *engine.Table, id int) {
 func getAccountBalance(table *engine.Table, id int) float64 {
     readRecord := map[string]any{"id": id}
     iter := table.Search(&readRecord)
-    defer iter.Release()
+    defer GlobalTableIterPool.Put( iter)
     records := iter.GetRecords(true)
     if len(records) == 1 {
         return records[0]["balance"].(float64)
@@ -5539,7 +5560,7 @@ func main() {
 1. **合理设计索引**：为频繁查询的字段创建索引
 2. **避免全表扫描**：使用索引字段进行查询
 3. **合理设置字段类型**：根据实际数据选择合适的字段类型
-4. **及时释放资源**：使用 `defer iter.Release()` 确保迭代器资源被释放
+4. **及时释放资源**：使用 `defer GlobalTableIterPool.Put( iter)` 确保迭代器资源被释放
 5. **批量操作**：对于大量数据，使用批量插入、更新和删除
 
 #### 11.1.2 批量删除和更新优化
@@ -5656,7 +5677,7 @@ func SetMaxBatchSize(size int)
 ```go
 // 批量删除示例
 iter := table.Search(&searchFields)
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 // 删除所有匹配的记录（自动分批处理）
 err := iter.Delete()
@@ -5666,7 +5687,7 @@ if err != nil {
 
 // 限制删除记录数
 iter = table.Search(&searchFields)
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 // 最多删除100条记录
 err = iter.Delete(100)
@@ -5676,7 +5697,7 @@ if err != nil {
 
 // 批量更新示例
 iter = table.Search(&searchFields)
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 updateFields := map[string]any{
     "status": "active",
@@ -5691,7 +5712,7 @@ if err != nil {
 
 // 限制更新记录数
 iter = table.Search(&searchFields)
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 // 最多更新50条记录
 err = iter.Update(&updateFields, 50)
@@ -5748,7 +5769,7 @@ records = append(records, record)
 ```go
 // 从迭代器获取记录
 iter := table.Search(&searchFields)
-defer iter.Release()
+defer GlobalTableIterPool.Put( iter)
 
 records := iter.GetRecords(true)
 defer record.PutRecords(records) // 确保释放对象

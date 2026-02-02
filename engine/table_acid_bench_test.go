@@ -115,7 +115,7 @@ func BenchmarkTableSearchWithACID(b *testing.B) {
 		// 使用GetRecords方法遍历结果
 		records := iter.GetRecords(true, 1) // 只获取1条记录
 		_ = records
-		iter.Release()
+		GlobalTableIterPool.Put(iter)
 
 		// 提交事务
 		err = tx.Commit()

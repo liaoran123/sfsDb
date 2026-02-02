@@ -2,7 +2,8 @@ package engine
 
 import (
 	"fmt"
-	"log"
+	"strings"
+	"sync"
 
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
@@ -514,23 +515,25 @@ func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *
 }
 
 /*
-	func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
-		var field []string
+	func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
+		var tbiter *TableIter
+		field := GetStringSlice()
+		defer PutStringSlice(field)
 		for k := range *fields {
 			//判断字段是否在表中
 			if _, ok := t.fields[k]; !ok {
 				//写错误日志
-				log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
+				//log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
 				return nil
 			}
 			field = append(field, k)
 		}
 		//匹配索引
-		idx := t.MatchIndex(field...)
+		idx := t.MatchIndexCached(field) //t.MatchIndex(field...) //
 		var key []byte
 		var fieldsBytes *map[string][]byte
 		if idx != nil {
-			fieldsBytes = t.FieldsToBytesNil(fields)
+			fieldsBytes = t.FieldsToBytesNilCached(fields) //t.FieldsToBytesNil(fields) // //t.FieldsToBytesNil(fields)
 			key = idx.JoinValue(fieldsBytes, t.id)
 		} else {
 
@@ -546,18 +549,17 @@ func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *
 		pfx = append(pfx, SPLIT[0])
 		rangeHelper := util.NewRangeHelper(pfx)
 		var iter storage.Iterator
-		var tbiter *TableIter
 		if op != util.NotEqual {
 			slice := rangeHelper.FromComparison(op, key)
-			iter = t.kvStore.Iterator(slice.Start, slice.Limit)
+			iter = funIter(slice.Start, slice.Limit)
 			tbiter = TableIterNew(t, iter, idx)
 		} else { //不等于将会通过主键或索引进行全表扫描，并且设置跳跃区间
 			slice := rangeHelper.FromComparison(util.Like, pfx) //遍历前缀，即通过主键或索引全表扫描
-			iter = t.kvStore.Iterator(slice.Start, slice.Limit)
+			iter = funIter(slice.Start, slice.Limit)
 			tbiter = TableIterNew(t, iter, idx)
 			//设置跳跃区间
 			neslice := rangeHelper.FromComparison(util.Like, key) //跳跃区间key=0-1-100==>0-1-101
-			tbiter.SetJumpRanges(t.kvStore.Iterator(neslice.Start, neslice.Limit))
+			tbiter.SetJumpRanges(funIter(neslice.Start, neslice.Limit))
 		}
 		return tbiter
 	}
@@ -570,17 +572,17 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 		//判断字段是否在表中
 		if _, ok := t.fields[k]; !ok {
 			//写错误日志
-			log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
+			//log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
 			return nil
 		}
 		field = append(field, k)
 	}
 	//匹配索引
-	idx := t.MatchIndex(field...)
+	idx := t.MatchIndexCached(field) //t.MatchIndex(field...) //
 	var key []byte
 	var fieldsBytes *map[string][]byte
 	if idx != nil {
-		fieldsBytes = t.FieldsToBytesNil(fields)
+		fieldsBytes = t.FieldsToBytesNilCached(fields) //t.FieldsToBytesNil(fields) // //t.FieldsToBytesNil(fields)
 		key = idx.JoinValue(fieldsBytes, t.id)
 	} else {
 		/*
@@ -603,14 +605,101 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 	if op != util.NotEqual {
 		slice := rangeHelper.FromComparison(op, key)
 		iter = funIter(slice.Start, slice.Limit)
-		tbiter = TableIterNew(t, iter, idx)
+		//tbiter = TableIterNew(t, iter, idx)
+		tbiter = GlobalTableIterPool.Get(t, iter, idx)
 	} else { //不等于将会通过主键或索引进行全表扫描，并且设置跳跃区间
 		slice := rangeHelper.FromComparison(util.Like, pfx) //遍历前缀，即通过主键或索引全表扫描
 		iter = funIter(slice.Start, slice.Limit)
-		tbiter = TableIterNew(t, iter, idx)
+		tbiter = GlobalTableIterPool.Get(t, iter, idx)
 		//设置跳跃区间
 		neslice := rangeHelper.FromComparison(util.Like, key) //跳跃区间key=0-1-100==>0-1-101
 		tbiter.SetJumpRanges(funIter(neslice.Start, neslice.Limit))
 	}
 	return tbiter
+}
+
+// -------Searchs函数中数据的缓存---------------------
+// 添加索引匹配缓存
+var indexMatchCache sync.Map
+
+// 计算 sync.Map 的大小
+func getSyncMapSize(m *sync.Map) int {
+	size := 0
+	m.Range(func(_, _ interface{}) bool {
+		size++
+		return true
+	})
+	return size
+}
+
+// 1000个索引缓存限制
+var indexCacheSizeLimit = 1000
+
+func (t *Table) SetIndexCacheSizeLimit(limit int) {
+	//控制一个合理数值，防止缓存大小过大
+	if limit <= 0 {
+		limit = 1000
+	}
+	indexCacheSizeLimit = limit
+}
+
+// 优化后的索引匹配
+func (t *Table) MatchIndexCached(fields []string) Index {
+	// 检查缓存大小，如果超过 1000，则重置
+	currentSize := getSyncMapSize(&indexMatchCache)
+	if currentSize > indexCacheSizeLimit {
+		// 重置缓存
+		indexMatchCache = sync.Map{}
+	}
+
+	// 生成缓存键
+	cacheKey := strings.Join(fields, ",")
+
+	// 尝试从缓存获取
+	if idx, ok := indexMatchCache.Load(cacheKey); ok {
+		return idx.(Index)
+	}
+
+	// 计算索引匹配
+	idx := t.MatchIndex(fields...)
+
+	// 缓存结果
+	indexMatchCache.Store(cacheKey, idx)
+
+	return idx
+}
+
+// 添加字段转换缓存
+var fieldsBytesCache sync.Map
+
+// 优化后的字段转换
+func (t *Table) FieldsToBytesNilCached(fields *map[string]any) *map[string][]byte {
+	// 检查缓存大小，如果超过 1000，则重置
+	currentSize := getSyncMapSize(&fieldsBytesCache)
+	if currentSize > indexCacheSizeLimit {
+		// 重置缓存
+		fieldsBytesCache = sync.Map{}
+	}
+
+	// 生成缓存键
+	var cacheKey strings.Builder
+	for k, v := range *fields {
+		cacheKey.WriteString(k)
+		cacheKey.WriteString(":")
+		cacheKey.WriteString(fmt.Sprintf("%v", v))
+		cacheKey.WriteString(",")
+	}
+
+	// 尝试从缓存获取
+	if fieldsBytes, ok := fieldsBytesCache.Load(cacheKey.String()); ok {
+		return fieldsBytes.(*map[string][]byte)
+	}
+
+	// 计算字段转换
+	fieldsBytes := t.FieldsToBytesNil(fields)
+
+	// 缓存结果
+	fieldsBytesCache.Store(cacheKey.String(), fieldsBytes)
+
+	return fieldsBytes
 }

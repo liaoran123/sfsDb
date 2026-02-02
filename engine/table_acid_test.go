@@ -74,7 +74,7 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	// 验证所有记录都成功插入
 	iter1 := table1.ForData()
-	defer iter1.Release()
+	defer GlobalTableIterPool.Put(iter1)
 	records1 := iter1.GetRecords(true)
 	if len(records1) != 3 {
 		t.Errorf("期望找到3条记录，实际找到%d条", len(records1))
@@ -112,7 +112,7 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	// 验证所有更新都成功
 	iter2 := table1.ForData()
-	defer iter2.Release()
+	defer GlobalTableIterPool.Put(iter2)
 	records2 := iter2.GetRecords(true)
 	if len(records2) != 3 {
 		t.Errorf("期望找到3条记录，实际找到%d条", len(records2))
@@ -150,7 +150,7 @@ func TestTableACIDTransaction(t *testing.T) {
 	// 验证操作没有生效
 	readRecord3 := map[string]any{"id": 4}
 	iter3 := table1.Search(&readRecord3)
-	defer iter3.Release()
+	defer GlobalTableIterPool.Put(iter3)
 	records3 := iter3.GetRecords(true)
 	if len(records3) != 0 {
 		t.Errorf("期望找到0条记录，实际找到%d条，回滚失败", len(records3))
@@ -159,7 +159,7 @@ func TestTableACIDTransaction(t *testing.T) {
 	// 验证第一条记录没有被更新
 	readRecord1 := map[string]any{"id": 1}
 	iter4 := table1.Search(&readRecord1)
-	defer iter4.Release()
+	defer GlobalTableIterPool.Put(iter4)
 	records4 := iter4.GetRecords(true)
 	if len(records4) != 1 {
 		t.Errorf("期望找到1条记录，实际找到%d条", len(records4))
@@ -227,7 +227,7 @@ func TestTableACIDTransaction(t *testing.T) {
 	// 在快照模式下读取数据
 	readConsistencyRecord := map[string]any{"id": 1}
 	iter5 := table2.Search(&readConsistencyRecord)
-	defer iter5.Release()
+	defer GlobalTableIterPool.Put(iter5)
 	records5 := iter5.GetRecords(true)
 	if len(records5) != 1 {
 		t.Errorf("期望找到1条记录，实际找到%d条", len(records5))
@@ -272,7 +272,7 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	// 在新快照模式下读取数据，应该是更新后的值，保持一致性
 	iter6 := table2.Search(&readConsistencyRecord)
-	defer iter6.Release()
+	defer GlobalTableIterPool.Put(iter6)
 	records6 := iter6.GetRecords(true)
 	if len(records6) != 1 {
 		t.Errorf("期望找到1条记录，实际找到%d条", len(records6))
@@ -349,7 +349,7 @@ func TestTableACIDTransaction(t *testing.T) {
 	// 事务1在快照模式下读取数据
 	readIsolationRecord := map[string]any{"id": 1}
 	iter7 := table3.Search(&readIsolationRecord)
-	defer iter7.Release()
+	defer GlobalTableIterPool.Put(iter7)
 	records7 := iter7.GetRecords(true)
 	if len(records7) != 1 {
 		t.Errorf("期望找到1条记录，实际找到%d条", len(records7))
@@ -399,7 +399,7 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	// 事务3在新快照模式下读取，应该能看到事务2的修改
 	iter8 := table3.Search(&readIsolationRecord)
-	defer iter8.Release()
+	defer GlobalTableIterPool.Put(iter8)
 	records8 := iter8.GetRecords(true)
 	if len(records8) != 1 {
 		t.Errorf("期望找到1条记录，实际找到%d条", len(records8))
@@ -475,7 +475,7 @@ func TestTableACIDTransaction(t *testing.T) {
 	// 4.3 验证数据存在
 	readDurableRecord := map[string]any{"id": 3}
 	iter9 := table4.Search(&readDurableRecord)
-	defer iter9.Release()
+	defer GlobalTableIterPool.Put(iter9)
 	records9 := iter9.GetRecords(true)
 	if len(records9) != 1 {
 		t.Errorf("期望找到1条记录，实际找到%d条", len(records9))
@@ -487,7 +487,7 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	// 4.4 使用ForData()验证所有记录都存在
 	iter10 := table4.ForData()
-	defer iter10.Release()
+	defer GlobalTableIterPool.Put(iter10)
 	allRecords := iter10.GetRecords(true)
 	if len(allRecords) != 5 {
 		t.Errorf("期望找到5条记录，实际找到%d条", len(allRecords))
@@ -549,7 +549,7 @@ func TestTableACIDTransaction(t *testing.T) {
 	// 显示初始余额
 	readAccount1 := map[string]any{"id": 1}
 	iter11 := accountTable.Search(&readAccount1)
-	defer iter11.Release()
+	defer GlobalTableIterPool.Put(iter11)
 	records11 := iter11.GetRecords(true)
 	if len(records11) == 1 {
 		fmt.Printf("张三: %.2f\n", records11[0]["balance"])
@@ -557,7 +557,7 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	readAccount2 := map[string]any{"id": 2}
 	iter12 := accountTable.Search(&readAccount2)
-	defer iter12.Release()
+	defer GlobalTableIterPool.Put(iter12)
 	records12 := iter12.GetRecords(true)
 	if len(records12) == 1 {
 		fmt.Printf("李四: %.2f\n", records12[0]["balance"])
@@ -599,7 +599,7 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	// 验证张三的余额
 	iter13 := accountTable.Search(&readAccount1)
-	defer iter13.Release()
+	defer GlobalTableIterPool.Put(iter13)
 	records13 := iter13.GetRecords(true)
 	if len(records13) != 1 {
 		t.Errorf("期望找到1条记录，实际找到%d条", len(records13))
@@ -612,7 +612,7 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	// 验证李四的余额
 	iter14 := accountTable.Search(&readAccount2)
-	defer iter14.Release()
+	defer GlobalTableIterPool.Put(iter14)
 	records14 := iter14.GetRecords(true)
 	if len(records14) != 1 {
 		t.Errorf("期望找到1条记录，实际找到%d条", len(records14))
@@ -627,7 +627,7 @@ func TestTableACIDTransaction(t *testing.T) {
 	// 转账前总额：1000.0 + 2000.0 = 3000.0
 	// 转账后总额：500.0 + 2500.0 = 3000.0
 	iter15 := accountTable.ForData()
-	defer iter15.Release()
+	defer GlobalTableIterPool.Put(iter15)
 	allAccounts := iter15.GetRecords(true)
 	var totalBalance float64
 	for _, account := range allAccounts {
@@ -793,7 +793,7 @@ func TestTableTransactionCache(t *testing.T) {
 		// 验证记录是否被回滚
 		readRecordAfterRollback := map[string]any{"id": 2}
 		iter := table.Search(&readRecordAfterRollback)
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 		records := iter.GetRecords(true)
 		if len(records) != 0 {
 			t.Errorf("回滚失败，记录仍然存在")
@@ -828,7 +828,7 @@ func TestTableTransactionCache(t *testing.T) {
 		// 验证记录是否被删除
 		readRecordAfterDelete := map[string]any{"id": 1}
 		iter := table.Search(&readRecordAfterDelete)
-		defer iter.Release()
+		defer GlobalTableIterPool.Put(iter)
 		records := iter.GetRecords(true)
 		if len(records) != 0 {
 			t.Errorf("删除失败，记录仍然存在")
