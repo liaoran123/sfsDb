@@ -599,20 +599,17 @@ func (t *TableIter) Count() int {
 	return i
 }
 func (t *TableIter) Release() {
-	//所有迭代器的释放，改为type IteratorCache struct 统一管理释放资
-	/*
-		if t == nil {
-			return
-		}
-		if t.iter != nil {
-			t.iter.Release()
-		}
-		if t.jumpRanges != nil {
-			for _, jumpRange := range t.jumpRanges {
-				if jumpRange != nil {
-					jumpRange.Release()
-				}
+	if t == nil {
+		return
+	}
+	if t.iter != nil {
+		t.iter.Release()
+	}
+	if t.jumpRanges != nil {
+		for _, jumpRange := range t.jumpRanges {
+			if jumpRange != nil {
+				jumpRange.Release()
 			}
 		}
-	*/
+	}
 }
