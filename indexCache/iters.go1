@@ -6,7 +6,7 @@ import (
 	"github.com/liaoran123/sfsDb/engine"
 	"github.com/liaoran123/sfsDb/storage"
 )
-
+// leveldb本身已经具备缓存机制，这里是画蛇添足，故弃用。
 var ItersCache = NewIteratorLRU(1000)
 
 // 自定义LRU缓存节点

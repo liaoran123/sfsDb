@@ -9,7 +9,7 @@ import (
 	"github.com/liaoran123/sfsDb/storage"
 )
 
-// 时序索引接口
+// 时序索引接口--可以直接使用主键创建，弃用。
 type TimeSeriesIndex interface {
 	Index
 	// 时间字段名称
