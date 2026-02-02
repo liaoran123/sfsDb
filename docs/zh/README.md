@@ -11,6 +11,7 @@ sfsDb 是一个灵活、高效的嵌入式数据库，支持多种数据类型�
 - [创建表与设置字段](./basic/table_creation.md)
 - [插入数据](./basic/data_insertion.md)
 - [查询数据](./basic/data_query.md)
+- [修改记录](./basic/data_update.md)
 - [删除记录](./basic/data_deletion.md)
 
 ### 高级功能

@@ -310,14 +310,147 @@ sfsDb 的事务处理考虑了并发场景：
 2. **批量优势明显**：处理的记录数越多，手动事务的优势越明显
 3. **内存使用合理**：批量操作的内存使用在可控范围内
 
-## 8. 总结
+## 9. 事务管理器
+
+### 9.1 概述
+
+sfsDb 提供了 `TransactionManager` 用于管理跨多个表的事务，确保跨表操作的原子性。
+
+### 9.2 创建事务管理器
+
+```go
+// 创建事务管理器，使用共享批处理对象
+batch := storage.KVDb.GetBatch()
+tm := engine.NewTransactionManager(batch)
+```
+
+### 9.3 事务管理器方法
+
+#### AddTable
+
+将表添加到事务管理器并返回对应的事务：
+
+```go
+// 添加表到事务管理器
+tx, err := tm.AddTable(table)
+if err != nil {
+    panic(err)
+}
+```
+
+#### Commit
+
+提交事务管理器管理的所有事务：
+
+```go
+// 提交所有事务
+err = tm.Commit()
+if err != nil {
+    panic(err)
+}
+```
+
+#### Rollback
+
+回滚事务管理器管理的所有事务：
+
+```go
+// 回滚所有事务
+err = tm.Rollback()
+if err != nil {
+    panic(err)
+}
+```
+
+### 9.4 WithTransaction 辅助函数
+
+`WithTransaction` 函数提供了执行多表事务的便捷方式：
+
+```go
+// 执行多表事务
+batch := storage.KVDb.GetBatch()
+tables := []*engine.Table{table1, table2}
+
+err := engine.WithTransaction(batch, tables, func(transactions map[*engine.Table]engine.Transaction) error {
+    // 获取每个表的事务
+    tx1 := transactions[table1]
+    tx2 := transactions[table2]
+    
+    // 在 table1 上执行操作
+    user := map[string]any{"name": "张三", "age": 30}
+    _, err := tx1.Insert(&user)
+    if err != nil {
+        return err
+    }
+    
+    // 在 table2 上执行操作
+    order := map[string]any{"user_id": 1, "product": "商品A"}
+    _, err = tx2.Insert(&order)
+    if err != nil {
+        return err
+    }
+    
+    return nil
+})
+
+if err != nil {
+    panic(err)
+}
+```
+
+### 9.5 多表事务示例
+
+```go
+// 多表事务示例
+func multiTableTransactionExample() error {
+    // 获取批处理对象
+    batch := storage.KVDb.GetBatch()
+    if batch == nil {
+        return fmt.Errorf("无法获取批处理对象")
+    }
+    
+    // 创建表（假设它们已经存在）
+    // table1 := ... // 用户表
+    // table2 := ... // 订单表
+    
+    // 执行多表事务
+    return engine.WithTransaction(batch, []*engine.Table{table1, table2}, func(txs map[*engine.Table]engine.Transaction) error {
+        // 插入用户
+        user := map[string]any{
+            "name": "Alice",
+            "email": "alice@example.com",
+        }
+        userID, err := txs[table1].Insert(&user)
+        if err != nil {
+            return fmt.Errorf("插入用户失败: %w", err)
+        }
+        
+        // 为用户插入订单
+        order := map[string]any{
+            "user_id": userID,
+            "product": "Premium Plan",
+            "amount":  99.99,
+        }
+        _, err = txs[table2].Insert(&order)
+        if err != nil {
+            return fmt.Errorf("插入订单失败: %w", err)
+        }
+        
+        fmt.Println("多表事务执行成功")
+        return nil
+    })
+}
+```
+
+## 10. 总结
 
 正确使用事务操作可以显著提高 sfsDb 的性能和可靠性：
 
 1. **自动事务**：适合单个操作，简单易用
 2. **手动事务**：适合多个操作的原子执行，性能优异
-3. **批量大小**：根据系统资源和数据量选择合适的批量大小
-4. **错误处理**：妥善处理事务中的错误，确保数据一致性
-5. **并发控制**：合理控制事务粒度，避免长事务
+3. **事务管理器**：适合多表事务，确保跨表操作的原子性
+4. **批量大小**：根据系统资源和数据量选择合适的批量大小
+5. **错误处理**：妥善处理事务中的错误，确保数据一致性
+6. **并发控制**：合理控制事务粒度，避免长事务
 
-通过合理使用事务机制，可以在保证数据一致性的同时，充分发挥 sfsDb 的性能潜力，特别是在处理大量数据时。
+通过合理使用事务机制，可以在保证数据一致性的同时，充分发挥 sfsDb 的性能潜力，特别是在处理大量数据或执行跨表操作时。

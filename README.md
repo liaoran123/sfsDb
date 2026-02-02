@@ -230,13 +230,7 @@ func main() {
 - [中文详细使用指南](./docs/sfsDbUserGuide.md)
 - [English User Guide](./docs/sfsDbUserGuide.en.md)
 
-### 功能包文档
-- [监控包文档](./monitoring/README.md) - 提供指标收集、告警管理和Prometheus集成
-- [安全包文档](./security/README.md) - 提供认证、授权、加密和审计功能
-- [扩展包文档](./extensions/README.md) - 提供插件管理、索引扩展、存储引擎扩展和数据类型扩展
-
 ### 其他文档
-- [API 文档](./docs/guide.md)
 - [性能基准测试报告](./engine/comprehensive_benchmark_report.md)
 - [迭代器资源管理指南](./docs/iterator_management.md) - 详细说明迭代器的管理方式和生命周期
 
