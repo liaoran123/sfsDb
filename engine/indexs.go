@@ -180,6 +180,10 @@ func (i *Indexs) MatchIndex(fields ...string) Index {
 		if !index.MatchFields(fields...) {
 			continue
 		}
+		//如果完全匹配，直接返回
+		if fieldCount == len(fields) {
+			return index
+		}
 		// 计算索引字段数量
 		fieldCount = len(index.GetFields())
 		// 更新最佳匹配（字段数量越多，优先级越高）
