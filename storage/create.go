@@ -1,61 +1,17 @@
 package storage
 
-//添加一个全局锁
-
+// 外接Store实例，只需传给KVDb即可。
 var KVDb Store
 
-// StoreFactory 存储工厂函数类型
-type StoreFactory func(config StoreConfig) (Store, error)
-
-// storeFactories 存储工厂注册表
-var storeFactories = make(map[string]StoreFactory)
-
-// RegisterStoreFactory 注册存储工厂
-func RegisterStoreFactory(dbType string, factory StoreFactory) {
-	storeFactories[dbType] = factory
+// SetStore 设置外部存储实例
+func SetStore(store Store) {
+	KVDb = store
 }
 
-// StoreConfig 存储配置
-type StoreConfig struct {
-	Path             string            // 存储路径
-	DBType           string            // 数据库类型
-	EncryptionConfig *EncryptionConfig // 加密配置
-	// 其他配置项
-}
-
-// OpenStore 打开存储数据库，支持不同存储类型和加密配置
-func OpenStore(config StoreConfig) (Store, error) {
-	// 创建底层存储
-	underlyingStore, err := createUnderlyingStore(config)
-	if err != nil {
-		return nil, err
-	}
-
-	// 应用加密包装器
-	return applyEncryption(underlyingStore, config.EncryptionConfig)
-}
-
-// init 初始化存储工厂注册表
-func init() {
-	// 注册默认的LevelDB存储工厂
-	RegisterStoreFactory("leveldb", func(config StoreConfig) (Store, error) {
-		return NewLevelDBStore(config.Path, nil)
-	})
-
-	// 注册rocksdb存储工厂（占位）
-	RegisterStoreFactory("rocksdb", func(config StoreConfig) (Store, error) {
-		return nil, NewError("rocksdb not supported/未安装和配置 RocksDB 的 C++ 库")
-	})
-}
-
-// OpenDefaultDb 打开默认数据库，使用公共KVDb变量，保证全局唯一实例
+// OpenDefaultDb 打开存储数据库，使用公共KVDb变量，保证全局唯一实例
 func OpenDefaultDb(Path string) (Store, error) {
-	config := StoreConfig{
-		Path:   Path,
-		DBType: "leveldb",
-	}
 	var err error
-	KVDb, err = OpenStore(config)
+	KVDb, err = NewLevelDBStore(Path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -64,50 +20,16 @@ func OpenDefaultDb(Path string) (Store, error) {
 
 // OpenDefaultDbWithEncryption 打开带加密的默认数据库，使用公共KVDb变量，保证全局唯一实例
 func OpenDefaultDbWithEncryption(Path string, config *EncryptionConfig) (Store, error) {
-	storeConfig := StoreConfig{
-		Path:             Path,
-		DBType:           "leveldb",
-		EncryptionConfig: config,
-	}
-	var err error
-	KVDb, err = OpenStore(storeConfig)
+	// 创建底层LevelDB存储
+	underlyingStore, err := NewLevelDBStore(Path, nil)
 	if err != nil {
 		return nil, err
 	}
-	return KVDb, nil
-}
 
-// NewLevelDBStoreWithEncryption 创建带加密的LevelDB存储实例
-func NewLevelDBStoreWithEncryption(Path string, config *EncryptionConfig) (Store, error) {
-	storeConfig := StoreConfig{
-		Path:             Path,
-		DBType:           "leveldb",
-		EncryptionConfig: config,
-	}
-	return OpenStore(storeConfig)
-}
-
-// createUnderlyingStore 创建底层存储实例
-func createUnderlyingStore(config StoreConfig) (Store, error) {
-	// 从注册表中获取存储工厂
-	factory, exists := storeFactories[config.DBType]
-	if !exists {
-		// 如果未找到指定类型的工厂，尝试使用默认的leveldb
-		factory, exists = storeFactories["leveldb"]
-		if !exists {
-			return nil, NewError("no store factory found for " + config.DBType)
-		}
-	}
-
-	// 使用工厂创建存储实例
-	return factory(config)
-}
-
-// applyEncryption 应用加密包装器
-func applyEncryption(underlyingStore Store, config *EncryptionConfig) (Store, error) {
-	// 如果未启用加密或配置为nil，直接返回底层存储
-	if config == nil || !config.Enabled {
-		return underlyingStore, nil
+	// 如果未启用加密，直接返回底层存储
+	if !config.Enabled {
+		KVDb = underlyingStore
+		return KVDb, nil
 	}
 
 	// 创建加密存储包装器
@@ -117,9 +39,26 @@ func applyEncryption(underlyingStore Store, config *EncryptionConfig) (Store, er
 		return nil, err
 	}
 
-	return encryptedStore, nil
+	KVDb = encryptedStore
+	return KVDb, nil
 }
 
+// NewLevelDBStoreWithEncryption 创建带加密的LevelDB存储实例
+func NewLevelDBStoreWithEncryption(Path string, config *EncryptionConfig) (Store, error) {
+	// 创建底层LevelDB存储
+	underlyingStore, err := NewLevelDBStore(Path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果未启用加密，直接返回底层存储
+	if !config.Enabled {
+		return underlyingStore, nil
+	}
+
+	// 创建加密存储包装器
+	return NewEncryptedStoreWrapper(underlyingStore, config)
+}
 func CloseDb() error {
 	if KVDb != nil {
 		return KVDb.Close()
@@ -127,9 +66,25 @@ func CloseDb() error {
 	return nil
 }
 
-// NewStore 创建新的存储实例（保持向后兼容）
+// StoreConfig 存储配置
+type StoreConfig struct {
+	Path   string // 存储路径
+	DBType string // 数据库类型
+	// 其他配置项
+}
+
+// NewStore 创建新的存储实例
 func NewStore(config StoreConfig) (Store, error) {
-	return OpenStore(config)
+	// 默认使用LevelDB实现
+	//将来可以支持rocksdb，ToplingDB等其他实现
+	switch config.DBType {
+	case "rocksdb":
+		// 使用RocksDB实现
+		//return NewRocksDBStore(config)
+		return nil, NewError("rocksdb not supported/未安装和配置 RocksDB 的 C++ 库")
+	default:
+		return NewLevelDBStore(config.Path, nil)
+	}
 }
 
 // 备份数据库

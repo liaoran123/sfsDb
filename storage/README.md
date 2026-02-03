@@ -245,6 +245,34 @@ iter := snapshot.Iterator()
 defer iter.Release()
 ```
 
+### 使用外部存储实例
+
+sfsDb 支持使用外部实现的 Store 实例，只需通过 `SetStore` 函数设置即可：
+
+```go
+// 导入存储层包
+import "github.com/liaoran123/sfsDb/storage"
+
+// 创建自定义存储实例
+customStore := NewCustomStore()
+
+// 设置外部存储实例
+storage.SetStore(customStore)
+
+// 现在整个 sfsdb 项目都会使用这个自定义存储实例
+// 例如，BackupDb 等函数会自动使用这个实例
+
+// 注意：使用外部存储实例时，需要自行管理其生命周期
+// 确保在不再使用时正确关闭存储实例
+// customStore.Close()
+```
+
+**使用场景**：
+- 集成第三方存储实现
+- 为特定场景定制存储逻辑
+- 在测试中使用内存存储或模拟存储
+- 实现特殊的存储功能，如加密、压缩等
+
 ## 支持的存储引擎
 
 | 存储引擎 | 特点 | 适用场景 |

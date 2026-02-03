@@ -73,3 +73,81 @@ func main() {
     fmt.Println("Table created successfully")
 }
 ```
+
+## 1.4 Using External Storage Instances
+
+In addition to using built-in storage engines, sfsDb also supports using externally implemented storage instances. Simply set it through the `SetStore` function:
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+// Custom storage implementation
+type CustomStore struct {
+    // Implement storage logic
+}
+
+// Implement Store interface methods
+func (s *CustomStore) Get(key []byte) ([]byte, error) {
+    // Implement get logic
+    return nil, nil
+}
+
+func (s *CustomStore) Put(key []byte, value []byte) error {
+    // Implement put logic
+    return nil
+}
+
+func (s *CustomStore) Delete(key []byte) error {
+    // Implement delete logic
+    return nil
+}
+
+func (s *CustomStore) Batch() storage.Batch {
+    // Implement batch operation logic
+    return nil
+}
+
+func (s *CustomStore) Iterator(para ...[]byte) storage.Iterator {
+    // Implement iterator logic
+    return nil
+}
+
+func (s *CustomStore) Snapshot() (storage.Snapshot, error) {
+    // Implement snapshot logic
+    return nil, nil
+}
+
+func (s *CustomStore) Close() error {
+    // Implement close logic
+    return nil
+}
+
+func main() {
+    // Create custom storage instance
+    customStore := &CustomStore{}
+    
+    // Set external storage instance
+    storage.SetStore(customStore)
+    
+    fmt.Println("External storage instance set successfully")
+    
+    // Now the entire sfsdb project will use this custom storage instance
+    // For example, creating tables, inserting data, etc. will all be executed through this instance
+}
+```
+
+**Usage scenarios**:
+- Integrating third-party storage implementations
+- Customizing storage logic for specific scenarios
+- Using in-memory storage or mock storage in tests
+- Implementing special storage features such as encryption, compression, etc.
+
+**Notes**:
+- When using external storage instances, you need to manage their lifecycle yourself
+- Ensure to properly close the storage instance when it's no longer needed
+- The external storage implementation must fully implement all methods of the `Store` interface
