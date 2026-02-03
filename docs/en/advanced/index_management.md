@@ -349,9 +349,9 @@ sfsDb **does not support using boolean types (bool) as index fields** for the fo
 ```go
 // 1. Use primary key index to get all records
 searchData := map[string]any{"id": nil}
-iter := table.Search(&searchData)
+iter, _ := table.Search(&searchData)
 if iter != nil {
-    defer GlobalTableIterPool.Put( iter)
+    defer engine.GlobalTableIterPool.Put(iter)
 }
 
 // 2. Get all records and filter

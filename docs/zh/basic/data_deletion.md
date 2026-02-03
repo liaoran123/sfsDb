@@ -23,7 +23,10 @@ fmt.Println("记录删除成功")
 searchCriteria := map[string]any{
     "age": map[util.ComparisonOperator]any{util.LessThan: 25},
 }
-iter := table.Search(&searchCriteria)
+iter, err := table.Search(&searchCriteria)
+if err != nil {
+    panic(err)
+}
 defer GlobalTableIterPool.Put( iter)
 
 // 使用迭代器的 Delete 方法批量删除符合条件的记录

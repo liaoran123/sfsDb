@@ -7,8 +7,8 @@
 searchFields := map[string]any{
     "name": "Zhang San",
 }
-iter := table.Search(&searchFields)
-defer GlobalTableIterPool.Put(iter)
+iter, _ := table.Search(&searchFields)
+defer engine.GlobalTableIterPool.Put(iter)
 
 // Get all matching records
 records := iter.GetRecords(true)
@@ -46,8 +46,8 @@ fmt.Println("\nUsers older than 30:")
 ageGt30 := map[string]any{
     "age": 30,
 }
-iterGt30 := table.Search(&ageGt30, util.GreaterThan) // Pass comparison operator as second parameter
-defer GlobalTableIterPool.Put(iterGt30)
+iterGt30, _ := table.Search(&ageGt30, util.GreaterThan) // Pass comparison operator as second parameter
+defer engine.GlobalTableIterPool.Put(iterGt30)
 recordsGt30 := iterGt30.GetRecords(true)
 defer record.PutRecords(recordsGt30)   
 for _, record := range recordsGt30 {
@@ -59,8 +59,8 @@ fmt.Println("\nUsers with email starting with 'user':")
 emailPrefix := map[string]any{
     "email": "user",
 }
-iterPrefix := table.Search(&emailPrefix) // Default uses util.Like operator, here like is actually prefix match
-defer GlobalTableIterPool.Put(iterPrefix)
+iterPrefix, _ := table.Search(&emailPrefix) // Default uses util.Like operator, here like is actually prefix match
+defer engine.GlobalTableIterPool.Put(iterPrefix)
 recordsPrefix := iterPrefix.GetRecords(true)
 defer record.PutRecords(recordsPrefix)      
 for _, record := range recordsPrefix {
@@ -72,8 +72,8 @@ fmt.Println("\nUsers with name starting with 'Zhang':")
 namePrefix := map[string]any{
     "name": "Zhang",
 }
-iterName := table.Search(&namePrefix, util.Like) // Explicitly specify util.Like operator
-defer GlobalTableIterPool.Put(iterName)
+iterName, _ := table.Search(&namePrefix, util.Like) // Explicitly specify util.Like operator
+defer engine.GlobalTableIterPool.Put(iterName)
 recordsName := iterName.GetRecords(true)
 defer record.PutRecords(recordsName)      
 for _, record := range recordsName {
@@ -85,8 +85,8 @@ fmt.Println("\nExact search for user named 'Zhang San':")
 exactSearch := map[string]any{
     "name": "Zhang San",
 }
-iterExact := table.Search(&exactSearch, util.Equal) // Explicitly specify util.Equal operator
-defer GlobalTableIterPool.Put(iterExact)
+iterExact, _ := table.Search(&exactSearch, util.Equal) // Explicitly specify util.Equal operator
+defer engine.GlobalTableIterPool.Put(iterExact)
 recordsExact := iterExact.GetRecords(true)
 defer record.PutRecords(recordsExact)   
 for _, record := range recordsExact {
@@ -98,8 +98,8 @@ fmt.Println("\nUsers with id not equal to 1:")
 notEqualSearch := map[string]any{
     "id": 1,
 }
-iterNotEqual := table.Search(&notEqualSearch, util.NotEqual) // Use util.NotEqual operator
-defer GlobalTableIterPool.Put(iterNotEqual)
+iterNotEqual, _ := table.Search(&notEqualSearch, util.NotEqual) // Use util.NotEqual operator
+defer engine.GlobalTableIterPool.Put(iterNotEqual)
 defer record.PutRecords(recordsNotEqual)   
 recordsNotEqual := iterNotEqual.GetRecords(true)
 for _, record := range recordsNotEqual {
@@ -191,8 +191,8 @@ idMap := map[any]bool{1: true, 3: true, 5: true}
 andMatcher := match.NewAND([]string{"id"}, idMap)
 
 // 3. Use matcher
-iter := table.Search(&map[string]any{"id": nil})
-defer GlobalTableIterPool.Put(iter)
+iter, _ := table.Search(&map[string]any{"id": nil})
+defer engine.GlobalTableIterPool.Put(iter)
 
 iter.SetMatch(andMatcher)
 records := iter.GetRecords(true)
@@ -213,8 +213,8 @@ idMap := map[any]bool{1: true, 3: true, 5: true}
 andMatcher := match.NewAND([]string{"id"}, idMap, false)
 
 // 3. Use matcher
-iter := table.Search(&map[string]any{"id": nil})
-defer GlobalTableIterPool.Put(iter)
+iter, _ := table.Search(&map[string]any{"id": nil})
+defer engine.GlobalTableIterPool.Put(iter)
 
 iter.SetMatch(andMatcher)
 records := iter.GetRecords(true)
@@ -229,11 +229,11 @@ defer record.PutRecords(records)
 // Implement SQL-like join query: SELECT table1.* FROM table1, table2 WHERE table1.id = table2.id
 
 // 1. Get iterators for both tables
-iter1 := table1.Search(&map[string]any{"id": nil})
-defer GlobalTableIterPool.Put(iter1)
+iter1, _ := table1.Search(&map[string]any{"id": nil})
+defer engine.GlobalTableIterPool.Put(iter1)
 
-iter2 := table2.Search(&map[string]any{"id": nil})
-defer GlobalTableIterPool.Put(iter2)
+iter2, _ := table2.Search(&map[string]any{"id": nil})
+defer engine.GlobalTableIterPool.Put(iter2) 
 
 // 2. Get ID mapping from table2
 // Map() method generates map[any]bool, keys are values of specified fields
@@ -258,11 +258,11 @@ defer record.PutRecords(records)
 // Implement SQL-like join query: SELECT table1.* FROM table1, table2 WHERE table1.id != table2.id
 
 // 1. Get iterators for both tables
-iter1 := table1.Search(&map[string]any{"id": nil})
-defer GlobalTableIterPool.Put(iter1)
+iter1, _ := table1.Search(&map[string]any{"id": nil}) 
+defer engine.GlobalTableIterPool.Put(iter1)
 
-iter2 := table2.Search(&map[string]any{"id": nil})
-defer GlobalTableIterPool.Put(iter2)
+iter2, _ := table2.Search(&map[string]any{"id": nil})
+defer engine.GlobalTableIterPool.Put(iter2) 
 
 // 2. Get ID mapping from table2
 idMap := iter2.Map()
@@ -334,8 +334,8 @@ idMatcher := match.NewAND([]string{"id"}, idMap)
 ageMatcher := &AgeGreaterThanMatcher{MinAge: 25}
 
 // 3. Use combination matcher
-iter := table.Search(&map[string]any{"id": nil})
-defer GlobalTableIterPool.Put(iter)
+iter, _ := table.Search(&map[string]any{"id": nil})
+defer engine.GlobalTableIterPool.Put(iter)
 
 // Set multiple matchers, they have an AND relationship
 iter.SetMatch(idMatcher, ageMatcher)
@@ -421,8 +421,8 @@ func main() {
 
     // 1. Using FieldComparison for comparison
     // Get iterator
-    iter := table.Search(&map[string]any{"id": nil})
-    defer GlobalTableIterPool.Put(iter)
+    iter, _ := table.Search(&map[string]any{"id": nil})
+    defer engine.GlobalTableIterPool.Put(iter)
 
     // Create FieldComparison matcher
     matcher := match.NewFieldComparison("age", match.GreaterThan, 25)
@@ -439,8 +439,8 @@ func main() {
     }
 
     // 2. Using convenience functions to create matchers
-    iter2 := table.Search(&map[string]any{"id": nil})
-    defer GlobalTableIterPool.Put(iter2)
+    iter2, _ := table.Search(&map[string]any{"id": nil})   
+    defer engine.GlobalTableIterPool.Put(iter2)
 
     // Using GreaterThanMatch convenience function
     highScoreMatcher := match.NewGreaterThanMatch("score", 90.0)
@@ -454,8 +454,8 @@ func main() {
     }
 
     // 3. Using EqualMatch convenience function
-    iter3 := table.Search(&map[string]any{"id": nil})
-    defer GlobalTableIterPool.Put(iter3)
+    iter3, _ := table.Search(&map[string]any{"id": nil})   
+    defer engine.GlobalTableIterPool.Put(iter3)
 
     inactiveMatcher := match.NewEqualMatch("active", false)
     iter3.SetMatch(inactiveMatcher)

@@ -46,7 +46,7 @@ fmt.Println("=== 全文搜索示例 ===")
 // 搜索包含"笔记本"的记录
 fmt.Println("\n1. 搜索 '笔记本':")
 search1 := map[string]any{"description": "笔记本"}
-iter1 := table.Search(&search1)
+iter1,_ := table.Search(&search1)
 defer GlobalTableIterPool.Put(iter1)
 records1 := iter1.GetRecords(true)
 defer record.PutRecords(records1)   
@@ -57,7 +57,7 @@ for _, record := range records1 {
 // 搜索包含"智能"的记录
 fmt.Println("\n2. 搜索 '智能':")
 search2 := map[string]any{"description": "智能"}
-iter2 := table.Search(&search2)
+iter2,_ := table.Search(&search2)
 defer GlobalTableIterPool.Put(iter2)
 records2 := iter2.GetRecords(true)
 defer record.PutRecords(records2)   
@@ -68,7 +68,7 @@ for _, record := range records2 {
 // 3. 搜索结果字段选择示例
 fmt.Println("\n3. 搜索结果字段选择:")
 search3 := map[string]any{"description": "智能"}
-iter3 := table.Search(&search3)
+iter3,_ := table.Search(&search3)
 defer GlobalTableIterPool.Put(iter3)
 records3 := iter3.GetRecords(true)
 defer record.PutRecords(records3)   

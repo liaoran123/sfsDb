@@ -12,8 +12,8 @@ sfsDb 实现了对象池机制，用于优化内存使用和提高性能。对�
 
 ```go
 // 获取迭代器
-iter := table.Search(&searchFields)
-defer GlobalTableIterPool.Put(iter) // 使用完毕后归还到池
+iter, _ := table.Search(&searchFields)
+defer engine.GlobalTableIterPool.Put(iter) // 使用完毕后归还到池
 ```
 
 ### 2.2 记录池
@@ -44,8 +44,8 @@ defer util.PutBytesArray(joinValues) // 使用完毕后归还到池
 
 ```go
 // 获取迭代器
-iter := table.Search(&searchFields)
-defer GlobalTableIterPool.Put(iter) // 确保使用完毕后归还
+iter, _ := table.Search(&searchFields)
+defer engine.GlobalTableIterPool.Put(iter) // 确保使用完毕后归还
 
 // 获取记录
 records := iter.GetRecords(true)
@@ -58,7 +58,7 @@ defer record.PutRecords(records) // 确保使用完毕后归还
 
 ```go
 // 错误：没有归还迭代器和记录
-iter := table.Search(&searchFields)
+iter, _ := table.Search(&searchFields)
 records := iter.GetRecords(true)
 // 使用后没有归还，导致内存泄漏
 ```
@@ -71,7 +71,7 @@ records := iter.GetRecords(true)
 // 批量操作示例
 for i := 0; i < 1000; i++ {
     // 获取迭代器
-    iter := table.Search(&searchFields)
+    iter, _ := table.Search(&searchFields)
     
     // 获取记录
     records := iter.GetRecords(true)
@@ -80,7 +80,7 @@ for i := 0; i < 1000; i++ {
     
     // 立即归还对象，不要等到函数结束
     record.PutRecords(records)
-    GlobalTableIterPool.Put(iter)
+    engine.GlobalTableIterPool.Put(iter)
 }
 ```
 
@@ -164,8 +164,8 @@ func main() {
         searchFields := map[string]any{
             "age": 25 + i,
         }
-        iter := table.Search(&searchFields)
-        defer GlobalTableIterPool.Put(iter) // 确保归还
+        iter, _ := table.Search(&searchFields)
+        defer engine.GlobalTableIterPool.Put(iter) // 确保归还
         
         // 获取记录
         records := iter.GetRecords(true)

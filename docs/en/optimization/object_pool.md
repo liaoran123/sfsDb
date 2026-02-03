@@ -12,8 +12,8 @@ The table iterator pool (`GlobalTableIterPool`) is used to manage the reuse of `
 
 ```go
 // Get iterator
-iter := table.Search(&searchFields)
-defer GlobalTableIterPool.Put(iter) // Return to pool after use
+iter, _ := table.Search(&searchFields)   
+defer engine.GlobalTableIterPool.Put(iter) // Return to pool after use
 ```
 
 ### 2.2 Record Pool
@@ -44,8 +44,8 @@ defer util.PutBytesArray(joinValues) // Return to pool after use
 
 ```go
 // Get iterator
-iter := table.Search(&searchFields)
-defer GlobalTableIterPool.Put(iter) // Ensure return after use
+iter, _ := table.Search(&searchFields)   
+defer engine.GlobalTableIterPool.Put(iter) // Ensure return after use
 
 // Get records
 records := iter.GetRecords(true)
@@ -58,7 +58,9 @@ defer record.PutRecords(records) // Ensure return after use
 
 ```go
 // Error: Not returning iterator and records
-iter := table.Search(&searchFields)
+iter, _ := table.Search(&searchFields)   
+defer engine.GlobalTableIterPool.Put(iter) // Ensure return after use
+
 records := iter.GetRecords(true)
 // No return after use, leading to memory leaks
 ```
@@ -71,7 +73,7 @@ In batch operations, correct use of object pools is particularly important:
 // Batch operation example
 for i := 0; i < 1000; i++ {
     // Get iterator
-    iter := table.Search(&searchFields)
+    iter, _ := table.Search(&searchFields)   
     
     // Get records
     records := iter.GetRecords(true)
@@ -80,7 +82,7 @@ for i := 0; i < 1000; i++ {
     
     // Return objects immediately, not waiting for function end
     record.PutRecords(records)
-    GlobalTableIterPool.Put(iter)
+    engine.GlobalTableIterPool.Put(iter)
 }
 ```
 
@@ -164,8 +166,8 @@ func main() {
         searchFields := map[string]any{
             "age": 25 + i,
         }
-        iter := table.Search(&searchFields)
-        defer GlobalTableIterPool.Put(iter) // Ensure return
+        iter, _ := table.Search(&searchFields)   
+        defer engine.GlobalTableIterPool.Put(iter) // Ensure return
         
         // Get records
         records := iter.GetRecords(true)

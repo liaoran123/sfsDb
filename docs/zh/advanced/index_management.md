@@ -349,7 +349,7 @@ sfsDb **不支持使用布尔类型（bool）作为索引字段**，原因如下
 ```go
 // 1. 使用主键索引获取所有记录
 searchData := map[string]any{"id": nil}
-iter := table.Search(&searchData)
+iter, _ := table.Search(&searchData)
 if iter != nil {
     defer GlobalTableIterPool.Put( iter)
 }

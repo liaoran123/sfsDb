@@ -190,8 +190,8 @@ func main() {
     
     // Query modified data
     searchFields := map[string]any{"id": 1}
-    iter := table.Search(&searchFields)
-    defer GlobalTableIterPool.Put(iter)
+    iter, _ := table.Search(&searchFields)   
+    defer engine.GlobalTableIterPool.Put(iter)
     
     records := iter.GetRecords(true)
     defer record.PutRecords(records)

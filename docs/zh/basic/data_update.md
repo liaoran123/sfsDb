@@ -65,7 +65,10 @@ if err != nil {
 searchFields := map[string]any{"age": map[string]any{"$gte": 25}}
 
 // 获取迭代器
-iter := table.Search(&searchFields)
+iter, err := table.Search(&searchFields)
+if err != nil {
+    panic(err)
+}
 defer engine.GlobalTableIterPool.Put(iter)
 
 // 准备更新数据
@@ -259,8 +262,11 @@ func main() {
     fmt.Println("\n=== 验证修改结果 ===")
     
     searchData := map[string]any{"id": id}
-    iter := table.Search(&searchData)
-    defer engine.GlobalTableIterPool.Put(iter)
+iter, err := table.Search(&searchData)
+if err != nil {
+    panic(err)
+}
+defer engine.GlobalTableIterPool.Put(iter)
     
     records := iter.GetRecords(true)
     defer record.PutRecords(records)

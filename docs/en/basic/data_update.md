@@ -65,7 +65,10 @@ if err != nil {
 searchFields := map[string]any{"age": map[string]any{"$gte": 25}}
 
 // Get iterator
-iter := table.Search(&searchFields)
+iter, err := table.Search(&searchFields)
+if err != nil {
+    panic(err)
+}
 defer engine.GlobalTableIterPool.Put(iter)
 
 // Prepare update data
@@ -259,8 +262,11 @@ func main() {
     fmt.Println("\n=== Verifying Update Results ===")
     
     searchData := map[string]any{"id": id}
-    iter := table.Search(&searchData)
-    defer engine.GlobalTableIterPool.Put(iter)
+iter, err := table.Search(&searchData)
+if err != nil {
+    panic(err)
+}
+defer engine.GlobalTableIterPool.Put(iter)
     
     records := iter.GetRecords(true)
     defer record.PutRecords(records)

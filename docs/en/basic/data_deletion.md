@@ -23,8 +23,11 @@ fmt.Println("Record deleted successfully")
 searchCriteria := map[string]any{
     "age": map[util.ComparisonOperator]any{util.LessThan: 25},
 }
-iter := table.Search(&searchCriteria)
-defer GlobalTableIterPool.Put(iter)
+iter, err := table.Search(&searchCriteria)
+if err != nil {
+    panic(err)
+}
+defer engine.GlobalTableIterPool.Put(iter)
 
 // Use iterator's Delete method to batch delete matching records
 // Directly delete all matching records (unlimited)
