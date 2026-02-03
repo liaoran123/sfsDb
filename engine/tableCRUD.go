@@ -2,9 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"strings"
-	"sync"
-	"sync/atomic"
 
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
@@ -583,7 +580,7 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 	var key []byte
 	var fieldsBytes *map[string][]byte
 	if idx != nil {
-		fieldsBytes = t.FieldsToBytesNilCached(fields) //t.FieldsToBytesNil(fields) // //t.FieldsToBytesNil(fields)
+		fieldsBytes = t.FieldsToBytesNil(fields) //t.FieldsToBytesNilCached(fields) -- 并没有带来什么优势
 		key = idx.JoinValue(fieldsBytes, t.id)
 	} else {
 		/*
@@ -617,91 +614,4 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 		tbiter.SetJumpRanges(funIter(neslice.Start, neslice.Limit))
 	}
 	return tbiter, nil
-}
-
-// -------Searchs函数中数据的缓存---------------------// 添加索引匹配缓存
-var indexMatchCache sync.Map
-
-// 索引缓存大小计数器
-var indexMatchCacheSize int64
-
-// 1000个索引缓存限制
-var indexCacheSizeLimit = 1000
-
-func (t *Table) SetIndexCacheSizeLimit(limit int) {
-	//控制一个合理数值，防止缓存大小过大
-	if limit <= 0 {
-		limit = 1000
-	}
-	indexCacheSizeLimit = limit
-}
-
-// 优化后的索引匹配
-func (t *Table) MatchIndexCached(fields []string) Index {
-	// 检查缓存大小，如果超过 1000，则重置
-	currentSize := atomic.LoadInt64(&indexMatchCacheSize)
-	if currentSize > int64(indexCacheSizeLimit) {
-		// 重置缓存
-		indexMatchCache = sync.Map{}
-		atomic.StoreInt64(&indexMatchCacheSize, 0)
-	}
-
-	// 生成缓存键
-	cacheKey := strings.Join(fields, ",")
-
-	// 尝试从缓存获取
-	if idx, ok := indexMatchCache.Load(cacheKey); ok {
-		return idx.(Index)
-	}
-
-	// 计算索引匹配
-	idx := t.MatchIndex(fields...)
-
-	// 缓存结果
-	indexMatchCache.Store(cacheKey, idx)
-	// 增加计数器
-	atomic.AddInt64(&indexMatchCacheSize, 1)
-
-	return idx
-}
-
-// 添加字段转换缓存
-var fieldsBytesCache sync.Map
-
-// 字段转换缓存大小计数器
-var fieldsBytesCacheSize int64
-
-// 优化后的字段转换
-func (t *Table) FieldsToBytesNilCached(fields *map[string]any) *map[string][]byte {
-	// 检查缓存大小，如果超过 1000，则重置
-	currentSize := atomic.LoadInt64(&fieldsBytesCacheSize)
-	if currentSize > int64(indexCacheSizeLimit) {
-		// 重置缓存
-		fieldsBytesCache = sync.Map{}
-		atomic.StoreInt64(&fieldsBytesCacheSize, 0)
-	}
-
-	// 生成缓存键
-	var cacheKey strings.Builder
-	for k, v := range *fields {
-		cacheKey.WriteString(k)
-		cacheKey.WriteString(":")
-		cacheKey.WriteString(fmt.Sprintf("%v", v))
-		cacheKey.WriteString(",")
-	}
-
-	// 尝试从缓存获取
-	if fieldsBytes, ok := fieldsBytesCache.Load(cacheKey.String()); ok {
-		return fieldsBytes.(*map[string][]byte)
-	}
-
-	// 计算字段转换
-	fieldsBytes := t.FieldsToBytesNil(fields)
-
-	// 缓存结果
-	fieldsBytesCache.Store(cacheKey.String(), fieldsBytes)
-	// 增加计数器
-	atomic.AddInt64(&fieldsBytesCacheSize, 1)
-
-	return fieldsBytes
 }
