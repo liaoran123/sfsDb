@@ -160,32 +160,35 @@ func (i *Indexs) Len() int {
 	return len(i.indexs)
 }
 
-// 匹配索引，优先匹配唯一索引PrimaryKey，再匹配普通索引NormalIndex，FullTextIndex
+// 匹配索引，主键第一优先，其他按索引字段数量排序（字段越多，优先级越高）
 func (i *Indexs) MatchIndex(fields ...string) Index {
 	// 1. 优先匹配唯一索引PrimaryKey
-	if i.primaryKeyLoaded && i.primaryKey.MatchFields(fields...) {
-		return i.primaryKey
+	if pk := i.getPrimaryKey(); pk != nil && pk.MatchFields(fields...) {
+		return pk
 	}
-
-	// 2. 再匹配普通索引NormalIndex
-	if i.normalIndexsLoaded {
-		for _, index := range i.normalIndexs {
-			if index.MatchFields(fields...) {
-				return index
-			}
+	// 2. 直接遍历所有索引，记录最佳匹配
+	var bestMatch Index
+	maxFieldCount := -1
+	var fieldCount int
+	var ok bool
+	for _, index := range i.indexs {
+		// 跳过主键索引（已单独检查）
+		if _, ok = index.(PrimaryKey); ok {
+			continue
+		}
+		// 检查索引是否匹配
+		if !index.MatchFields(fields...) {
+			continue
+		}
+		// 计算索引字段数量
+		fieldCount = len(index.GetFields())
+		// 更新最佳匹配（字段数量越多，优先级越高）
+		if fieldCount > maxFieldCount {
+			bestMatch = index
+			maxFieldCount = fieldCount
 		}
 	}
-
-	// 3. 最后匹配全文索引FullTextIndex
-	if i.fullTextIndexsLoaded {
-		for _, index := range i.fullTextIndexs {
-			if index.MatchFields(fields...) {
-				return index
-			}
-		}
-	}
-
-	return nil
+	return bestMatch
 }
 
 /*
@@ -193,29 +196,23 @@ func (i *Indexs) MatchIndex(fields ...string) Index {
 // 匹配索引，优先匹配唯一索引PrimaryKey，再匹配普通索引NormalIndex，FullTextIndex
 func (i *Indexs) MatchIndex(fields ...string) Index {
 	// 1. 优先匹配唯一索引PrimaryKey
-	for _, index := range i.indexs {
-		if _, ok := index.(PrimaryKey); ok {
-			if index.MatchFields(fields...) {
-				return index
-			}
-		}
+	if pk := i.getPrimaryKey(); pk != nil && pk.MatchFields(fields...) {
+		return pk
 	}
 
 	// 2. 再匹配普通索引NormalIndex
-	for _, index := range i.indexs {
-		if _, ok := index.(NormalIndex); ok {
-			if index.MatchFields(fields...) {
-				return index
-			}
+	normalIndexs := i.GetNormalIndexs()
+	for _, index := range normalIndexs {
+		if index.MatchFields(fields...) {
+			return index
 		}
 	}
 
 	// 3. 最后匹配全文索引FullTextIndex
-	for _, index := range i.indexs {
-		if _, ok := index.(FullTextIndex); ok {
-			if index.MatchFields(fields...) {
-				return index
-			}
+	fullTextIndexs := i.GetFullTextIndexs()
+	for _, index := range fullTextIndexs {
+		if index.MatchFields(fields...) {
+			return index
 		}
 	}
 
