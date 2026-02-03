@@ -1,6 +1,10 @@
 package util
 
-import "runtime"
+import (
+	"fmt"
+	"runtime"
+	"time"
+)
 
 // MemoryStats 内存使用统计信息结构体
 type MemoryStats struct {
@@ -8,6 +12,16 @@ type MemoryStats struct {
 	TotalAlloc uint64 // 累计分配的内存大小（字节）
 	Sys        uint64 // 从系统获取的内存大小（字节）
 	NumGC      uint32 // GC 次数
+}
+
+// MemoryStatsDiff 内存使用差异
+type MemoryStatsDiff struct {
+	Before    MemoryStats   // 执行前内存状态
+	After     MemoryStats   // 执行后内存状态
+	AllocDiff int64         // Alloc 变化量（字节）
+	SysDiff   int64         // Sys 变化量（字节）
+	NumGCDiff int           // GC 次数变化量
+	ExecTime  time.Duration // 执行时间
 }
 
 // GetMemoryStats 获取当前内存使用情况
@@ -22,74 +36,78 @@ func GetMemoryStats() MemoryStats {
 	}
 }
 
-//使用方法
+// TrackMemoryUsage 跟踪函数执行的内存使用情况
+func TrackMemoryUsage(name string, f func()) MemoryStatsDiff {
+	// 执行前内存状态
+	before := GetMemoryStats()
 
-/*
-// TestCachePerformance 测试缓存系统性能
-func TestCachePerformance() {
+	// 开始时间
+	start := time.Now()
 
+	// 执行函数
+	f()
 
-	// 获取初始内存状态
-	initialMem := GetMemoryStats()
-	fmt.Printf("初始内存状态: Alloc=%.2fMB, TotalAlloc=%.2fMB, Sys=%.2fMB, NumGC=%d\n",
-		float64(initialMem.Alloc)/1024/1024,
-		float64(initialMem.TotalAlloc)/1024/1024,
-		float64(initialMem.Sys)/1024/1024,
-		initialMem.NumGC)
+	// 执行后内存状态
+	after := GetMemoryStats()
 
-	// 模拟大量缓存操作
-	const iterations = 10000
-	const concurrentGoroutines = 10
-
-	var wg sync.WaitGroup
-	wg.Add(concurrentGoroutines)
-
-	startTime := time.Now()
-
-	for i := 0; i < concurrentGoroutines; i++ {
-		go func(goroutineID int) {
-			defer wg.Done()
-
-			for j := 0; j < iterations; j++ {
-				// 测试索引匹配缓存
-				fields := []string{fmt.Sprintf("field%d", j%100), fmt.Sprintf("field%d", (j+1)%100)}
-				// 注意：这里需要一个实际的 Table 实例，这里只是示例
-				// 实际使用时，应该传入一个有效的 Table 实例
-				// t.MatchIndexCached(fields)
-
-				// 测试字段转换缓存
-				fieldsMap := map[string]any{
-					fmt.Sprintf("key%d", j%100):     fmt.Sprintf("value%d", j),
-					fmt.Sprintf("key%d", (j+1)%100): j,
-				}
-				// 注意：这里需要一个实际的 Table 实例，这里只是示例
-				// 实际使用时，应该传入一个有效的 Table 实例
-				// t.FieldsToBytesNilCached(&fieldsMap)
-			}
-		}(i)
+	// 计算差异
+	diff := MemoryStatsDiff{
+		Before:    before,
+		After:     after,
+		AllocDiff: int64(after.Alloc - before.Alloc),
+		SysDiff:   int64(after.Sys - before.Sys),
+		NumGCDiff: int(after.NumGC - before.NumGC),
+		ExecTime:  time.Since(start),
 	}
 
-	wg.Wait()
-	duration := time.Since(startTime)
+	// 打印分析结果
+	fmt.Printf("=== %s 内存使用分析 ===\n", name)
+	fmt.Printf("执行时间: %v\n", diff.ExecTime)
+	fmt.Printf("内存分配变化: %+.2f MB\n", float64(diff.AllocDiff)/1024/1024)
+	fmt.Printf("系统内存变化: %+.2f MB\n", float64(diff.SysDiff)/1024/1024)
+	fmt.Printf("GC 次数变化: %+d\n", diff.NumGCDiff)
+	fmt.Printf("执行前分配内存: %.2f MB\n", float64(before.Alloc)/1024/1024)
+	fmt.Printf("执行后分配内存: %.2f MB\n", float64(after.Alloc)/1024/1024)
+	fmt.Println("========================")
+	fmt.Println()
 
-	// 获取最终内存状态
-	finalMem := GetMemoryStats()
-	fmt.Printf("最终内存状态: Alloc=%.2fMB, TotalAlloc=%.2fMB, Sys=%.2fMB, NumGC=%d\n",
-		float64(finalMem.Alloc)/1024/1024,
-		float64(finalMem.TotalAlloc)/1024/1024,
-		float64(finalMem.Sys)/1024/1024,
-		finalMem.NumGC)
-
-	// 计算内存变化
-	memIncrease := float64(finalMem.Alloc-initialMem.Alloc) / 1024 / 1024
-	gcIncrease := finalMem.NumGC - initialMem.NumGC
-
-
-	fmt.Printf("性能测试结果:\n")
-	fmt.Printf("执行时间: %v\n", duration)
-	fmt.Printf("内存增加: %.2fMB\n", memIncrease)
-	fmt.Printf("GC 次数增加: %d\n", gcIncrease)
-
+	return diff
 }
 
-*/
+// TrackMemoryUsageWithResult 跟踪函数执行的内存使用情况（带返回值）
+func TrackMemoryUsageWithResult[T any](name string, f func() T) (T, MemoryStatsDiff) {
+	// 执行前内存状态
+	before := GetMemoryStats()
+
+	// 开始时间
+	start := time.Now()
+
+	// 执行函数
+	result := f()
+
+	// 执行后内存状态
+	after := GetMemoryStats()
+
+	// 计算差异
+	diff := MemoryStatsDiff{
+		Before:    before,
+		After:     after,
+		AllocDiff: int64(after.Alloc - before.Alloc),
+		SysDiff:   int64(after.Sys - before.Sys),
+		NumGCDiff: int(after.NumGC - before.NumGC),
+		ExecTime:  time.Since(start),
+	}
+
+	// 打印分析结果
+	fmt.Printf("=== %s 内存使用分析 ===\n", name)
+	fmt.Printf("执行时间: %v\n", diff.ExecTime)
+	fmt.Printf("内存分配变化: %+.2f MB\n", float64(diff.AllocDiff)/1024/1024)
+	fmt.Printf("系统内存变化: %+.2f MB\n", float64(diff.SysDiff)/1024/1024)
+	fmt.Printf("GC 次数变化: %+d\n", diff.NumGCDiff)
+	fmt.Printf("执行前分配内存: %.2f MB\n", float64(before.Alloc)/1024/1024)
+	fmt.Printf("执行后分配内存: %.2f MB\n", float64(after.Alloc)/1024/1024)
+	fmt.Println("========================")
+	fmt.Println()
+
+	return result, diff
+}
