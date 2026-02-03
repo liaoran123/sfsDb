@@ -50,7 +50,7 @@ func TestTableKeyGenerationDebug(t *testing.T) {
 
 	// Debug: Check what the actual keys in the database look like
 	fmt.Println("Debug: Scanning all keys in the table...")
-	iter := table.Search(&map[string]any{"id": 1}) // Use Like to get all
+	iter, _ := table.Search(&map[string]any{"id": 1}) // Use Like to get all
 	if iter != nil {
 		records := iter.GetRecords(true)
 		if records != nil {

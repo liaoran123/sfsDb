@@ -85,7 +85,7 @@ func TestTableSearchComparisonOperatorsSimple(t *testing.T) {
 			searchData := map[string]any{"id": tc.searchValue}
 
 			// Search with the specified operator
-			iter := table.Search(&searchData, tc.operator)
+			iter, _ := table.Search(&searchData, tc.operator)
 			defer GlobalTableIterPool.Put(iter)
 
 			if iter == nil {
@@ -142,7 +142,7 @@ func TestTableSearchDefaultOperator(t *testing.T) {
 
 	// Test default operator (should be Like)
 	searchData := map[string]any{"id": 1}
-	iter := table.Search(&searchData) // No operator specified - should use default Like
+	iter, _ := table.Search(&searchData) // No operator specified - should use default Like
 	defer GlobalTableIterPool.Put(iter)
 	if iter == nil {
 		t.Fatalf("Search returned nil iterator for default operator")

@@ -81,7 +81,7 @@ func TestTableSearchBasic(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Search with the specified operator
-			iter := table.Search(&tc.searchData, tc.operator)
+			iter, _ := table.Search(&tc.searchData, tc.operator)
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for case: %s", tc.name)
 			}
@@ -156,7 +156,7 @@ func TestTableSearchWithSecondaryIndex(t *testing.T) {
 	// Test search on secondary index
 	t.Run("Search on secondary index (age=30)", func(t *testing.T) {
 		searchData := map[string]any{"age": 30}
-		iter := table.Search(&searchData, util.Equal)
+		iter, _ := table.Search(&searchData, util.Equal)
 		if iter == nil {
 			t.Fatalf("Search returned nil iterator")
 		}

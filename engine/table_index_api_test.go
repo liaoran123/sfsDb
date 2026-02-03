@@ -210,7 +210,7 @@ func TestCreateIndexWithExistingData(t *testing.T) {
 
 	// 测试搜索张三
 	searchCriteria := map[string]any{"name": "张三"}
-	searchIter := table.Search(&searchCriteria)
+	searchIter, _ := table.Search(&searchCriteria)
 	defer GlobalTableIterPool.Put(searchIter)
 	searchRecords := searchIter.GetRecords(true)
 
@@ -221,7 +221,7 @@ func TestCreateIndexWithExistingData(t *testing.T) {
 
 	// 测试搜索李四
 	searchCriteria2 := map[string]any{"name": "李四"}
-	searchIter2 := table.Search(&searchCriteria2)
+	searchIter2, _ := table.Search(&searchCriteria2)
 	defer GlobalTableIterPool.Put(searchIter2)
 	searchRecords2 := searchIter2.GetRecords(true)
 
@@ -284,7 +284,7 @@ func TestCreateFullTextIndexWithExistingData(t *testing.T) {
 	// 测试1: 没有全文索引时的搜索
 	t.Log("Testing search without full text index...")
 	searchCriteriaBefore := map[string]any{"content": "Go语言"}
-	searchIterBefore := table.Search(&searchCriteriaBefore)
+	searchIterBefore, _ := table.Search(&searchCriteriaBefore)
 	if searchIterBefore != nil {
 		defer GlobalTableIterPool.Put(searchIterBefore)
 		searchRecordsBefore := searchIterBefore.GetRecords(true)
@@ -331,7 +331,7 @@ func TestCreateFullTextIndexWithExistingData(t *testing.T) {
 
 	// 测试搜索包含"Go语言"的文档
 	searchCriteria := map[string]any{"content": "Go语言"}
-	searchIter := table.Search(&searchCriteria)
+	searchIter, _ := table.Search(&searchCriteria)
 	defer GlobalTableIterPool.Put(searchIter)
 	if searchIter != nil {
 		defer GlobalTableIterPool.Put(searchIter)

@@ -116,7 +116,7 @@ func TestTableTransaction_BasicOperations(t *testing.T) {
 
 		// 验证提交后的结果
 		searchData := map[string]any{"id": nil}
-		iterAfter := table.Search(&searchData)
+		iterAfter, _ := table.Search(&searchData)
 		if iterAfter == nil {
 			t.Fatalf("Failed to search records after transaction")
 		}
@@ -173,7 +173,7 @@ func TestTableTransaction_BasicOperations(t *testing.T) {
 
 		// 验证回滚后的结果
 		searchData := map[string]any{"id": nil}
-		iter := table.Search(&searchData)
+		iter, _ := table.Search(&searchData)
 		if iter == nil {
 			t.Fatalf("Failed to search records after rollback")
 		}
@@ -217,7 +217,7 @@ func TestTableTransaction_BasicOperations(t *testing.T) {
 
 		// 测试搜索所有记录
 		allData := map[string]any{"id": nil}
-		iterAll := tx2.Search(&allData)
+		iterAll, _ := tx2.Search(&allData)
 		if iterAll == nil {
 			t.Fatalf("Failed to search all records in transaction")
 		}
@@ -230,7 +230,7 @@ func TestTableTransaction_BasicOperations(t *testing.T) {
 
 		// 测试条件搜索
 		activeData := map[string]any{"active": true}
-		iterActive := tx2.Search(&activeData)
+		iterActive, _ := tx2.Search(&activeData)
 		if iterActive == nil {
 			t.Fatalf("Failed to search active records in transaction")
 		}
@@ -429,7 +429,7 @@ func TestTableTransaction_ErrorHandling(t *testing.T) {
 
 		// 尝试在已提交的事务中搜索
 		searchData := map[string]any{"id": nil}
-		iter := tx.Search(&searchData)
+		iter, _ := tx.Search(&searchData)
 		if iter != nil {
 			t.Errorf("Expected nil iterator on search after commit, got non-nil")
 		}
@@ -501,7 +501,7 @@ func TestTableTransaction_SearchWithOperators(t *testing.T) {
 	// 测试场景1: 大于操作
 	t.Run("GreaterThanSearch", func(t *testing.T) {
 		searchData := map[string]any{"age": 25}
-		iter := tx.Search(&searchData, util.GreaterThan)
+		iter, _ := tx.Search(&searchData, util.GreaterThan)
 		if iter == nil {
 			t.Fatalf("Failed to search records with age > 25")
 		}
@@ -516,7 +516,7 @@ func TestTableTransaction_SearchWithOperators(t *testing.T) {
 	// 测试场景2: 小于等于操作
 	t.Run("LessThanOrEqualSearch", func(t *testing.T) {
 		searchData := map[string]any{"score": 85.5}
-		iter := tx.Search(&searchData, util.LessThanOrEqual)
+		iter, _ := tx.Search(&searchData, util.LessThanOrEqual)
 		if iter == nil {
 			t.Fatalf("Failed to search records with score <= 85.5")
 		}

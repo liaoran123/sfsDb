@@ -140,7 +140,13 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 			for j := 0; j < updatesPerUpdater; j++ {
 				// 1. 读取当前值
 				readRecord := map[string]any{"id": 1}
-				iter := table.Search(&readRecord)
+				iter, err := table.Search(&readRecord)
+				if err != nil {
+					t.Fatalf("Search 失败: %v", err)
+				}
+				if iter == nil {
+					t.Fatalf("Failed to get iterator: %v", err)
+				}
 				defer GlobalTableIterPool.Put(iter)
 				records := iter.GetRecords(true)
 				if len(records) != 1 {
@@ -161,7 +167,7 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 				}
 
 				updateRecord := map[string]any{"id": 1, "counter": newCounter}
-				err := table.Update(&updateRecord, batch)
+				err = table.Update(&updateRecord, batch)
 				if err != nil {
 					t.Errorf("goroutine %d 更新记录失败: %v", updaterID, err)
 					return
@@ -188,7 +194,13 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 
 	// 验证最终结果
 	readFinalRecord := map[string]any{"id": 1}
-	iterFinal := table.Search(&readFinalRecord)
+	iterFinal, err := table.Search(&readFinalRecord)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iterFinal == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iterFinal)
 	finalRecords := iterFinal.GetRecords(true)
 	if len(finalRecords) != 1 {
@@ -274,9 +286,16 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 				// 随机读取一条记录
 				recordID := (j % 10) + 1 // 1-10之间的随机ID
 				readRecord := map[string]any{"id": recordID}
-				iter := table2.Search(&readRecord)
-				records := iter.GetRecords(true)
-				defer GlobalTableIterPool.Put(iter)
+				iter, err := table2.Search(&readRecord)
+			if err != nil {
+				t.Fatalf("Search 失败: %v", err)
+			}
+			if iter == nil {
+				t.Fatalf("Failed to get iterator: %v", err)
+			}
+			defer GlobalTableIterPool.Put(iter)
+
+			records := iter.GetRecords(true)
 
 				if len(records) != 1 {
 					t.Errorf("reader %d 期望找到1条记录，实际找到%d条", readerID, len(records))
@@ -307,9 +326,16 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 
 				// 读取当前记录的版本号
 				readRecord := map[string]any{"id": recordID}
-				iter := table2.Search(&readRecord)
-				records := iter.GetRecords(true)
-				defer GlobalTableIterPool.Put(iter)
+				iter, err := table2.Search(&readRecord)
+			if err != nil {
+				t.Fatalf("Search 失败: %v", err)
+			}
+			if iter == nil {
+				t.Fatalf("Failed to get iterator: %v", err)
+			}
+			defer GlobalTableIterPool.Put(iter)
+
+			records := iter.GetRecords(true)
 
 				if len(records) != 1 {
 					t.Errorf("writer %d 期望找到1条记录，实际找到%d条", writerID, len(records))
@@ -332,7 +358,7 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 					"data":    fmt.Sprintf("更新内容_%d_%d", writerID, j),
 					"version": currentVersion + 1,
 				}
-				err := table2.Update(&updateRecord, batch)
+				err = table2.Update(&updateRecord, batch)
 				if err != nil {
 					t.Errorf("writer %d 更新记录失败: %v", writerID, err)
 					continue

@@ -93,7 +93,13 @@ func TestTableInsertWithAllTypes(t *testing.T) {
 	})
 
 	// 验证插入的数据
-	iter := table.Search(&map[string]any{"id": nil})
+	iter, err := table.Search(&map[string]any{"id": nil})
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter == nil {
+		t.Fatalf("Failed to search all records: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter)
 	records := iter.GetRecords(true)
 	if len(records) != 3 {
@@ -282,7 +288,7 @@ func TestTableUpdateWithAllTypes(t *testing.T) {
 	})
 
 	// 验证更新后的数据
-	iter := table.Search(&map[string]any{"id": 1})
+	iter, _ := table.Search(&map[string]any{"id": 1})
 	defer GlobalTableIterPool.Put(iter)
 	records := iter.GetRecords(true)
 	if len(records) != 1 {

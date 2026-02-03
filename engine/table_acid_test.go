@@ -149,7 +149,13 @@ func TestTableACIDTransaction(t *testing.T) {
 	// 不提交事务，模拟回滚
 	// 验证操作没有生效
 	readRecord3 := map[string]any{"id": 4}
-	iter3 := table1.Search(&readRecord3)
+	iter3, err := table1.Search(&readRecord3)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter3 == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter3)
 	records3 := iter3.GetRecords(true)
 	if len(records3) != 0 {
@@ -158,8 +164,15 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	// 验证第一条记录没有被更新
 	readRecord1 := map[string]any{"id": 1}
-	iter4 := table1.Search(&readRecord1)
+	iter4, err := table1.Search(&readRecord1)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter4 == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter4)
+
 	records4 := iter4.GetRecords(true)
 	if len(records4) != 1 {
 		t.Errorf("期望找到1条记录，实际找到%d条", len(records4))
@@ -226,7 +239,13 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	// 在快照模式下读取数据
 	readConsistencyRecord := map[string]any{"id": 1}
-	iter5 := table2.Search(&readConsistencyRecord)
+	iter5, err := table2.Search(&readConsistencyRecord)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter5 == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter5)
 	records5 := iter5.GetRecords(true)
 	if len(records5) != 1 {
@@ -271,7 +290,13 @@ func TestTableACIDTransaction(t *testing.T) {
 	}
 
 	// 在新快照模式下读取数据，应该是更新后的值，保持一致性
-	iter6 := table2.Search(&readConsistencyRecord)
+	iter6, err := table2.Search(&readConsistencyRecord)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter6 == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter6)
 	records6 := iter6.GetRecords(true)
 	if len(records6) != 1 {
@@ -348,7 +373,13 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	// 事务1在快照模式下读取数据
 	readIsolationRecord := map[string]any{"id": 1}
-	iter7 := table3.Search(&readIsolationRecord)
+	iter7, err := table3.Search(&readIsolationRecord)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter7 == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter7)
 	records7 := iter7.GetRecords(true)
 	if len(records7) != 1 {
@@ -398,7 +429,13 @@ func TestTableACIDTransaction(t *testing.T) {
 	}
 
 	// 事务3在新快照模式下读取，应该能看到事务2的修改
-	iter8 := table3.Search(&readIsolationRecord)
+	iter8, err := table3.Search(&readIsolationRecord)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter8 == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter8)
 	records8 := iter8.GetRecords(true)
 	if len(records8) != 1 {
@@ -474,7 +511,13 @@ func TestTableACIDTransaction(t *testing.T) {
 
 	// 4.3 验证数据存在
 	readDurableRecord := map[string]any{"id": 3}
-	iter9 := table4.Search(&readDurableRecord)
+	iter9, err := table4.Search(&readDurableRecord)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter9 == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter9)
 	records9 := iter9.GetRecords(true)
 	if len(records9) != 1 {
@@ -548,7 +591,13 @@ func TestTableACIDTransaction(t *testing.T) {
 	fmt.Println("初始账户余额:")
 	// 显示初始余额
 	readAccount1 := map[string]any{"id": 1}
-	iter11 := accountTable.Search(&readAccount1)
+	iter11, err := accountTable.Search(&readAccount1)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter11 == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter11)
 	records11 := iter11.GetRecords(true)
 	if len(records11) == 1 {
@@ -556,7 +605,13 @@ func TestTableACIDTransaction(t *testing.T) {
 	}
 
 	readAccount2 := map[string]any{"id": 2}
-	iter12 := accountTable.Search(&readAccount2)
+	iter12, err := accountTable.Search(&readAccount2)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter12 == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter12)
 	records12 := iter12.GetRecords(true)
 	if len(records12) == 1 {
@@ -598,7 +653,13 @@ func TestTableACIDTransaction(t *testing.T) {
 	fmt.Println("\n转账后账户余额:")
 
 	// 验证张三的余额
-	iter13 := accountTable.Search(&readAccount1)
+	iter13, err := accountTable.Search(&readAccount1)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter13 == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter13)
 	records13 := iter13.GetRecords(true)
 	if len(records13) != 1 {
@@ -611,7 +672,13 @@ func TestTableACIDTransaction(t *testing.T) {
 	}
 
 	// 验证李四的余额
-	iter14 := accountTable.Search(&readAccount2)
+	iter14, err := accountTable.Search(&readAccount2)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter14 == nil {
+		t.Fatalf("Failed to get iterator: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter14)
 	records14 := iter14.GetRecords(true)
 	if len(records14) != 1 {
@@ -638,6 +705,7 @@ func TestTableACIDTransaction(t *testing.T) {
 	if totalBalance != 3000.0 {
 		t.Errorf("账户总额应该是3000.0，实际是%v", totalBalance)
 	}
+	defer GlobalTableIterPool.Put(iter15)
 
 	fmt.Println("✓ 完整的ACID事务流程测试通过")
 
@@ -792,7 +860,13 @@ func TestTableTransactionCache(t *testing.T) {
 
 		// 验证记录是否被回滚
 		readRecordAfterRollback := map[string]any{"id": 2}
-		iter := table.Search(&readRecordAfterRollback)
+		iter, err := table.Search(&readRecordAfterRollback)
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		if iter == nil {
+			t.Fatalf("Failed to get iterator: %v", err)
+		}
 		defer GlobalTableIterPool.Put(iter)
 		records := iter.GetRecords(true)
 		if len(records) != 0 {
@@ -827,7 +901,13 @@ func TestTableTransactionCache(t *testing.T) {
 
 		// 验证记录是否被删除
 		readRecordAfterDelete := map[string]any{"id": 1}
-		iter := table.Search(&readRecordAfterDelete)
+		iter, err := table.Search(&readRecordAfterDelete)
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		if iter == nil {
+			t.Fatalf("Failed to get iterator: %v", err)
+		}
 		defer GlobalTableIterPool.Put(iter)
 		records := iter.GetRecords(true)
 		if len(records) != 0 {

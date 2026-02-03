@@ -83,9 +83,12 @@ func TestTableTransaction(t *testing.T) {
 		}
 
 		// 验证记录已被更新
-		iter := table.Search(&readRecord)
+		iter, err := table.Search(&readRecord)
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
 		if iter == nil {
-			t.Fatalf("Failed to search record after transaction")
+			t.Fatalf("Failed to search record after transaction: %v", err)
 		}
 		defer GlobalTableIterPool.Put(iter)
 
@@ -122,7 +125,10 @@ func TestTableTransaction(t *testing.T) {
 
 		// 验证记录未被插入
 		readRecord := map[string]any{"id": 2}
-		iter := table.Search(&readRecord)
+		iter, err := table.Search(&readRecord)
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
 		if iter == nil {
 			t.Fatalf("Failed to search record after rollback")
 		}
@@ -163,9 +169,12 @@ func TestTableTransaction(t *testing.T) {
 		}
 
 		// 验证记录已被删除
-		iter := table.Search(&deleteRecord)
+		iter, err := table.Search(&deleteRecord)
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
 		if iter == nil {
-			t.Fatalf("Failed to search record after delete")
+			t.Fatalf("Failed to search record after delete: %v", err)
 		}
 		defer GlobalTableIterPool.Put(iter)
 
@@ -199,9 +208,12 @@ func TestTableTransaction(t *testing.T) {
 
 		// 搜索记录（使用id字段，因为它有主键索引）
 		searchRecord := map[string]any{"id": 4}
-		iter := tx.Search(&searchRecord)
+		iter, err := tx.Search(&searchRecord)
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
 		if iter == nil {
-			t.Fatalf("Failed to search records in transaction")
+			t.Fatalf("Failed to search records in transaction: %v", err)
 		}
 		defer GlobalTableIterPool.Put(iter)
 
@@ -324,9 +336,15 @@ func TestTableTransaction_Concurrent(t *testing.T) {
 	}
 
 	// 验证所有记录都已插入
-	iter := table.Search(&map[string]any{"id": nil})
+	iter, err := table.Search(&map[string]any{"id": nil})
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
 	if iter == nil {
 		t.Fatalf("Failed to search records after concurrent transactions")
+	}
+	if !iter.Last() {
+		t.Errorf("Expected last record to be the last record inserted: %v", err)
 	}
 	defer GlobalTableIterPool.Put(iter)
 
@@ -393,9 +411,12 @@ func TestTableTransaction_ReadOnly(t *testing.T) {
 	}
 
 	// 搜索记录
-	iter := tx.Search(&readRecord)
+	iter, err := tx.Search(&readRecord)
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
 	if iter == nil {
-		t.Fatalf("Failed to search record in transaction")
+		t.Fatalf("Failed to search record in transaction: %v", err)
 	}
 	defer GlobalTableIterPool.Put(iter)
 

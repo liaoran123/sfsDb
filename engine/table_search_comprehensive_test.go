@@ -187,7 +187,7 @@ func TestTableSearchComprehensive(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Search with the specified operator
-			iter := table.Search(&tc.searchData, tc.operator)
+			iter, _ := table.Search(&tc.searchData, tc.operator)
 			defer GlobalTableIterPool.Put(iter)
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for case: %s", tc.name)
@@ -293,7 +293,7 @@ func TestTableSearchEdgeCases(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Search with the specified operator
-			iter := table.Search(&tc.searchData, tc.operator)
+			iter, _ := table.Search(&tc.searchData, tc.operator)
 			defer GlobalTableIterPool.Put(iter)
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for case: %s", tc.name)
@@ -360,7 +360,7 @@ func TestTableSearchMultipleFields(t *testing.T) {
 		searchData := map[string]any{"id": 3}
 
 		// 使用主键索引进行精确匹配
-		iter := table.Search(&searchData, util.Equal)
+		iter, _ := table.Search(&searchData, util.Equal)
 		if iter == nil {
 			t.Fatalf("Search returned nil iterator")
 		}

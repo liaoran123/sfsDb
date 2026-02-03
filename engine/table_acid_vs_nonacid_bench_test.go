@@ -161,8 +161,8 @@ func BenchmarkTableNonACIDSearch(b *testing.B) {
 		searchData := map[string]any{"id": (i % 1000) + 1}
 
 		// 搜索数据（非ACID模式）
-		iter := table.Search(&searchData)
-		if iter != nil {
+		iter, err := table.Search(&searchData)
+		if err != nil && iter != nil {
 			// 获取记录
 			records := iter.GetRecords(true, 1)
 			_ = records
@@ -401,9 +401,8 @@ func BenchmarkTableACIDSearch(b *testing.B) {
 		searchData := map[string]any{"id": (i % 1000) + 1}
 
 		// 在事务中搜索数据
-		iter := tx.Search(&searchData)
-		if iter != nil {
-			// 获取记录
+		iter, err := tx.Search(&searchData)
+		if iter != nil && err == nil {
 			records := iter.GetRecords(true, 1)
 			_ = records
 			GlobalTableIterPool.Put(iter)

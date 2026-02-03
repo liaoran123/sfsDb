@@ -66,7 +66,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 	// 测试批量删除功能
 	t.Run("BatchDelete", func(t *testing.T) {
 		// 获取迭代器并设置匹配条件
-		iter := table.Search(&map[string]any{"id": nil})
+		iter, _ := table.Search(&map[string]any{"id": nil})
 		if iter == nil {
 			t.Fatalf("获取迭代器失败")
 		}
@@ -82,7 +82,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 		}
 
 		// 验证删除结果
-		iterAfter := table.Search(&map[string]any{"id": nil})
+		iterAfter, _ := table.Search(&map[string]any{"id": nil})
 		if iterAfter != nil {
 			defer GlobalTableIterPool.Put(iterAfter)
 			iterAfter.SetMatch(match.NewFieldComparison("active", match.Equal, false))
@@ -114,7 +114,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 		}
 
 		// 获取迭代器并设置匹配条件
-		iter := table.Search(&map[string]any{"id": nil})
+		iter, _ := table.Search(&map[string]any{"id": nil})
 		if iter == nil {
 			t.Fatalf("获取迭代器失败")
 		}
@@ -136,7 +136,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 		}
 
 		// 验证更新结果
-		iterAfter := table.Search(&map[string]any{"id": nil})
+		iterAfter, _ := table.Search(&map[string]any{"id": nil})
 		if iterAfter != nil {
 			defer GlobalTableIterPool.Put(iterAfter)
 			// 查找 age < 30 且 active = true 的记录
@@ -165,7 +165,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 	// 测试批量操作的限制功能
 	t.Run("BatchOperationsWithLimit", func(t *testing.T) {
 		// 获取迭代器
-		iter := table.Search(&map[string]any{"id": nil})
+		iter, _ := table.Search(&map[string]any{"id": nil})
 		if iter == nil {
 			t.Fatalf("获取迭代器失败")
 		}
@@ -183,7 +183,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 		}
 
 		// 验证更新结果
-		iterAfter := table.Search(&map[string]any{"id": nil})
+		iterAfter, _ := table.Search(&map[string]any{"id": nil})
 		if iterAfter != nil {
 			defer GlobalTableIterPool.Put(iterAfter)
 			// 查找 score = 100.0 的记录
@@ -255,7 +255,7 @@ func TestTableIter_BatchPerformance(t *testing.T) {
 	// 测试批量删除性能
 	t.Run("BatchDeletePerformance", func(t *testing.T) {
 		// 获取迭代器并设置匹配条件
-		iter := table.Search(&map[string]any{"id": nil})
+		iter, _ := table.Search(&map[string]any{"id": nil})
 		if iter == nil {
 			t.Fatalf("获取迭代器失败")
 		}
@@ -279,7 +279,7 @@ func TestTableIter_BatchPerformance(t *testing.T) {
 	// 测试批量更新性能
 	t.Run("BatchUpdatePerformance", func(t *testing.T) {
 		// 获取迭代器并设置匹配条件
-		iter := table.Search(&map[string]any{"id": nil})
+		iter, _ := table.Search(&map[string]any{"id": nil})
 		if iter == nil {
 			t.Fatalf("获取迭代器失败")
 		}

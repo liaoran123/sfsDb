@@ -107,12 +107,14 @@ func BenchmarkTableSearchWithACID(b *testing.B) {
 		searchData := map[string]any{"id": (i % 1000) + 1}
 
 		// 在事务中搜索数据
-		iter := tx.Search(&searchData)
+		iter, err := tx.Search(&searchData)
+		if err != nil {
+			b.Fatalf("Failed to create search iterator: %v", err)
+		}
 		if iter == nil {
-			b.Fatalf("Failed to create search iterator")
+			b.Fatalf("Failed to create search iterator: %v", err)
 		}
 
-		// 使用GetRecords方法遍历结果
 		records := iter.GetRecords(true, 1) // 只获取1条记录
 		_ = records
 		GlobalTableIterPool.Put(iter)

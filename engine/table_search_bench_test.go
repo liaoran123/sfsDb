@@ -45,7 +45,7 @@ func BenchmarkTableSearchPrimaryKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// 搜索主键
 		searchData := map[string]any{"id": (i % 1000) + 1}
-		iter := table.Search(&searchData)
+		iter, _ := table.Search(&searchData)
 		if iter != nil {
 			defer GlobalTableIterPool.Put(iter)
 		}
@@ -98,7 +98,7 @@ func BenchmarkTableSearchIndex(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// 搜索普通索引
 		searchData := map[string]any{"name": "User" + string(rune('A'+(i%26)))}
-		iter := table.Search(&searchData)
+		iter, _ := table.Search(&searchData)
 		if iter != nil {
 			defer GlobalTableIterPool.Put(iter)
 		}
@@ -146,7 +146,7 @@ func BenchmarkTableSearchFullScan(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// 全表扫描（搜索不存在的字段，触发全表扫描）
 		searchData := map[string]any{"non_existent_field": "value"}
-		iter := table.Search(&searchData)
+		iter, _ := table.Search(&searchData)
 		if iter != nil {
 			defer GlobalTableIterPool.Put(iter)
 		}

@@ -16,7 +16,7 @@ type Transaction interface {
 	// Delete 在事务中删除记录
 	Delete(fields *map[string]any) error
 	// Search 在事务中搜索记录（支持读一致性）
-	Search(fields *map[string]any, ops ...util.ComparisonOperator) *TableIter
+	Search(fields *map[string]any, ops ...util.ComparisonOperator) (*TableIter, error)
 	// Read 在事务中读取单条记录（支持读一致性）
 	Read(fields *map[string]any) ([]byte, error)
 	// Commit 提交事务
@@ -252,9 +252,15 @@ func (tx *TableTransaction) Read(fields *map[string]any) ([]byte, error) {
 }
 
 // Search 在事务中搜索记录（支持读一致性，即使用快照）
-func (tx *TableTransaction) Search(fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
-	if tx.committed {
-		return nil
+func (tx *TableTransaction) Search(fields *map[string]any, ops ...util.ComparisonOperator) (*TableIter, error) {
+	// 检查事务是否已提交
+	if err := tx.checkCommitted(); err != nil {
+		return nil, err
+	}
+
+	// 检查fields参数是否为nil
+	if fields == nil {
+		return nil, fmt.Errorf("fields cannot be nil")
 	}
 
 	// 创建一个函数，根据是否有快照选择不同的存储获取迭代器
@@ -267,7 +273,8 @@ func (tx *TableTransaction) Search(fields *map[string]any, ops ...util.Compariso
 	}
 
 	// 调用table.Searchs方法，传入funIter函数
-	return tx.table.Searchs(funIter, fields, ops...)
+	tbiter, err := tx.table.Searchs(funIter, fields, ops...)
+	return tbiter, err
 }
 
 // Commit 提交事务

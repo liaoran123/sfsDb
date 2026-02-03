@@ -108,9 +108,15 @@ func TestTableSearchComparisonOperators(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Search with the specified operator
-			iter := table.Search(&tc.searchData, tc.operator)
+			iter, err := table.Search(&tc.searchData, tc.operator)
+			if err != nil {
+				t.Fatalf("Search 失败: %v", err)
+			}
 			if iter == nil {
-				t.Fatalf("Search returned nil iterator for operator %s", tc.operator)
+				t.Fatalf("Failed to get iterator: %v", err)
+			}
+			if err != nil && iter == nil {
+				t.Fatalf("Search returned nil iterator for operator %s: %v", tc.operator, err)
 			}
 			defer GlobalTableIterPool.Put(iter)
 
@@ -220,7 +226,7 @@ func TestTableSearchComparisonOperatorsWithAgeField(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Search with the specified operator
-			iter := table.Search(&tc.searchData, tc.operator)
+			iter, _ := table.Search(&tc.searchData, tc.operator)
 			if iter == nil {
 				t.Fatalf("Search returned nil iterator for operator %s", tc.operator)
 			}

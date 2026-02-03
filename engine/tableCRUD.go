@@ -510,7 +510,7 @@ func (t *Table) FieldsToBytesNil(fields *map[string]any) *map[string][]byte {
 }
 
 // 默认ComparisonOperator是like，前缀匹配功能
-func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
+func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) (*TableIter, error) {
 	return t.Searchs(t.kvStore.Iterator, fields, ops...)
 }
 
@@ -564,7 +564,7 @@ func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *
 		return tbiter
 	}
 */
-func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...util.ComparisonOperator) *TableIter {
+func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...util.ComparisonOperator) (*TableIter, error) {
 	var tbiter *TableIter
 	field := GetStringSlice()
 	defer PutStringSlice(field)
@@ -573,7 +573,7 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 		if _, ok := t.fields[k]; !ok {
 			//写错误日志
 			//log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
-			return nil
+			return nil, fmt.Errorf("字段 '%s' 不存在于表 '%s'", k, t.name)
 		}
 		field = append(field, k)
 	}
@@ -590,7 +590,7 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 			如果需要支持，可以使用ForData()方法或当前函数设置主键值为nil，则得到遍历全表迭代器，然后配合mach接口自定义匹配规则。
 			mach接口自定义匹配规则，理论上可以支持任意查询匹配。
 		*/
-		return nil
+		return nil, fmt.Errorf("表 '%s' 没有设置索引", t.name)
 	}
 	var op util.ComparisonOperator
 	if len(ops) == 0 { //默认是Like操作
@@ -615,7 +615,7 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 		neslice := rangeHelper.FromComparison(util.Like, key) //跳跃区间key=0-1-100==>0-1-101
 		tbiter.SetJumpRanges(funIter(neslice.Start, neslice.Limit))
 	}
-	return tbiter
+	return tbiter, nil
 }
 
 // -------Searchs函数中数据的缓存---------------------

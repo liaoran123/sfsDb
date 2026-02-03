@@ -36,7 +36,10 @@ func (t *Table) InitAuto() {
 // 获取当前最大自动增值记录的主键值
 func (t *Table) MaxAutoValue() int {
 	fields := map[string]any{"id": nil} //id为nil时，全表扫描。
-	tableIter := t.Search(&fields)
+	tableIter, err := t.Search(&fields)
+	if err != nil {
+		return 0
+	}
 	defer GlobalTableIterPool.Put(tableIter)
 	if tableIter == nil {
 		return 0

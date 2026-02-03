@@ -61,7 +61,13 @@ func TestBatchInsert(t *testing.T) {
 	// 验证数据是否正确插入
 	for i, id := range ids {
 		searchFields := map[string]any{"id": id}
-		iter := table.Search(&searchFields)
+		iter, err := table.Search(&searchFields)
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		if iter == nil {
+			t.Fatalf("Failed to get iterator: %v", err)
+		}
 		defer GlobalTableIterPool.Put(iter)
 		if !iter.Next() {
 			t.Errorf("Record with ID %d not found", id)

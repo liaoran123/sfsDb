@@ -154,11 +154,38 @@ func TestTestSelectForJoin(t *testing.T) {
 			t.Fatalf("Failed to insert test data: %v", err)
 		}
 	}
-	iter1 := table1.Search(&map[string]any{"id": nil}) //遍历table1的所有记录
+	iter1, err := table1.Search(&map[string]any{"id": nil}) //遍历table1的所有记录
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter1 == nil {
+		t.Fatalf("Failed to search records after concurrent transactions")
+	}
+	if !iter1.Last() {
+		t.Errorf("Expected last record to be the last record inserted: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter1)
-	iter2 := table2.Search(&map[string]any{"id": nil}) //遍历table2的所有记录
+	iter2, err := table2.Search(&map[string]any{"id": nil}) //遍历table2的所有记录
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter2 == nil {
+		t.Fatalf("Failed to search records after concurrent transactions")
+	}
+	if !iter2.Last() {
+		t.Errorf("Expected last record to be the last record inserted: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter2)
-	iter3 := table3.Search(&map[string]any{"id": nil}) //遍历table3的所有记录
+	iter3, err := table3.Search(&map[string]any{"id": nil}) //遍历table3的所有记录
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
+	if iter3 == nil {
+		t.Fatalf("Failed to search records after concurrent transactions")
+	}
+	if !iter3.Last() {
+		t.Errorf("Expected last record to be the last record inserted: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter3)
 
 	// 获取迭代器记录
@@ -307,7 +334,10 @@ func TestTableIter_MapDataClean(t *testing.T) {
 	}
 
 	// 创建迭代器
-	iter := table.Search(&map[string]any{"id": nil})
+	iter, err := table.Search(&map[string]any{"id": nil})
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter)
 
 	// 第一次调用 Map() 方法
@@ -442,7 +472,10 @@ func TestTableIter_WithFieldComparison(t *testing.T) {
 	// Reference: map2 := iter2.Map(); mach := match.NewAND([]string{"id"}, map2); iter1.SetMatch(mach)
 
 	// Get all records first
-	iter := table.Search(&map[string]any{"id": nil})
+	iter, err := table.Search(&map[string]any{"id": nil})
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter)
 
 	// Create a FieldComparison matcher (similar to the AND matcher usage in the reference)
@@ -465,7 +498,10 @@ func TestTableIter_WithFieldComparison(t *testing.T) {
 	}
 
 	// Additional test: Using helper function for better readability
-	iter2 := table.Search(&map[string]any{"id": nil})
+	iter2, err := table.Search(&map[string]any{"id": nil})
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter2)
 
 	// Use helper function instead of direct constructor
@@ -490,7 +526,10 @@ func TestTableIter_WithFieldComparison(t *testing.T) {
 	t.Log("\n=== Testing FieldComparison integration pattern ===")
 
 	// Get iterator for all records
-	baseIter := table.Search(&map[string]any{"id": nil})
+	baseIter, err := table.Search(&map[string]any{"id": nil})
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
 	defer GlobalTableIterPool.Put(baseIter)
 
 	// Create FieldComparison matcher for high scores
@@ -524,9 +563,12 @@ func TestTableIterGetRecords(t *testing.T) {
 	}
 
 	// 获取迭代器
-	iter := table.Search(&map[string]any{"id": nil})
+	iter, err := table.Search(&map[string]any{"id": nil})
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
 	if iter == nil {
-		t.Fatalf("Failed to get iterator")
+		t.Fatalf("Failed to get iterator: %v", err)
 	}
 	defer GlobalTableIterPool.Put(iter)
 
@@ -708,9 +750,9 @@ func TestTableIter_DeleteUpdate(t *testing.T) {
 	// Test 1: Delete inactive records using TableIter
 	t.Run("DeleteInactiveRecords", func(t *testing.T) {
 		// Get full table iterator by setting id to nil, then filter with matcher
-		iter := table.Search(&map[string]any{"id": nil}) // This returns a full table iterator
-		if iter == nil {
-			t.Fatalf("Failed to get full table iterator")
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
 		}
 		defer GlobalTableIterPool.Put(iter)
 
@@ -721,8 +763,8 @@ func TestTableIter_DeleteUpdate(t *testing.T) {
 		iter.Delete()
 
 		// Verify deletion by checking count of inactive records
-		iterAfter := table.Search(&map[string]any{"id": nil})
-		if iterAfter != nil {
+		iterAfter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
 			defer GlobalTableIterPool.Put(iterAfter)
 			iterAfter.SetMatch(match.NewFieldComparison("active", match.Equal, false))
 			recordsAfter := iterAfter.GetRecords(true)
@@ -747,13 +789,12 @@ func TestTableIter_DeleteUpdate(t *testing.T) {
 		}
 
 		// Get full table iterator, then filter with matcher
-		iter := table.Search(&map[string]any{"id": nil})
-		if iter == nil {
-			t.Fatalf("Failed to get full table iterator")
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
 		}
 		defer GlobalTableIterPool.Put(iter)
 
-		// Set matcher to find active records
 		iter.SetMatch(match.NewFieldComparison("active", match.Equal, true))
 
 		// Update only 2 records
@@ -761,14 +802,15 @@ func TestTableIter_DeleteUpdate(t *testing.T) {
 		iter.Update(&updateFields, 2) // limit to 2 records
 
 		// Verify update
-		iterAfter := table.Search(&map[string]any{"id": nil})
-		if iterAfter != nil {
-			defer GlobalTableIterPool.Put(iterAfter)
-			iterAfter.SetMatch(match.NewFieldComparison("score", match.Equal, 100.0))
-			recordsAfter := iterAfter.GetRecords(true)
-			if len(recordsAfter) != 2 {
-				t.Errorf("Expected 2 records with score=100, got %d", len(recordsAfter))
-			}
+		iterAfter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iterAfter)
+		iterAfter.SetMatch(match.NewFieldComparison("score", match.Equal, 100.0))
+		recordsAfter := iterAfter.GetRecords(true)
+		if len(recordsAfter) != 2 {
+			t.Errorf("Expected 2 records with score=100, got %d", len(recordsAfter))
 		}
 	})
 }
@@ -821,7 +863,13 @@ func TestTableIter_Map(t *testing.T) {
 
 	// Test 1: Map with default primary key
 	t.Run("MapDefaultPK", func(t *testing.T) {
-		iter := table.Search(&map[string]any{"id": nil})
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		if iter == nil {
+			t.Fatalf("Failed to get iterator: %v", err)
+		}
 		defer GlobalTableIterPool.Put(iter)
 
 		idMap := iter.Map()
@@ -841,7 +889,13 @@ func TestTableIter_Map(t *testing.T) {
 
 	// Test 2: Map with specific field
 	t.Run("MapSpecificField", func(t *testing.T) {
-		iter := table.Search(&map[string]any{"id": nil})
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		if iter == nil {
+			t.Fatalf("Failed to get iterator: %v", err)
+		}
 		defer GlobalTableIterPool.Put(iter)
 
 		ageMap := iter.Map("age")
@@ -910,7 +964,10 @@ func TestTableIter_Count(t *testing.T) {
 
 	// Test 1: Count all records
 	t.Run("CountAllRecords", func(t *testing.T) {
-		iter := table.Search(&map[string]any{"id": nil})
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
 		defer GlobalTableIterPool.Put(iter)
 
 		count := iter.Count()
@@ -922,8 +979,8 @@ func TestTableIter_Count(t *testing.T) {
 	// Test 2: Count with filter (active records)
 	t.Run("CountActiveRecords", func(t *testing.T) {
 		// Get full table iterator, then filter with matcher
-		iter := table.Search(&map[string]any{"id": nil})
-		if iter == nil {
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
 			t.Fatalf("Failed to get full table iterator")
 		}
 		defer GlobalTableIterPool.Put(iter)
@@ -990,7 +1047,10 @@ func TestTableIter_JumpRange(t *testing.T) {
 	}
 
 	// Test with JumpRange functionality
-	iter := table.Search(&map[string]any{"id": nil})
+	iter, err := table.Search(&map[string]any{"id": nil})
+	if err != nil {
+		t.Fatalf("Search 失败: %v", err)
+	}
 	defer GlobalTableIterPool.Put(iter)
 
 	// Test JumpRange with different keys
@@ -1068,7 +1128,10 @@ func TestTableIter_Export(t *testing.T) {
 
 	// Test 1: ForExport method
 	t.Run("ForExportMethod", func(t *testing.T) {
-		iter := table.Search(&map[string]any{"id": nil})
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
 		defer GlobalTableIterPool.Put(iter)
 
 		count := 0
@@ -1087,7 +1150,7 @@ func TestTableIter_Export(t *testing.T) {
 
 	// Test 2: ExportRecord method with custom processing
 	t.Run("ExportRecordMethod", func(t *testing.T) {
-		iter := table.Search(&map[string]any{"id": nil})
+		iter, _ := table.Search(&map[string]any{"id": nil})
 		defer GlobalTableIterPool.Put(iter)
 
 		var exportedRecords []record.Record
@@ -1146,7 +1209,7 @@ func TestTableIter_GetPrimaryKeys(t *testing.T) {
 	}
 
 	// Get iterator
-	iter := table.Search(&map[string]any{"id": nil})
+	iter, _ := table.Search(&map[string]any{"id": nil})
 	defer GlobalTableIterPool.Put(iter)
 
 	iter.First()
