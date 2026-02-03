@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -11,7 +9,7 @@ import (
 // searchCache.go 文件包含搜索相关的缓存管理功能
 // 主要包括：
 // 1. 索引匹配缓存 (indexMatchCache)
-// 2. 字段转换缓存 (fieldsBytesCache)
+
 // 3. 缓存统计功能
 // 4. 缓存清除功能
 
@@ -148,87 +146,6 @@ func (t *Table) MatchIndexCached(fields []string) Index {
 	return idx
 }
 
-// 优化后的字段转换
-func (t *Table) FieldsToBytesNilCached(fields *map[string]any) *map[string][]byte {
-	// 生成缓存键，基于字段名和字段值
-	// 这样可以确保不同的字段值生成不同的缓存键，避免缓存混淆
-	fieldCount := len(*fields)
-	estimatedSize := fieldCount * 40 // 每个键值对预估40字节，增加一些冗余空间
-	var cacheKey strings.Builder
-	cacheKey.Grow(estimatedSize)
-
-	// 直接遍历 map，虽然顺序不确定，但可以提高性能
-	i := 0
-	for k, v := range *fields {
-		cacheKey.WriteString(k)
-		cacheKey.WriteByte(':')
-		// 针对常见类型进行优化，减少 fmt.Sprintf 的开销
-		switch val := v.(type) {
-		case string:
-			cacheKey.WriteString(val)
-		case int:
-			cacheKey.WriteString(strconv.Itoa(val))
-		case int8:
-			cacheKey.WriteString(strconv.Itoa(int(val)))
-		case int16:
-			cacheKey.WriteString(strconv.Itoa(int(val)))
-		case int32:
-			cacheKey.WriteString(strconv.FormatInt(int64(val), 10))
-		case int64:
-			cacheKey.WriteString(strconv.FormatInt(val, 10))
-		case uint:
-			cacheKey.WriteString(strconv.FormatUint(uint64(val), 10))
-		case uint8:
-			cacheKey.WriteString(strconv.FormatUint(uint64(val), 10))
-		case uint16:
-			cacheKey.WriteString(strconv.FormatUint(uint64(val), 10))
-		case uint32:
-			cacheKey.WriteString(strconv.FormatUint(uint64(val), 10))
-		case uint64:
-			cacheKey.WriteString(strconv.FormatUint(val, 10))
-		case float32:
-			cacheKey.WriteString(strconv.FormatFloat(float64(val), 'g', -1, 32))
-		case float64:
-			cacheKey.WriteString(strconv.FormatFloat(val, 'g', -1, 64))
-		case bool:
-			if val {
-				cacheKey.WriteString("true")
-			} else {
-				cacheKey.WriteString("false")
-			}
-		case nil:
-			cacheKey.WriteString("nil")
-		default:
-			// 对于复杂类型，使用 fmt.Sprintf
-			cacheKey.WriteString(fmt.Sprintf("%v", val))
-		}
-		i++
-		if i < fieldCount {
-			cacheKey.WriteByte(',')
-		}
-	}
-
-	cacheKeyStr := cacheKey.String()
-
-	// 尝试从缓存获取
-	if fieldsBytes, ok := fieldsBytesCache.Get(cacheKeyStr); ok {
-		// 直接返回缓存的 map，因为：
-		// 1. FieldsToBytesNil 每次都创建新的 map
-		// 2. util.AnyToBytes 返回的 byte slice 都是新创建的
-		// 3. Join 函数只是读取 byte slice 的内容，不会修改它们
-		// 4. 缓存中的 map 不会被外部修改
-		return fieldsBytes.(*map[string][]byte)
-	}
-
-	// 计算字段转换
-	fieldsBytes := t.FieldsToBytesNil(fields)
-
-	// 缓存结果，ConcurrentCache.Set 已经是并发安全的
-	fieldsBytesCache.Set(cacheKeyStr, fieldsBytes)
-
-	return fieldsBytes
-}
-
 // CacheStats 缓存统计信息结构体
 type CacheStats struct {
 	Size     int64   // 缓存大小
@@ -252,26 +169,10 @@ func GetIndexMatchCacheStats() CacheStats {
 	}
 }
 
-// GetFieldsBytesCacheStats 获取字段转换缓存统计信息
-func GetFieldsBytesCacheStats() CacheStats {
-	size, accesses, hits := fieldsBytesCache.Stats()
-	hitRate := 0.0
-	if accesses > 0 {
-		hitRate = float64(hits) / float64(accesses)
-	}
-	return CacheStats{
-		Size:     size,
-		Accesses: accesses,
-		Hits:     hits,
-		HitRate:  hitRate,
-	}
-}
-
 // GetAllCacheStats 获取所有缓存统计信息
 func GetAllCacheStats() map[string]CacheStats {
 	return map[string]CacheStats{
-		"indexMatchCache":  GetIndexMatchCacheStats(),
-		"fieldsBytesCache": GetFieldsBytesCacheStats(),
+		"indexMatchCache": GetIndexMatchCacheStats(),
 	}
 }
 
@@ -288,5 +189,4 @@ func ClearFieldsBytesCache() {
 // ClearAllCaches 清除所有缓存
 func ClearAllCaches() {
 	ClearIndexMatchCache()
-	ClearFieldsBytesCache()
 }

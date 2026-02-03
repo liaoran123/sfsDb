@@ -580,7 +580,7 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 	var key []byte
 	var fieldsBytes *map[string][]byte
 	if idx != nil {
-		fieldsBytes = t.FieldsToBytesNil(fields) //t.FieldsToBytesNilCached(fields) -- 并没有带来什么优势
+		fieldsBytes = t.FieldsToBytesNil(fields) // 业务有需要可以开启缓存 FieldsToBytesNilLRU(fields *map[string]any) *map[string][]byte
 		key = idx.JoinValue(fieldsBytes, t.id)
 	} else {
 		/*
