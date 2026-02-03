@@ -151,3 +151,202 @@ func main() {
 - 使用外部存储实例时，需要自行管理其生命周期
 - 确保在不再使用时正确关闭存储实例
 - 外部存储实现必须完整实现`Store`接口的所有方法
+
+## 1.5 使用管理工具库
+
+sfsDb 提供了管理工具库，用于监控和管理数据库。通过这个库，您可以获取数据库状态、管理索引、分析性能和执行备份操作。
+
+### 1.5.1 基本使用
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/management"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // 打开数据库
+    store, err := storage.OpenDefaultDb("./kvdb")
+    if err != nil {
+        panic(err)
+    }
+    defer storage.CloseDb()
+
+    // 创建管理��
+    manager := management.NewManager(store)
+
+    // 获取数据库状态
+    statusInfo, err := manager.GetStatus()
+    if err != nil {
+        fmt.Printf("获取状态失败: %v\n", err)
+    } else {
+        fmt.Println("=== 数据库状态 ===")
+        fmt.Printf("内存使用: %.2f MB\n", float64(statusInfo.Memory.Alloc)/1024/1024)
+        fmt.Printf("GC 次数: %d\n", statusInfo.Memory.NumGC)
+        fmt.Printf("存储类型: %s\n", statusInfo.Storage.StoreType)
+    }
+
+    fmt.Println("管理工具库使用成功")
+}
+```
+
+### 1.5.2 功能模块
+
+管理工具库包含以下功能模块：
+
+#### 1. 状态管理
+- **功能**：查询内存使用、GC 次数、存储类型等信息
+- **使用示例**：
+  ```go
+  statusInfo, err := manager.GetStatus()
+  if err != nil {
+      fmt.Printf("获取状态失败: %v\n", err)
+  }
+  ```
+
+#### 2. 索引管理
+- **功能**：列出索引、分析索引使用情况、提供优化建议
+- **使用示例**：
+  ```go
+  indexMgr := manager.IndexManager()
+  indexes, err := indexMgr.ListIndexes("test_table")
+  if err != nil {
+      fmt.Printf("获取索引失败: %v\n", err)
+  }
+  ```
+
+#### 3. 性能统计
+- **功能**：查询性能统计、识别热点数据、性能分析
+- **使用示例**：
+  ```go
+  statsMgr := manager.StatsManager()
+  queryStats, err := statsMgr.GetQueryStats()
+  if err != nil {
+      fmt.Printf("获取查询统计失败: %v\n", err)
+  }
+  ```
+
+#### 4. 备份恢复
+- **功能**：数据库备份、带选项的备份、备份验证
+- **使用示例**：
+  ```go
+  backupMgr := manager.BackupManager()
+  backupFile, err := backupMgr.Backup("./backup")
+  if err != nil {
+      fmt.Printf("备份失败: %v\n", err)
+  } else {
+      fmt.Printf("备份成功，备份文件: %s\n", backupFile)
+  }
+  ```
+
+#### 5. 配置管理
+- **功能**：获取配置、设置配置、获取优化建议
+- **使用示例**：
+  ```go
+  configMgr := manager.ConfigManager()
+  configInfo, err := configMgr.GetConfig()
+  if err != nil {
+      fmt.Printf("获取配置失败: %v\n", err)
+  } else {
+      fmt.Println("=== 配置信息 ===")
+      fmt.Printf("存储类型: %s\n", configInfo.StoreType)
+      fmt.Println("配置选项:")
+      for key, value := range configInfo.Options {
+          fmt.Printf("  %s: %s\n", key, value)
+      }
+  }
+
+  // 获取优化建议
+  suggestions, err := configMgr.GetOptimizationSuggestions()
+  if err != nil {
+      fmt.Printf("获取优化建议失败: %v\n", err)
+  } else {
+      fmt.Println("=== 优化建议 ===")
+      for _, suggestion := range suggestions {
+          fmt.Printf("  - %s\n", suggestion)
+      }
+  }
+  ```
+
+#### 6. 监控告警
+- **功能**：实时监控、阈值告警、自定义通知器
+- **使用示例**：
+  ```go
+  import (
+      "time"
+      "github.com/liaoran123/sfsDb/management/monitor"
+  )
+
+  // 定义监控阈值
+  thresholds := monitor.Thresholds{
+      MemoryUsage: 100.0, // 100MB
+      GCCount:     10,    // 10次
+  }
+
+  // 创建监控器
+  monitor := manager.Monitor(5*time.Second, thresholds)
+
+  // 启动监控
+  if err := monitor.Start(); err != nil {
+      fmt.Printf("启动监控失败: %v\n", err)
+  } else {
+      fmt.Println("监控已启动")
+  }
+
+  // 运行一段时间后停止监控
+  time.Sleep(10 * time.Second)
+  monitor.Stop()
+  ```
+
+#### 7. 深度集成
+- **功能**：使用表实例获取更详细的表和索引信息
+- **使用示例**：
+  ```go
+  import (
+      "github.com/liaoran123/sfsDb/engine"
+  )
+
+  // 创建表
+  table, err := engine.TableNew("test_table")
+  if err != nil {
+      fmt.Printf("创建表失败: %v\n", err)
+      return
+  }
+
+  // 设置表字段
+  fields := map[string]any{
+      "id":   0,
+      "name": "",
+      "age":  0,
+  }
+
+  if err := table.SetFields(fields); err != nil {
+      fmt.Printf("设置字段失败: %v\n", err)
+      return
+  }
+
+  // 创建带表实例的管理器
+  manager := management.NewManagerWithTable(store, table)
+
+  // 使用深度集成功能
+  indexMgr := manager.IndexManager()
+  indexes, err := indexMgr.ListIndexes("test_table")
+  if err != nil {
+      fmt.Printf("获取索引失败: %v\n", err)
+  } else {
+      fmt.Println("=== 深度集成 - 索引列表 ===")
+      for _, idx := range indexes {
+          fmt.Printf("索引名称: %s, 类型: %s, 字段: %v\n", idx.Name, idx.Type, idx.Fields)
+      }
+  }
+  ```
+
+### 1.5.3 注意事项
+
+- **导入路径**：管理工具库位于 `github.com/liaoran123/sfsDb/management` 包
+- **依赖关系**：需要先打开数据库，获取存储实例，才能创建管理器
+- **资源管理**：使用完毕后，需要调用 `storage.CloseDb()` 关闭数据库
+- **性能影响**：部分管理操作可能会影响数据库性能，建议在适当的时机执行

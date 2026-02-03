@@ -151,3 +151,202 @@ func main() {
 - When using external storage instances, you need to manage their lifecycle yourself
 - Ensure to properly close the storage instance when it's no longer needed
 - The external storage implementation must fully implement all methods of the `Store` interface
+
+## 1.5 Using Management Tool Library
+
+sfsDb provides a management tool library for monitoring and managing the database. Through this library, you can get database status, manage indexes, analyze performance, and perform backup operations.
+
+### 1.5.1 Basic Usage
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/management"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // Open database
+    store, err := storage.OpenDefaultDb("./kvdb")
+    if err != nil {
+        panic(err)
+    }
+    defer storage.CloseDb()
+
+    // Create manager
+    manager := management.NewManager(store)
+
+    // Get database status
+    statusInfo, err := manager.GetStatus()
+    if err != nil {
+        fmt.Printf("Failed to get status: %v\n", err)
+    } else {
+        fmt.Println("=== Database Status ===")
+        fmt.Printf("Memory usage: %.2f MB\n", float64(statusInfo.Memory.Alloc)/1024/1024)
+        fmt.Printf("GC count: %d\n", statusInfo.Memory.NumGC)
+        fmt.Printf("Storage type: %s\n", statusInfo.Storage.StoreType)
+    }
+
+    fmt.Println("Management tool library used successfully")
+}
+```
+
+### 1.5.2 Functional Modules
+
+The management tool library includes the following functional modules:
+
+#### 1. Status Management
+- **Function**: Query memory usage, GC count, storage type, etc.
+- **Usage example**:
+  ```go
+  statusInfo, err := manager.GetStatus()
+  if err != nil {
+      fmt.Printf("Failed to get status: %v\n", err)
+  }
+  ```
+
+#### 2. Index Management
+- **Function**: List indexes, analyze index usage, provide optimization suggestions
+- **Usage example**:
+  ```go
+  indexMgr := manager.IndexManager()
+  indexes, err := indexMgr.ListIndexes("test_table")
+  if err != nil {
+      fmt.Printf("Failed to get indexes: %v\n", err)
+  }
+  ```
+
+#### 3. Performance Statistics
+- **Function**: Query performance statistics, identify hotspots, analyze performance
+- **Usage example**:
+  ```go
+  statsMgr := manager.StatsManager()
+  queryStats, err := statsMgr.GetQueryStats()
+  if err != nil {
+      fmt.Printf("Failed to get query stats: %v\n", err)
+  }
+  ```
+
+#### 4. Backup and Restore
+- **Function**: Database backup, backup with options, backup validation
+- **Usage example**:
+  ```go
+  backupMgr := manager.BackupManager()
+  backupFile, err := backupMgr.Backup("./backup")
+  if err != nil {
+      fmt.Printf("Backup failed: %v\n", err)
+  } else {
+      fmt.Printf("Backup successful, backup file: %s\n", backupFile)
+  }
+  ```
+
+#### 5. Configuration Management
+- **Function**: Get configuration, set configuration, get optimization suggestions
+- **Usage example**:
+  ```go
+  configMgr := manager.ConfigManager()
+  configInfo, err := configMgr.GetConfig()
+  if err != nil {
+      fmt.Printf("Failed to get config: %v\n", err)
+  } else {
+      fmt.Println("=== Configuration Info ===")
+      fmt.Printf("Storage type: %s\n", configInfo.StoreType)
+      fmt.Println("Configuration options:")
+      for key, value := range configInfo.Options {
+          fmt.Printf("  %s: %s\n", key, value)
+      }
+  }
+
+  // Get optimization suggestions
+  suggestions, err := configMgr.GetOptimizationSuggestions()
+  if err != nil {
+      fmt.Printf("Failed to get optimization suggestions: %v\n", err)
+  } else {
+      fmt.Println("=== Optimization Suggestions ===")
+      for _, suggestion := range suggestions {
+          fmt.Printf("  - %s\n", suggestion)
+      }
+  }
+  ```
+
+#### 6. Monitoring and Alerting
+- **Function**: Real-time monitoring, threshold alerts, custom notifiers
+- **Usage example**:
+  ```go
+  import (
+      "time"
+      "github.com/liaoran123/sfsDb/management/monitor"
+  )
+
+  // Define monitoring thresholds
+  thresholds := monitor.Thresholds{
+      MemoryUsage: 100.0, // 100MB
+      GCCount:     10,    // 10 times
+  }
+
+  // Create monitor
+  monitor := manager.Monitor(5*time.Second, thresholds)
+
+  // Start monitoring
+  if err := monitor.Start(); err != nil {
+      fmt.Printf("Failed to start monitor: %v\n", err)
+  } else {
+      fmt.Println("Monitor started")
+  }
+
+  // Run for a while then stop monitoring
+  time.Sleep(10 * time.Second)
+  monitor.Stop()
+  ```
+
+#### 7. Deep Integration
+- **Function**: Use table instance to get more detailed table and index information
+- **Usage example**:
+  ```go
+  import (
+      "github.com/liaoran123/sfsDb/engine"
+  )
+
+  // Create table
+  table, err := engine.TableNew("test_table")
+  if err != nil {
+      fmt.Printf("Failed to create table: %v\n", err)
+      return
+  }
+
+  // Set table fields
+  fields := map[string]any{
+      "id":   0,
+      "name": "",
+      "age":  0,
+  }
+
+  if err := table.SetFields(fields); err != nil {
+      fmt.Printf("Failed to set fields: %v\n", err)
+      return
+  }
+
+  // Create manager with table instance
+  manager := management.NewManagerWithTable(store, table)
+
+  // Use deep integration feature
+  indexMgr := manager.IndexManager()
+  indexes, err := indexMgr.ListIndexes("test_table")
+  if err != nil {
+      fmt.Printf("Failed to get indexes: %v\n", err)
+  } else {
+      fmt.Println("=== Deep Integration - Index List ===")
+      for _, idx := range indexes {
+          fmt.Printf("Index name: %s, Type: %s, Fields: %v\n", idx.Name, idx.Type, idx.Fields)
+      }
+  }
+  ```
+
+### 1.5.3 Notes
+
+- **Import path**: The management tool library is located in the `github.com/liaoran123/sfsDb/management` package
+- **Dependency**: You need to open the database and get the storage instance before creating the manager
+- **Resource management**: After use, you need to call `storage.CloseDb()` to close the database
+- **Performance impact**: Some management operations may affect database performance, so it's recommended to execute them at appropriate times

@@ -21,3 +21,5 @@
 sfsDb商业计划书.md
 /ads
 /storage/test*
+/backup/
+/kvdb/
