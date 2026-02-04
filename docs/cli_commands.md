@@ -205,6 +205,47 @@ sfsdb stats
 
 其他项目可以集成 sfsdb 的 CLI 命令功能，生成自己的可执行文件（如 abc.exe），并使用相同的命令结构来管理数据库。
 
+### 最简实现
+
+如果用户不希望使用命令行工具，也可以通过代码直接启用和配置 Web 界面。以下是完整的最简实现：
+
+```go
+package main
+
+import (
+    "github.com/liaoran123/sfsDb/storage"
+    "github.com/liaoran123/sfsDb/web"
+    "github.com/liaoran123/sfsDb/management"
+)
+
+func main() {
+    // 初始化数据库
+    store, _ := storage.OpenDefaultDb("./kvdb")
+    defer storage.CloseDb()
+    
+    // 创建管理器
+    manager := management.NewManager(store)
+    
+    // 核心配置（只需这两行）
+    configMgr := manager.ConfigManager()
+    configMgr.SetConfig("web_enable", "true")
+    configMgr.SetConfig("web_port", ":8083")
+    
+    // 启动Web服务器
+    server := web.NewServer(":8083", manager)
+    server.Start()
+}
+```
+
+### 核心原理
+
+启用和配置 Web 界面的核心只需设置两个参数：
+
+1. **`web_enable`**：控制 Web 界面是否启用（值为 `"true"` 或 `"false"`）
+2. **`web_port`**：配置 Web 服务器的端口（值为端口字符串，如 `":8083"`）
+
+这两个参数会被持久化保存到数据库中，下次启动时自动生效。
+
 ### 实现方式
 
 #### 1. 直接集成 sfsdb 的 CLI 命令

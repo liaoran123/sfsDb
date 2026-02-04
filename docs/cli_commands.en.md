@@ -205,6 +205,47 @@ sfsdb stats
 
 Other projects can integrate sfsdb's CLI command functionality to generate their own executable files (such as abc.exe) and use the same command structure to manage the database.
 
+### Simplest Implementation
+
+If users don't want to use the command-line tool, they can also directly enable and configure the web interface through code. Here's the complete simplest implementation:
+
+```go
+package main
+
+import (
+    "github.com/liaoran123/sfsDb/storage"
+    "github.com/liaoran123/sfsDb/web"
+    "github.com/liaoran123/sfsDb/management"
+)
+
+func main() {
+    // Initialize database
+    store, _ := storage.OpenDefaultDb("./kvdb")
+    defer storage.CloseDb()
+    
+    // Create manager
+    manager := management.NewManager(store)
+    
+    // Core configuration (only these two lines are needed)
+    configMgr := manager.ConfigManager()
+    configMgr.SetConfig("web_enable", "true")
+    configMgr.SetConfig("web_port", ":8083")
+    
+    // Start web server
+    server := web.NewServer(":8083", manager)
+    server.Start()
+}
+```
+
+### Core Principle
+
+Enabling and configuring the web interface only requires setting two core parameters:
+
+1. **`web_enable`**：Controls whether the web interface is enabled (values: `"true"` or `"false"`)
+2. **`web_port`**：Configures the web server port (value: port string like `":8083"`)
+
+These parameters are persistently saved to the database and automatically take effect on the next startup.
+
 ### Implementation Methods
 
 #### 1. Direct Integration of sfsdb CLI Commands
