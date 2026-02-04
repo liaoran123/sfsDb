@@ -148,6 +148,64 @@ fmt.Printf("GC 次数: %d\n", statusInfo.Memory.NumGC)
 fmt.Printf("存储类型: %s\n", statusInfo.Storage.StoreType)
 ```
 
+### 8. Web界面管理
+
+Web界面管理模块允许用户启用/禁用web界面并配置其端口。通过CLI命令可以方便地管理web界面设置。
+
+#### 启用Web界面并配置端口
+
+```bash
+# 启用web界面并设置端口为8083
+sfsdb web --enable --port :8083
+
+# 启用web界面并设置端口为8084
+sfsdb web --enable --port :8084
+```
+
+#### 禁用Web界面
+
+```bash
+# 禁用web界面
+sfsdb web --disable
+```
+
+#### 启动Web服务器
+
+```bash
+# 启动web服务器（使用配置的端口）
+sfsdb web --start
+
+# 启动web服务器并指定端口（临时覆盖配置）
+sfsdb web --start --port :8085
+```
+
+#### 查看当前Web配置
+
+```bash
+# 查看当前web配置
+sfsdb web
+```
+
+输出示例：
+
+```
+Web Interface Configuration:
+Enabled: true
+Port: :8084
+Address: http://localhost:8084
+```
+
+#### Web界面功能
+
+Web界面提供以下功能：
+
+- **系统信息**：查看数据库和系统状态
+- **配置管理**：查看和修改数据库配置
+- **备份恢复**：创建和恢复数据库备份
+- **性能统计**：查看查询性能和热点数据
+- **监控告警**：实时监控数据库状态
+- **数据操作**：基本的数据CRUD操作
+
 ## 使用示例
 
 ### 完整示例

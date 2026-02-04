@@ -367,3 +367,5 @@ func (t *Table) BatchRecordByteToAny(records []*map[string][]byte) []*map[string
 func (t *Table) GetAllIndexNameIdMap() map[string]uint8 {
 	return t.indexs.GetAllIndexNameIdMap()
 }
+
+

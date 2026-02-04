@@ -117,3 +117,29 @@ func (m *Manager) SystemManager() *system.SystemManager {
 func (m *Manager) MonitorManager() *monitor.MonitorManager {
 	return monitor.NewMonitorManager()
 }
+
+// GetTable 获取表实例
+// 参数:
+//   tableName: 表名
+// 返回:
+//   interface{}: 表实例
+
+func (m *Manager) GetTable(tableName string) interface{} {
+	// 尝试根据表名创建表实例
+	// 注意：这里使用engine.TableNew创建表实例
+	// 实际使用中，可能需要先检查表是否存在
+	table, err := engine.TableNew(tableName)
+	if err != nil {
+		// 如果创建失败，返回nil
+		return nil
+	}
+	return table
+}
+
+// Store 获取存储实例
+// 返回:
+//   storage.Store: 存储实例
+
+func (m *Manager) Store() storage.Store {
+	return m.store
+}

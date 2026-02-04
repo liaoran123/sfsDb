@@ -111,6 +111,10 @@ func main() {
 - 常见问题
 - 总结
 
+### 工具与命令
+- [CLI命令参考](./cli_commands.md) - 命令行工具使用指南
+- [CLI Command Reference](./cli_commands.en.md) - Command-line tool usage guide
+
 ## 贡献指南
 
 欢迎贡献代码和文档！请参考 [CONTRIBUTING.md](https://github.com/liaoran123/sfsDb/blob/main/CONTRIBUTING.md) 了解如何参与项目。

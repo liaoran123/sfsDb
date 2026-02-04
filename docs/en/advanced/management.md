@@ -148,6 +148,64 @@ fmt.Printf("GC count: %d\n", statusInfo.Memory.NumGC)
 fmt.Printf("Storage type: %s\n", statusInfo.Storage.StoreType)
 ```
 
+### 8. Web Interface Management
+
+The Web interface management module allows users to enable/disable the web interface and configure its port. Web interface settings can be easily managed through CLI commands.
+
+#### Enable Web Interface and Configure Port
+
+```bash
+# Enable web interface and set port to 8083
+sfsdb web --enable --port :8083
+
+# Enable web interface and set port to 8084
+sfsdb web --enable --port :8084
+```
+
+#### Disable Web Interface
+
+```bash
+# Disable web interface
+sfsdb web --disable
+```
+
+#### Start Web Server
+
+```bash
+# Start web server (using configured port)
+sfsdb web --start
+
+# Start web server and specify port (temporarily override configuration)
+sfsdb web --start --port :8085
+```
+
+#### View Current Web Configuration
+
+```bash
+# View current web configuration
+sfsdb web
+```
+
+Output example:
+
+```
+Web Interface Configuration:
+Enabled: true
+Port: :8084
+Address: http://localhost:8084
+```
+
+#### Web Interface Features
+
+The Web interface provides the following features:
+
+- **System Information**: View database and system status
+- **Configuration Management**: View and modify database configuration
+- **Backup and Restore**: Create and restore database backups
+- **Performance Statistics**: View query performance and hotspot data
+- **Monitoring and Alerting**: Real-time monitoring of database status
+- **Data Operations**: Basic data CRUD operations
+
 ## Usage Examples
 
 ### Complete Example
