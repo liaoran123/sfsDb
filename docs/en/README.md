@@ -21,6 +21,7 @@ sfsDb is a lightweight, high-performance embedded database library for Go. This 
 - [Primary Key Management](advanced/primary_key.md) - Managing single and composite primary keys
 - [Index Management](advanced/index_management.md) - Creating and optimizing indexes
 - [Full-Text Search](advanced/full_text_search.md) - Implementing text search functionality
+- [Management Tool Library](advanced/management.md) - Database monitoring, configuration management, backup/restore, and performance analysis
 
 ### Optimization & Best Practices
 
