@@ -1,8 +1,6 @@
 package storage
 
 import (
-	"fmt"
-
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -24,40 +22,6 @@ type LevelDBStore struct {
 	originalDB *leveldb.DB   // 保存原始数据库实例，用于快照切换回数据库模式
 	isSnapshot bool          // 标记是否为快照
 	opts       *opt.Options
-}
-
-// NewLevelDBStore 创建新的LevelDB存储实例
-func NewLevelDBStore(Path string, opts *opt.Options) (Store, error) {
-	if opts == nil {
-		opts = &opt.Options{
-			// 设置默认选项
-			WriteBuffer:            64 * 1024 * 1024,  // 64MB write buffer
-			OpenFilesCacheCapacity: 200,               // 打开文件缓存，增加以提高并发读取性能
-			BlockCacheCapacity:     128 * 1024 * 1024, // 128MB block cache，增加以提高读取性能
-		}
-	}
-	ldb, err := leveldb.OpenFile(Path, opts)
-	if err != nil {
-		// 尝试修复损坏的数据库
-		ldb, err = leveldb.RecoverFile(Path, opts)
-		if err != nil {
-			// 修复失败，返回更详细的错误信息
-			return nil, NewError(fmt.Sprintf("数据库打开失败且修复失败: 打开错误: %v, 修复错误: %v", err, err))
-		}
-		// 修复成功，直接使用恢复后的数据库实例
-		return &LevelDBStore{
-			ldb:        ldb,
-			originalDB: ldb,
-			isSnapshot: false,
-			opts:       opts,
-		}, nil
-	}
-	return &LevelDBStore{
-		ldb:        ldb,
-		originalDB: ldb,
-		isSnapshot: false,
-		opts:       opts,
-	}, nil
 }
 
 // Get 获取指定key的值

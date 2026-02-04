@@ -4,11 +4,24 @@ import (
 	"bytes"
 	"errors"
 	"slices"
+	"time"
 
 	"github.com/liaoran123/sfsDb/util"
 )
 
 // ------------------------------------------
+// 索引使用统计信息
+type UsageStats struct {
+	UsageCount       int64     // 使用次数
+	LastUsed         time.Time // 最近使用时间
+	TotalQueryTime   time.Duration // 总查询时间
+	AvgQueryTime     time.Duration // 平均查询时间
+	MaxQueryTime     time.Duration // 最大查询时间
+	MinQueryTime     time.Duration // 最小查询时间
+	CoveredQueries   int64     // 覆盖查询次数
+	UncoveredQueries int64     // 未覆盖查询次数
+}
+
 // 基础索引接口，定义所有索引类型共有的方法
 type Index interface {
 	// 添加索引字段
@@ -37,6 +50,10 @@ type Index interface {
 	// 解析kv的value值，返回字段值map
 	// 主键索引解析出记录。其他索引解析出主键值。因为支持组合主键，需要解析。
 	//Parse(fields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error)
+	// 记录索引使用情况和耗时
+	RecordUsage(duration time.Duration, covered bool)
+	// 获取索引使用统计信息
+	GetUsageStats() UsageStats
 }
 
 // ------------------------------------------
@@ -45,6 +62,7 @@ type BaseIndex struct {
 	fields []string
 	id     uint8
 	name   string
+	usageStats UsageStats // 索引使用统计信息
 }
 
 // 基础索引的通用方法
@@ -190,6 +208,46 @@ func MatchFields(fields []string, existFields ...string) bool {
 
 func (bi *BaseIndex) MatchFields(fields ...string) bool {
 	return MatchFields(bi.fields, fields...)
+}
+
+// 记录索引使用情况和耗时
+func (bi *BaseIndex) RecordUsage(duration time.Duration, covered bool) {
+	// 更新使用次数
+	bi.usageStats.UsageCount++
+	
+	// 更新最近使用时间
+	bi.usageStats.LastUsed = time.Now()
+	
+	// 更新查询时间统计
+	bi.usageStats.TotalQueryTime += duration
+	if bi.usageStats.UsageCount == 1 {
+		// 第一次使用，初始化最大和最小查询时间
+		bi.usageStats.MaxQueryTime = duration
+		bi.usageStats.MinQueryTime = duration
+	} else {
+		// 更新最大查询时间
+		if duration > bi.usageStats.MaxQueryTime {
+			bi.usageStats.MaxQueryTime = duration
+		}
+		// 更新最小查询时间
+		if duration < bi.usageStats.MinQueryTime {
+			bi.usageStats.MinQueryTime = duration
+		}
+	}
+	// 更新平均查询时间
+	bi.usageStats.AvgQueryTime = bi.usageStats.TotalQueryTime / time.Duration(bi.usageStats.UsageCount)
+	
+	// 更新覆盖查询统计
+	if covered {
+		bi.usageStats.CoveredQueries++
+	} else {
+		bi.usageStats.UncoveredQueries++
+	}
+}
+
+// 获取索引使用统计信息
+func (bi *BaseIndex) GetUsageStats() UsageStats {
+	return bi.usageStats
 }
 
 // 将索引的value值转换为主键map值

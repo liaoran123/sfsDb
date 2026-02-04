@@ -7,8 +7,10 @@ import (
 	"github.com/liaoran123/sfsDb/management/backup"
 	"github.com/liaoran123/sfsDb/management/config"
 	"github.com/liaoran123/sfsDb/management/index"
+	"github.com/liaoran123/sfsDb/management/monitor"
 	"github.com/liaoran123/sfsDb/management/stats"
 	"github.com/liaoran123/sfsDb/management/status"
+	"github.com/liaoran123/sfsDb/management/system"
 	"github.com/liaoran123/sfsDb/storage"
 )
 
@@ -98,4 +100,20 @@ func (m *Manager) ConfigManager() *config.ConfigManager {
 
 func (m *Manager) Monitor(interval time.Duration, thresholds Thresholds) *Monitor {
 	return NewMonitor(m, interval, thresholds)
+}
+
+// SystemManager 获取系统信息管理器
+// 返回:
+//   *system.SystemManager: 系统信息管理器实例
+
+func (m *Manager) SystemManager() *system.SystemManager {
+	return system.NewSystemManager(m.store)
+}
+
+// MonitorManager 获取监控管理器
+// 返回:
+//   *monitor.MonitorManager: 监控管理器实例
+
+func (m *Manager) MonitorManager() *monitor.MonitorManager {
+	return monitor.NewMonitorManager()
 }

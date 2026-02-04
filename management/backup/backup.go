@@ -92,11 +92,38 @@ func (bm *BackupManager) BackupWithOptions(path string, options BackupOptions) (
 //   error: 错误信息
 
 func (bm *BackupManager) Restore(backupPath string) error {
-	// 注意：这里需要实现数据库恢复逻辑
-	// 实际实现时，需要关闭当前数据库，然后从备份文件恢复
-	
-	// 这里返回 nil 作为占位，实际实现需要根据具体情况修改
-	// 注意：恢复操作可能需要重启应用程序才能生效
+	// 检查备份文件是否存在
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		return err
+	}
+
+	// 打开备份文件作为源数据库
+	backupDb, err := storage.NewLevelDBStore(backupPath, nil)
+	if err != nil {
+		return err
+	}
+	defer backupDb.Close()
+
+	// 获取当前的目标数据库
+	targetDb := storage.KVDb
+	if targetDb == nil {
+		return storage.NewError("目标数据库未打开")
+	}
+
+	// 创建备份数据库的全库遍历迭代器
+	iter := backupDb.Iterator(nil, nil)
+	defer iter.Release()
+
+	// 遍历所有记录，将它们写入目标数据库
+	for iter.First(); iter.Valid(); iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+		// 将记录写入目标数据库
+		if err := targetDb.Put(key, value); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

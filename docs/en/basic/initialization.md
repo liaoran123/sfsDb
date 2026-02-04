@@ -277,11 +277,10 @@ The management tool library includes the following functional modules:
   ```go
   import (
       "time"
-      "github.com/liaoran123/sfsDb/management/monitor"
   )
 
   // Define monitoring thresholds
-  thresholds := monitor.Thresholds{
+  thresholds := management.Thresholds{
       MemoryUsage: 100.0, // 100MB
       GCCount:     10,    // 10 times
   }

@@ -277,11 +277,10 @@ func main() {
   ```go
   import (
       "time"
-      "github.com/liaoran123/sfsDb/management/monitor"
   )
 
   // 定义监控阈值
-  thresholds := monitor.Thresholds{
+  thresholds := management.Thresholds{
       MemoryUsage: 100.0, // 100MB
       GCCount:     10,    // 10次
   }

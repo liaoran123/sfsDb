@@ -23,7 +23,13 @@ type HotspotInfo struct {
 
 // StatsManager 性能统计管理器
 type StatsManager struct {
-	store storage.Store
+	store           storage.Store
+	queryStats      QueryStats          // 整体查询统计
+	queryStatsByType map[string]QueryStats // 按查询类型分类的统计
+	hotspots        map[string]int64    // 热点数据统计
+	profilingEnabled bool              // 是否启用性能分析
+	profilingStartTime time.Time        // 性能分析开始时间
+	profilingData   map[string]interface{} // 性能分析数据
 }
 
 // NewStatsManager 创建性能统计管理器
@@ -34,7 +40,12 @@ type StatsManager struct {
 
 func NewStatsManager(store storage.Store) *StatsManager {
 	return &StatsManager{
-		store: store,
+		store:           store,
+		queryStats:      QueryStats{},
+		queryStatsByType: make(map[string]QueryStats),
+		hotspots:        make(map[string]int64),
+		profilingEnabled: false,
+		profilingData:   make(map[string]interface{}),
 	}
 }
 
@@ -44,17 +55,108 @@ func NewStatsManager(store storage.Store) *StatsManager {
 //   error: 错误信息
 
 func (sm *StatsManager) GetQueryStats() (QueryStats, error) {
-	// 注意：这里需要实现查询性能统计逻辑
-	// 实际实现时，需要收集和分析查询操作的性能数据
+	// 实现查询性能统计逻辑
+	// 首先尝试从存储中读取统计数据
+	// 这里简化处理，直接返回内存中的统计数据
+	// 实际实现时，应该从存储中读取持久化的统计数据
 	
-	// 这里返回默认统计结果作为占位，实际实现需要根据具体情况修改
-	return QueryStats{
-		Count:    0,
-		TotalTime: 0,
-		AvgTime:   0,
-		MaxTime:   0,
-		MinTime:   0,
-	}, nil
+	return sm.queryStats, nil
+}
+
+// GetQueryStatsByType 获取按查询类型分类的统计
+// 返回:
+//   map[string]QueryStats: 按查询类型分类的统计
+//   error: 错误信息
+
+func (sm *StatsManager) GetQueryStatsByType() (map[string]QueryStats, error) {
+	return sm.queryStatsByType, nil
+}
+
+// RecordQuery 记录查询性能
+// 参数:
+//   duration: 查询耗时
+//   queryType: 查询类型
+
+func (sm *StatsManager) RecordQuery(duration time.Duration, queryType string) {
+	// 更新整体查询统计
+	sm.queryStats.Count++
+	sm.queryStats.TotalTime += duration
+	
+	// 更新最大和最小查询时间
+	if sm.queryStats.Count == 1 {
+		sm.queryStats.MaxTime = duration
+		sm.queryStats.MinTime = duration
+	} else {
+		if duration > sm.queryStats.MaxTime {
+			sm.queryStats.MaxTime = duration
+		}
+		if duration < sm.queryStats.MinTime {
+			sm.queryStats.MinTime = duration
+		}
+	}
+	
+	// 更新平均查询时间
+	sm.queryStats.AvgTime = sm.queryStats.TotalTime / time.Duration(sm.queryStats.Count)
+	
+	// 更新按查询类型分类的统计
+	if _, ok := sm.queryStatsByType[queryType]; !ok {
+		sm.queryStatsByType[queryType] = QueryStats{}
+	}
+	
+	typeStats := sm.queryStatsByType[queryType]
+	typeStats.Count++
+	typeStats.TotalTime += duration
+	
+	if typeStats.Count == 1 {
+		typeStats.MaxTime = duration
+		typeStats.MinTime = duration
+	} else {
+		if duration > typeStats.MaxTime {
+			typeStats.MaxTime = duration
+		}
+		if duration < typeStats.MinTime {
+			typeStats.MinTime = duration
+		}
+	}
+	
+	typeStats.AvgTime = typeStats.TotalTime / time.Duration(typeStats.Count)
+	sm.queryStatsByType[queryType] = typeStats
+	
+	// 如果启用了性能分析，记录更多数据
+	if sm.profilingEnabled {
+		if _, ok := sm.profilingData["queries"]; !ok {
+			sm.profilingData["queries"] = make([]map[string]interface{}, 0)
+		}
+		queries := sm.profilingData["queries"].([]map[string]interface{})
+		queries = append(queries, map[string]interface{}{
+			"type":     queryType,
+			"duration": duration,
+			"time":     time.Now(),
+		})
+		sm.profilingData["queries"] = queries
+	}
+}
+
+// RecordAccess 记录数据访问，用于热点数据统计
+// 参数:
+//   key: 访问的键
+
+func (sm *StatsManager) RecordAccess(key string) {
+	// 更新热点数据统计
+	sm.hotspots[key]++
+	
+	// 如果启用了性能分析，记录更多数据
+	if sm.profilingEnabled {
+		if _, ok := sm.profilingData["accesses"]; !ok {
+			sm.profilingData["accesses"] = make([]map[string]interface{}, 0)
+		}
+		accesses := sm.profilingData["accesses"].([]map[string]interface{})
+		accesses = append(accesses, map[string]interface{}{
+			"key":  key,
+			"time": time.Now(),
+		})
+		sm.profilingData["accesses"] = accesses
+	}
 }
 
 // GetHotspots 获取热点数据
@@ -65,11 +167,32 @@ func (sm *StatsManager) GetQueryStats() (QueryStats, error) {
 //   error: 错误信息
 
 func (sm *StatsManager) GetHotspots(limit int) ([]HotspotInfo, error) {
-	// 注意：这里需要实现热点数据识别逻辑
-	// 实际实现时，需要分析数据访问模式，识别热点数据
+	// 实现热点数据识别逻辑
+	// 将热点数据转换为 HotspotInfo 列表
+	hotspotInfos := make([]HotspotInfo, 0, len(sm.hotspots))
+	for key, count := range sm.hotspots {
+		hotspotInfos = append(hotspotInfos, HotspotInfo{
+			Key:   key,
+			Count: count,
+		})
+	}
 	
-	// 这里返回空列表作为占位，实际实现需要根据具体情况修改
-	return []HotspotInfo{}, nil
+	// 按访问次数排序
+	// 这里使用简单的冒泡排序，实际实现时应该使用更高效的排序算法
+	for i := 0; i < len(hotspotInfos)-1; i++ {
+		for j := 0; j < len(hotspotInfos)-i-1; j++ {
+			if hotspotInfos[j].Count < hotspotInfos[j+1].Count {
+				hotspotInfos[j], hotspotInfos[j+1] = hotspotInfos[j+1], hotspotInfos[j]
+			}
+		}
+	}
+	
+	// 限制返回数量
+	if limit > 0 && len(hotspotInfos) > limit {
+		hotspotInfos = hotspotInfos[:limit]
+	}
+	
+	return hotspotInfos, nil
 }
 
 // StartProfiling 开始性能分析
@@ -77,10 +200,16 @@ func (sm *StatsManager) GetHotspots(limit int) ([]HotspotInfo, error) {
 //   error: 错误信息
 
 func (sm *StatsManager) StartProfiling() error {
-	// 注意：这里需要实现性能分析启动逻辑
-	// 实际实现时，需要开始收集性能数据
+	// 实现性能分析启动逻辑
+	sm.profilingEnabled = true
+	sm.profilingStartTime = time.Now()
+	sm.profilingData = make(map[string]interface{})
 	
-	// 这里返回 nil 作为占位，实际实现需要根据具体情况修改
+	// 初始化性能分析数据
+	sm.profilingData["startTime"] = sm.profilingStartTime
+	sm.profilingData["queries"] = make([]map[string]interface{}, 0)
+	sm.profilingData["accesses"] = make([]map[string]interface{}, 0)
+	
 	return nil
 }
 
@@ -90,10 +219,25 @@ func (sm *StatsManager) StartProfiling() error {
 //   error: 错误信息
 
 func (sm *StatsManager) StopProfiling() (map[string]interface{}, error) {
-	// 注意：这里需要实现性能分析停止和结果获取逻辑
-	// 实际实现时，需要停止收集性能数据，并返回分析结果
+	// 实现性能分析停止和结果获取逻辑
+	if !sm.profilingEnabled {
+		return nil, nil
+	}
 	
-	// 这里返回空映射作为占位，实际实现需要根据具体情况修改
-	return map[string]interface{}{},
-		nil
+	// 停止性能分析
+	sm.profilingEnabled = false
+	profilingDuration := time.Since(sm.profilingStartTime)
+	
+	// 更新性能分析数据
+	sm.profilingData["endTime"] = time.Now()
+	sm.profilingData["duration"] = profilingDuration
+	sm.profilingData["queryStats"] = sm.queryStats
+	sm.profilingData["queryStatsByType"] = sm.queryStatsByType
+	
+	// 获取热点数据
+	hotspots, _ := sm.GetHotspots(10)
+	sm.profilingData["hotspots"] = hotspots
+	
+	// 返回性能分析结果
+	return sm.profilingData, nil
 }

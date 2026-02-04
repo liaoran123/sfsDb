@@ -75,14 +75,34 @@ func (im *IndexManager) ListIndexes(tableName string) ([]IndexInfo, error) {
 //   error: 错误信息
 
 func (im *IndexManager) AnalyzeIndexes(tableName string) (IndexAnalysis, error) {
-	// 注意：这里需要实现索引分析逻辑
-	// 实际实现时，需要获取表的索引信息，并分析其使用情况
-
-	// 这里返回空分析结果作为占位，实际实现需要根据具体情况修改
-	return IndexAnalysis{
+	// 实现索引分析逻辑
+	analysis := IndexAnalysis{
 		Indexes:       []IndexInfo{},
 		UnusedIndexes: []string{},
-	}, nil
+	}
+	
+	// 如果有表实例，直接从表获取索引
+	if im.table != nil {
+		indexes := im.table.GetAllIndexes()
+		for _, idx := range indexes {
+			// 创建索引信息
+			indexInfo := IndexInfo{
+				Name:   idx.Name(),
+				Fields: idx.GetFields(),
+				Type:   fmt.Sprintf("%T", idx),
+			}
+			analysis.Indexes = append(analysis.Indexes, indexInfo)
+			
+			// 分析索引使用情况
+			usageStats := idx.GetUsageStats()
+			if usageStats.UsageCount == 0 {
+				// 未使用的索引
+				analysis.UnusedIndexes = append(analysis.UnusedIndexes, idx.Name())
+			}
+		}
+	}
+	
+	return analysis, nil
 }
 
 // OptimizeIndexes 优化索引建议
@@ -93,9 +113,75 @@ func (im *IndexManager) AnalyzeIndexes(tableName string) (IndexAnalysis, error) 
 //   error: 错误信息
 
 func (im *IndexManager) OptimizeIndexes(tableName string) ([]string, error) {
-	// 注意：这里需要实现索引优化建议逻辑
-	// 实际实现时，需要根据索引分析结果，提供优化建议
-
-	// 这里返回空建议列表作为占位，实际实现需要根据具体情况修改
-	return []string{}, nil
+	// 实现索引优化建议逻辑
+	suggestions := []string{}
+	
+	// 首先获取索引分析结果
+	analysis, err := im.AnalyzeIndexes(tableName)
+	if err != nil {
+		return nil, err
+	}
+	
+	// 基于分析结果生成优化建议
+	
+	// 1. 建议删除未使用的索引
+	if len(analysis.UnusedIndexes) > 0 {
+		for _, indexName := range analysis.UnusedIndexes {
+			suggestions = append(suggestions, fmt.Sprintf("建议删除未使用的索引: %s", indexName))
+		}
+	}
+	
+	// 2. 建议添加缺失的索引
+	// 这里简化处理，实际实现时应该基于查询模式分析
+	if im.table != nil {
+		// 获取表的所有字段
+		allFields := im.table.GetAllFields()
+		fieldNames := make([]string, 0, len(allFields))
+		for fieldName := range allFields {
+			fieldNames = append(fieldNames, fieldName)
+		}
+		
+		// 检查是否有字段没有索引
+		hasPrimaryKey := false
+		indexFieldsMap := make(map[string]bool)
+		
+		for _, indexInfo := range analysis.Indexes {
+			if indexInfo.Type == "*engine.DefaultPrimaryKey" {
+				hasPrimaryKey = true
+			}
+			for _, field := range indexInfo.Fields {
+				indexFieldsMap[field] = true
+			}
+		}
+		
+		// 建议为常用字段添加索引
+		if !hasPrimaryKey && len(fieldNames) > 0 {
+			suggestions = append(suggestions, "建议添加主键索引，提高查询性能")
+		}
+		
+		// 检查是否有重要字段没有索引
+		importantFields := []string{"name", "email", "phone", "created_at", "updated_at"}
+		for _, field := range importantFields {
+			if _, exists := allFields[field]; exists {
+				if !indexFieldsMap[field] {
+					suggestions = append(suggestions, fmt.Sprintf("建议为常用字段添加索引: %s", field))
+				}
+			}
+		}
+	}
+	
+	// 3. 建议优化现有索引结构
+	// 这里简化处理，实际实现时应该分析索引字段顺序和覆盖情况
+	if len(analysis.Indexes) > 0 {
+		suggestions = append(suggestions, "建议定期分析索引使用情况，根据查询模式调整索引结构")
+		suggestions = append(suggestions, "建议为经常一起查询的字段创建组合索引，提高查询性能")
+	}
+	
+	// 4. 建议合并冗余索引
+	// 这里简化处理，实际实现时应该分析索引字段的包含关系
+	if len(analysis.Indexes) > 1 {
+		suggestions = append(suggestions, "建议检查是否存在冗余索引，合并功能相似的索引以减少存储开销")
+	}
+	
+	return suggestions, nil
 }
