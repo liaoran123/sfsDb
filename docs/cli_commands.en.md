@@ -199,6 +199,128 @@ sfsdb monitor
 sfsdb stats
 ```
 
+## Other Project Integration
+
+### Overview
+
+Other projects can integrate sfsdb's CLI command functionality to generate their own executable files (such as abc.exe) and use the same command structure to manage the database.
+
+### Implementation Methods
+
+#### 1. Direct Integration of sfsdb CLI Commands
+
+Other projects can directly use sfsdb's `cmd` package to quickly implement the same command-line functionality:
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/liaoran123/sfsDb/cmd/sfsdb/cmd"
+)
+
+func main() {
+    // Get sfsdb's root command
+    rootCmd := cmd.NewRootCmd()
+    
+    // You can add your own custom commands
+    // rootCmd.AddCommand(...)
+    
+    // Execute command
+    if err := rootCmd.Execute(); err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
+}
+```
+
+#### 2. Custom Command Integration
+
+Other projects can also create their own command system based on sfsdb's command structure:
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/liaoran123/sfsDb/management"
+    "github.com/liaoran123/sfsDb/web"
+    "github.com/spf13/cobra"
+)
+
+var (
+    dbPath string
+    manager *management.Manager
+)
+
+func main() {
+    rootCmd := &cobra.Command{
+        Use:   "abc",
+        Short: "My Application with sfsdb",
+        Run: func(cmd *cobra.Command, args []string) {
+            fmt.Println("My Application")
+            fmt.Println("Use 'abc --help' for more information about available commands.")
+        },
+    }
+
+    rootCmd.PersistentFlags().StringVar(&dbPath, "db", "./kvdb", "Database path")
+    rootCmd.AddCommand(
+        newWebCmd(),
+        // Add other commands...
+    )
+
+    if err := rootCmd.Execute(); err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
+}
+
+// Custom web command
+func newWebCmd() *cobra.Command {
+    var webPort string
+    
+    cmd := &cobra.Command{
+        Use:   "web",
+        Short: "Manage web interface",
+        Run: func(cmd *cobra.Command, args []string) {
+            // Initialize storage and manager...
+            // Implement web command functionality...
+        },
+    }
+    
+    cmd.Flags().BoolP("enable", "e", false, "Enable web interface")
+    cmd.Flags().BoolP("disable", "d", false, "Disable web interface")
+    cmd.Flags().BoolP("start", "s", false, "Start web server")
+    cmd.Flags().StringVarP(&webPort, "port", "p", ":8083", "Web server port")
+    
+    return cmd
+}
+```
+
+### Usage
+
+If other projects implement according to the above methods, users can manage sfsdb through the following commands:
+
+```bash
+# Enable web interface and configure port
+abc.exe web --enable --port :8083
+
+# Disable web interface
+abc.exe web --disable
+
+# Start web server
+abc.exe web --start
+
+# View current web configuration
+abc.exe web
+```
+
 ## Summary
 
 The sfsDb command-line tool provides comprehensive database management functions, allowing you to complete complex database management tasks with simple commands. Combined with the web interface, users can choose the appropriate management method according to their needs, improving database management efficiency.
+
+Other projects can easily integrate sfsdb's CLI command functionality, generate their own executable files, and maintain consistent command structure and user experience with sfsdb.

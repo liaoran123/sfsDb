@@ -199,6 +199,128 @@ sfsdb monitor
 sfsdb stats
 ```
 
+## 其他项目集成
+
+### 概述
+
+其他项目可以集成 sfsdb 的 CLI 命令功能，生成自己的可执行文件（如 abc.exe），并使用相同的命令结构来管理数据库。
+
+### 实现方式
+
+#### 1. 直接集成 sfsdb 的 CLI 命令
+
+其他项目可以直接使用 sfsdb 的 `cmd` 包，快速实现相同的命令行功能：
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/liaoran123/sfsDb/cmd/sfsdb/cmd"
+)
+
+func main() {
+    // 获取 sfsdb 的根命令
+    rootCmd := cmd.NewRootCmd()
+    
+    // 可以添加自己的自定义命令
+    // rootCmd.AddCommand(...)
+    
+    // 执行命令
+    if err := rootCmd.Execute(); err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
+}
+```
+
+#### 2. 自定义命令集成
+
+其他项目也可以基于 sfsdb 的命令结构，创建自己的命令体系：
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/liaoran123/sfsDb/management"
+    "github.com/liaoran123/sfsDb/web"
+    "github.com/spf13/cobra"
+)
+
+var (
+    dbPath string
+    manager *management.Manager
+)
+
+func main() {
+    rootCmd := &cobra.Command{
+        Use:   "abc",
+        Short: "My Application with sfsdb",
+        Run: func(cmd *cobra.Command, args []string) {
+            fmt.Println("My Application")
+            fmt.Println("Use 'abc --help' for more information about available commands.")
+        },
+    }
+
+    rootCmd.PersistentFlags().StringVar(&dbPath, "db", "./kvdb", "Database path")
+    rootCmd.AddCommand(
+        newWebCmd(),
+        // 添加其他命令...
+    )
+
+    if err := rootCmd.Execute(); err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
+}
+
+// 自定义 web 命令
+func newWebCmd() *cobra.Command {
+    var webPort string
+    
+    cmd := &cobra.Command{
+        Use:   "web",
+        Short: "Manage web interface",
+        Run: func(cmd *cobra.Command, args []string) {
+            // 初始化存储和管理器...
+            // 实现 web 命令功能...
+        },
+    }
+    
+    cmd.Flags().BoolP("enable", "e", false, "Enable web interface")
+    cmd.Flags().BoolP("disable", "d", false, "Disable web interface")
+    cmd.Flags().BoolP("start", "s", false, "Start web server")
+    cmd.Flags().StringVarP(&webPort, "port", "p", ":8083", "Web server port")
+    
+    return cmd
+}
+```
+
+### 使用方式
+
+如果其他项目按照上述方式实现，用户就可以通过以下命令来管理 sfsdb：
+
+```bash
+# 启用 web 界面并配置端口
+abc.exe web --enable --port :8083
+
+# 禁用 web 界面
+abc.exe web --disable
+
+# 启动 web 服务器
+abc.exe web --start
+
+# 查看当前 web 配置
+abc.exe web
+```
+
 ## 总结
 
 sfsDb 命令行工具提供了全面的数据库管理功能，通过简单的命令即可完成复杂的数据库管理任务。结合 Web 界面，用户可以根据自己的需求选择合适的管理方式，提高数据库管理效率。
+
+其他项目可以轻松集成 sfsdb 的 CLI 命令功能，生成自己的可执行文件，并保持与 sfsdb 一致的命令结构和使用体验。
