@@ -23,6 +23,9 @@ func NewServer(addr string, manager *management.Manager) *Server {
 
 // Start 启动Web服务器
 func (s *Server) Start() error {
+	// 获取嵌入的静态文件系统
+	staticFS := getStaticFS()
+
 	// 创建Gin实例
 	router := gin.Default()
 
@@ -39,13 +42,29 @@ func (s *Server) Start() error {
 		api.POST("/crud", s.handleTableCRUD)
 	}
 
-	// 注册静态文件路由
-	router.Static("/static", "./web/static")
+	// 注册静态文件路由（使用嵌入的文件系统）
+	router.StaticFS("/static", staticFS)
 
-	// 注册首页路由
+	// 注册首页路由（使用嵌入的文件系统）
 	router.GET("/", func(c *gin.Context) {
 		c.Header("Content-Type", "text/html")
-		c.File("./web/static/index.html")
+		indexFile, err := staticFS.Open("index.html")
+		if err != nil {
+			c.JSON(404, gin.H{
+				"error":   "Index file not found",
+				"message": "This should not happen - static files are embedded in the binary",
+			})
+			return
+		}
+		defer indexFile.Close()
+
+		// 读取并返回index.html内容
+		c.DataFromReader(200, -1, "text/html", indexFile, nil)
+	})
+
+	// 添加404处理
+	router.NoRoute(func(c *gin.Context) {
+		c.JSON(404, gin.H{"error": "Page not found"})
 	})
 
 	fmt.Printf("Web interface started at http://localhost%s\n", s.addr)

@@ -24,6 +24,6 @@ sfsDb商业计划书.md
 /storage/test*
 /backup/
 /kvdb/
-/test/
+/test*/
 /Example/
 /backups/

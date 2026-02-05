@@ -52,8 +52,9 @@ func NewSystemManager(store storage.Store) *SystemManager {
 func (sm *SystemManager) GetAllTables() ([]TableInfo, error) {
 	var tables []TableInfo
 
-	// 遍历存储中的所有键，查找表相关的键
-	iter := sm.store.Iterator(nil, nil)
+	// 使用范围查询，只遍历系统键
+	sysPrefix := []byte("sys-")
+	iter := sm.store.Iterator(sysPrefix, nil)
 	defer iter.Release()
 
 	for iter.First(); iter.Valid(); iter.Next() {
@@ -85,14 +86,14 @@ func (sm *SystemManager) GetAllTables() ([]TableInfo, error) {
 func (sm *SystemManager) GetTableFields(tableID uint8) ([]FieldInfo, error) {
 	var fields []FieldInfo
 
-	// 遍历存储中的所有键，查找指定表的字段相关键
-	iter := sm.store.Iterator(nil, nil)
+	// 使用范围查询，只遍历指定表的字段键
+	prefix := []byte(fmt.Sprintf("sys-%d-field-", tableID))
+	iter := sm.store.Iterator(prefix, nil)
 	defer iter.Release()
 
-	prefix := fmt.Sprintf("sys-%d-field-", tableID)
 	for iter.First(); iter.Valid(); iter.Next() {
 		key := string(iter.Key())
-		if strings.HasPrefix(key, prefix) {
+		if strings.HasPrefix(key, fmt.Sprintf("sys-%d-field-", tableID)) {
 			// 提取字段名和ID
 			parts := strings.Split(key, "-")
 			if len(parts) >= 4 {
@@ -120,14 +121,14 @@ func (sm *SystemManager) GetTableFields(tableID uint8) ([]FieldInfo, error) {
 func (sm *SystemManager) GetTableIndexes(tableID uint8) ([]IndexInfo, error) {
 	var indexes []IndexInfo
 
-	// 遍历存储中的所有键，查找指定表的索引相关键
-	iter := sm.store.Iterator(nil, nil)
+	// 使用范围查询，只遍历指定表的索引键
+	prefix := []byte(fmt.Sprintf("sys-%d-idx-", tableID))
+	iter := sm.store.Iterator(prefix, nil)
 	defer iter.Release()
 
-	prefix := fmt.Sprintf("sys-%d-idx-", tableID)
 	for iter.First(); iter.Valid(); iter.Next() {
 		key := string(iter.Key())
-		if strings.HasPrefix(key, prefix) {
+		if strings.HasPrefix(key, fmt.Sprintf("sys-%d-idx-", tableID)) {
 			// 提取索引名和ID
 			parts := strings.Split(key, "-")
 			if len(parts) >= 4 {
@@ -151,34 +152,85 @@ func (sm *SystemManager) GetTableIndexes(tableID uint8) ([]IndexInfo, error) {
 //   error: 错误信息
 
 func (sm *SystemManager) GetAllSystemInfo() (map[string]interface{}, error) {
-	tables, err := sm.GetAllTables()
-	if err != nil {
-		return nil, err
+	var tables []TableInfo
+	tableDetails := make(map[uint8]map[string]interface{})
+	fieldsMap := make(map[uint8][]FieldInfo)
+	indexesMap := make(map[uint8][]IndexInfo)
+
+	// 使用范围查询，只遍历系统键
+	sysPrefix := []byte("sys-")
+	iter := sm.store.Iterator(sysPrefix, nil)
+	defer iter.Release()
+
+	for iter.First(); iter.Valid(); iter.Next() {
+		key := string(iter.Key())
+		value := iter.Value()
+
+		// 跳过计数器键（不包含名称部分）
+		if strings.Count(key, "-") < 2 {
+			continue
+		}
+
+		parts := strings.Split(key, "-")
+		if len(parts) < 3 {
+			continue
+		}
+
+		// 处理表信息: sys-table-name
+		if parts[0] == "sys" && parts[1] == "table" && len(parts) >= 3 {
+			tableName := strings.Join(parts[2:], "-")
+			tableID := uint8(value[0])
+			tables = append(tables, TableInfo{
+				Name: tableName,
+				ID:   tableID,
+			})
+			// 初始化表详情
+			if _, ok := tableDetails[tableID]; !ok {
+				tableDetails[tableID] = map[string]interface{}{
+					"name":    tableName,
+					"fields":  []FieldInfo{},
+					"indexes": []IndexInfo{},
+				}
+				fieldsMap[tableID] = []FieldInfo{}
+				indexesMap[tableID] = []IndexInfo{}
+			}
+		} else if parts[0] == "sys" && len(parts) >= 4 {
+			// 处理字段信息: sys-tableid-field-name
+			if parts[2] == "field" {
+				var tableID uint8
+				fmt.Sscanf(parts[1], "%d", &tableID)
+				fieldName := strings.Join(parts[3:], "-")
+				fieldID := uint8(value[0])
+				fieldsMap[tableID] = append(fieldsMap[tableID], FieldInfo{
+					Name:    fieldName,
+					ID:      fieldID,
+					TableID: tableID,
+				})
+			}
+			// 处理索引信息: sys-tableid-idx-name
+			if parts[2] == "idx" {
+				var tableID uint8
+				fmt.Sscanf(parts[1], "%d", &tableID)
+				indexName := strings.Join(parts[3:], "-")
+				indexID := uint8(value[0])
+				indexesMap[tableID] = append(indexesMap[tableID], IndexInfo{
+					Name:    indexName,
+					ID:      indexID,
+					TableID: tableID,
+				})
+			}
+		}
+	}
+
+	// 组装结果
+	for tableID, details := range tableDetails {
+		details["fields"] = fieldsMap[tableID]
+		details["indexes"] = indexesMap[tableID]
 	}
 
 	result := make(map[string]interface{})
 	result["tables"] = tables
-
-	// 获取每个表的字段和索引信息
-	tableDetails := make(map[uint8]map[string]interface{})
-	for _, table := range tables {
-		fields, err := sm.GetTableFields(table.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		indexes, err := sm.GetTableIndexes(table.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		tableDetails[table.ID] = map[string]interface{}{
-			"name":    table.Name,
-			"fields":  fields,
-			"indexes": indexes,
-		}
-	}
-
 	result["tableDetails"] = tableDetails
+
 	return result, nil
 }

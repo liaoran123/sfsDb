@@ -244,16 +244,12 @@
                                             <tr>
                                                 <th>表名</th>
                                                 <th>索引名</th>
-                                                <th>索引类型</th>
-                                                <th>索引字段</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr v-for="(index, i) in indexData.indexes" :key="i">
                                                 <td>{{ index.table }}</td>
                                                 <td>{{ index.name }}</td>
-                                                <td>{{ index.type }}</td>
-                                                <td>{{ index.fields.join(', ') }}</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -510,7 +506,15 @@
             methods: {
                 setActivePage(page) {
                     this.activePage = page;
-                    this.loadData();
+                    // 备份管理页面不需要加载数据，因为它是一个操作页面
+                    if (page !== 'backup') {
+                        this.loadData();
+                    } else {
+                        // 重置备份管理页面的状态
+                        this.loading = false;
+                        this.error = null;
+                        this.backupResult = null;
+                    }
                 },
                 async loadData() {
                     this.loading = true;
@@ -555,10 +559,10 @@
                         // 设置加载状态
                         this.loading = true;
                         
-                        // 构建 API URL，添加自定义备份路径参数
-                        let apiUrl = '/api/backup';
+                        // 构建 API URL，添加操作类型和自定义备份路径参数
+                        let apiUrl = '/api/backup?op=create';
                         if (this.backupPath) {
-                            apiUrl += '?path=' + encodeURIComponent(this.backupPath);
+                            apiUrl += '&path=' + encodeURIComponent(this.backupPath);
                         }
 
                         const response = await fetch(apiUrl);
