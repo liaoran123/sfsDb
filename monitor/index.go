@@ -16,29 +16,47 @@ func init() {
 var GIndexStatsMap *IndexStatsMap
 
 type IndexStatsMap struct {
-	Data  map[int]*IndexStats `json:"data"`
-	mutex sync.RWMutex        // 添加互斥锁确保并发安全
+	Data sync.Map // 使用 sync.Map 替代 map + 互斥锁
 }
 
 func NewIndexStatsMap() *IndexStatsMap {
-	return &IndexStatsMap{
-		Data: make(map[int]*IndexStats),
-	}
+	return &IndexStatsMap{}
 }
 
 func (i *IndexStatsMap) Settime(indexKey int, duration time.Duration, tblName string, indxName string) {
-	i.mutex.Lock()
-
-	if _, ok := i.Data[indexKey]; !ok {
-		i.Data[indexKey] = NewIndexStats(tblName, indxName)
+	value, ok := i.Data.Load(indexKey)
+	if !ok {
+		// 使用 LoadOrStore 避免竞态条件
+		newValue := NewIndexStats(tblName, indxName)
+		value, ok = i.Data.LoadOrStore(indexKey, newValue)
+		if !ok {
+			value = newValue
+		}
 	}
 
-	// 先获取IndexStats实例，然后释放锁，因为RecordTime方法内部已经是并发安全的
-	stats := i.Data[indexKey]
-	i.mutex.Unlock()
+	// 获取IndexStats实例，RecordTime方法内部已经是并发安全的
+	stats := value.(*IndexStats)
 
 	stats.Inc()
 	stats.RecordTime(duration)
+}
+
+// SettimeAsync 异步记录索引耗时
+func (i *IndexStatsMap) SettimeAsync(indexKey int, duration time.Duration, tblName string, indxName string) {
+	// 提交任务到全局 Pool
+	globalPool.Submit(func() {
+		i.Settime(indexKey, duration, tblName, indxName)
+	})
+}
+
+// GetAll 返回所有数据的普通 map 副本
+func (i *IndexStatsMap) GetAll() map[int]*IndexStats {
+	result := make(map[int]*IndexStats)
+	i.Data.Range(func(key, value interface{}) bool {
+		result[key.(int)] = value.(*IndexStats)
+		return true
+	})
+	return result
 }
 
 //var IndexStatsMap = make(map[int]*IndexStats)

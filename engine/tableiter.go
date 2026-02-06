@@ -255,7 +255,7 @@ func (t *TableIter) RecordIndexTime(startTime time.Time) {
 	//计算耗时
 	duration := endTime.Sub(startTime)
 	indexKey := monitor.GetIndexKey(t.table.id, t.index.GetId())
-	monitor.GIndexStatsMap.Settime(indexKey, duration, t.table.name, t.index.Name())
+	monitor.GIndexStatsMap.SettimeAsync(indexKey, duration, t.table.name, t.index.Name())
 }
 
 // 遍历迭代器返回解析后的记录，包含版本号字段。

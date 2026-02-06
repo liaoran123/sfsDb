@@ -47,12 +47,8 @@ func (c *batchContainer) Add(key []byte, ValueMapKey uint8) {
 	//默认规则主键值values[0]为nil，则是Delete；否则是Put
 	if c.values[0] == nil {
 		c.batch.Delete(key)
-		//删除索引计数器
-		//monitor.AtomicMap(monitor.AtomicDec).Inc(key[0], key[2]) //key[0]为表ID，key[2]为索引ID
 	} else {
 		c.batch.Put(key, c.values[ValueMapKey])
-		//添加索引计数器
-		//monitor.AtomicMap(monitor.AtomicInt).Inc(key[0], key[2]) //key[0]为表ID，key[2]为索引ID
 	}
 }
 

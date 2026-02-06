@@ -390,6 +390,54 @@ When using the management tool library, here are some performance optimization s
 
 5. **Hotspot data handling**: Identify hotspot data and consider using caching or other optimization strategies.
 
+6. **Use async operations for monitoring**: The monitoring system now supports async operations for better performance, especially in high-concurrency scenarios.
+
+### Async Operations in Monitoring
+
+The monitoring system has been optimized to use async operations for counter updates and index time recording. This reduces main goroutine blocking and improves system throughput.
+
+#### Key Benefits
+
+- **Reduced main goroutine blocking**: Main goroutine can return immediately without waiting for monitoring operations
+- **Improved concurrency**: Multiple monitoring tasks can be processed concurrently in the thread pool
+- **Better resource utilization**: Thread pool manages resources more efficiently
+- **Smoother peak handling**: Async operations can handle request peaks more gracefully
+
+#### Implementation Details
+
+The monitoring system uses a global thread pool to handle async tasks:
+
+```go
+// Global thread pool initialization
+var globalPool *Pool
+
+func init() {
+    // Create thread pool with size = CPU cores * 4
+    globalPool = NewPoolWithSize(runtime.NumCPU() * 4)
+}
+
+// Async counter update
+func (m *KeysMap) IncAsync(key int, tbId uint8, indxName string) {
+    globalPool.Submit(func() {
+        m.Inc(key, tbId, indxName)
+    })
+}
+
+// Async index time recording
+func (i *IndexStatsMap) SettimeAsync(indexKey int, duration time.Duration, tblName string, indxName string) {
+    globalPool.Submit(func() {
+        i.Settime(indexKey, duration, tblName, indxName)
+    })
+}
+```
+
+#### Usage
+
+Async operations are automatically used by the system, so no code changes are required for users. The following operations now use async processing:
+
+1. **Key counter updates** (via `monitor.KeyInc` and `monitor.KeyDec`)
+2. **Index time recording** (via `monitor.GIndexStatsMap.SettimeAsync`)
+
 ## Summary
 
 The management tool library provides comprehensive management, monitoring, and optimization functions for sfsDb, making it an important tool for database operations. By using the management tool library appropriately, you can improve database performance, ensure data security, and simplify database management tasks.

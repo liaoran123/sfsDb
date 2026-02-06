@@ -390,6 +390,54 @@ func main() {
 
 5. **热点数据处理**：识别热点数据，考虑使用缓存或其他优化策略。
 
+6. **使用异步操作进行监控**：监控系统现在支持异步操作，以获得更好的性能，特别是在高并发场景下。
+
+### 监控中的异步操作
+
+监控系统已优化为使用异步操作进行计数器更新和索引时间记录。这减少了主协程阻塞，提高了系统吞吐量。
+
+#### 主要优势
+
+- **减少主协程阻塞**：主协程可以立即返回，无需等待监控操作
+- **提高并发能力**：多个监控任务可以在线程池中并发处理
+- **更好的资源利用**：线程池更有效地管理资源
+- **更平滑的峰值处理**：异步操作可以更优雅地处理请求峰值
+
+#### 实现细节
+
+监控系统使用全局线程池处理异步任务：
+
+```go
+// 全局线程池初始化
+var globalPool *Pool
+
+func init() {
+    // 创建线程池，大小为 CPU 核心数 * 4
+    globalPool = NewPoolWithSize(runtime.NumCPU() * 4)
+}
+
+// 异步计数器更新
+func (m *KeysMap) IncAsync(key int, tbId uint8, indxName string) {
+    globalPool.Submit(func() {
+        m.Inc(key, tbId, indxName)
+    })
+}
+
+// 异步索引时间记录
+func (i *IndexStatsMap) SettimeAsync(indexKey int, duration time.Duration, tblName string, indxName string) {
+    globalPool.Submit(func() {
+        i.Settime(indexKey, duration, tblName, indxName)
+    })
+}
+```
+
+#### 使用方法
+
+系统会自动使用异步操作，因此用户不需要进行任何代码更改。以下操作现在使用异步处理：
+
+1. **键值计数器更新**（通过`monitor.KeyInc`和`monitor.KeyDec`）
+2. **索引时间记录**（通过`monitor.GIndexStatsMap.SettimeAsync`）
+
 ## 总结
 
 管理工具库为sfsDb提供了全面的管理、监控和优化功能，是数据库运维的重要工具。通过合理使用管理工具库，可以提高数据库性能，确保数据安全，简化数据库管理工作。

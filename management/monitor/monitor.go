@@ -26,7 +26,7 @@ func NewMonitorManager() *MonitorManager {
 //   map[int]*monitor.Keys: 键值变化统计信息
 
 func (mm *MonitorManager) GetKeyChangeStats() map[int]*monitor.Keys {
-	return monitor.GlobalKeysMap.Data
+	return monitor.GlobalKeysMap.GetAll()
 }
 
 // GetIndexStats 获取索引统计信息
@@ -34,5 +34,5 @@ func (mm *MonitorManager) GetKeyChangeStats() map[int]*monitor.Keys {
 //   map[int]*monitor.IndexStats: 索引统计信息映射
 
 func (mm *MonitorManager) GetIndexStats() map[int]*monitor.IndexStats {
-	return monitor.GIndexStatsMap.Data
+	return monitor.GIndexStatsMap.GetAll()
 }
