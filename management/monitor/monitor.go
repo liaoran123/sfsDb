@@ -21,14 +21,18 @@ func NewMonitorManager() *MonitorManager {
 	return &MonitorManager{}
 }
 
-// GetKeyChangeStats 获取键值变化统计
+// GetKeyChangeStats 获取键值变化统计信息
 // 返回:
-//   KeyChangeStats: 键值变化统计信息
+//   map[int]*monitor.Keys: 键值变化统计信息
 
-func (mm *MonitorManager) GetKeyChangeStats() KeyChangeStats {
-	putCounters, deleteCounters := monitor.GetAllCounters()
-	return KeyChangeStats{
-		PutCounters:    putCounters,
-		DeleteCounters: deleteCounters,
-	}
+func (mm *MonitorManager) GetKeyChangeStats() map[int]*monitor.Keys {
+	return monitor.GlobalKeysMap.Data
+}
+
+// GetIndexStats 获取索引统计信息
+// 返回:
+//   map[int]*monitor.IndexStats: 索引统计信息映射
+
+func (mm *MonitorManager) GetIndexStats() map[int]*monitor.IndexStats {
+	return monitor.GIndexStatsMap.Data
 }

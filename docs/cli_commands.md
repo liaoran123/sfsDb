@@ -248,9 +248,11 @@ func main() {
 
 ### 实现方式
 
-#### 1. 直接集成 sfsdb 的 CLI 命令
 
-其他项目可以直接使用 sfsdb 的 `cmd` 包，快速实现相同的命令行功能：
+
+#### 2. 使用子命令集成（推荐）
+
+为了避免命令冲突和程序重启的问题，推荐使用子命令的方式集成 sfsdb 的管理功能：
 
 ```go
 package main
@@ -259,25 +261,475 @@ import (
     "fmt"
     "os"
 
-    "github.com/liaoran123/sfsDb/cmd/sfsdb/cmd"
+    "github.com/liaoran123/sfsDb/management"
+    "github.com/liaoran123/sfsDb/storage"
+    "github.com/spf13/cobra"
+)
+
+var (
+    dbPath string
+    manager *management.Manager
 )
 
 func main() {
-    // 获取 sfsdb 的根命令
-    rootCmd := cmd.NewRootCmd()
-    
-    // 可以添加自己的自定义命令
-    // rootCmd.AddCommand(...)
-    
+    // 创建根命令
+    rootCmd := &cobra.Command{
+        Use:   "myapp",
+        Short: "My Application",
+        Long:  "My Application with integrated database management",
+        Run: func(cmd *cobra.Command, args []string) {
+            fmt.Println("My Application")
+            fmt.Println("Use 'myapp --help' for more information about available commands.")
+        },
+    }
+
+    // 添加全局数据库路径参数
+    rootCmd.PersistentFlags().StringVar(&dbPath, "db", "./kvdb", "Database path")
+
+    // 创建数据库管理子命令
+    dbCmd := &cobra.Command{
+        Use:   "db",
+        Short: "Database management commands",
+        Long:  "Commands for managing the embedded database",
+        PersistentPreRun: func(cmd *cobra.Command, args []string) {
+            // 初始化数据库和管理器（只执行一次）
+            store, err := storage.NewLevelDBStore(dbPath, nil)
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "Failed to open database: %v\n", err)
+                os.Exit(1)
+            }
+            manager = management.NewManager(store)
+        },
+    }
+
+    // 添加具体的数据库管理子命令
+    dbCmd.AddCommand(
+        newStatusCmd(),
+        newSystemCmd(),
+        newIndexCmd(),
+        newConfigCmd(),
+        newBackupCmd(),
+        newStatsCmd(),
+        newMonitorCmd(),
+    )
+
+    // 将数据库管理子命令添加到根命令
+    rootCmd.AddCommand(dbCmd)
+
     // 执行命令
     if err := rootCmd.Execute(); err != nil {
         fmt.Fprintf(os.Stderr, "Error: %v\n", err)
         os.Exit(1)
     }
 }
+
+// 状态命令
+func newStatusCmd() *cobra.Command {
+    return &cobra.Command{
+        Use:   "status",
+        Short: "Get database status",
+        Run: func(cmd *cobra.Command, args []string) {
+            status, err := manager.GetStatus()
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "Failed to get status: %v\n", err)
+                return
+            }
+            fmt.Println("=== Database Status ===")
+            fmt.Printf("Memory Usage: %.2f MB\n", float64(status.Memory.Alloc)/1024/1024)
+            fmt.Printf("Total Allocated: %.2f MB\n", float64(status.Memory.TotalAlloc)/1024/1024)
+            fmt.Printf("System Memory: %.2f MB\n", float64(status.Memory.Sys)/1024/1024)
+            fmt.Printf("GC Count: %d\n", status.Memory.NumGC)
+            fmt.Printf("Storage Type: %s\n", status.Storage.StoreType)
+        },
+    }
+}
+
+// 系统信息命令
+func newSystemCmd() *cobra.Command {
+    return &cobra.Command{
+        Use:   "system",
+        Short: "Get system information",
+        Run: func(cmd *cobra.Command, args []string) {
+            systemInfo, err := manager.SystemManager().GetAllSystemInfo()
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "Failed to get system info: %v\n", err)
+                return
+            }
+            fmt.Println("=== System Information ===")
+            if tables, ok := systemInfo["tables"].([]interface{}); ok {
+                fmt.Printf("Tables: %d\n", len(tables))
+                for _, table := range tables {
+                    if tableInfo, ok := table.(map[string]interface{}); ok {
+                        fmt.Printf("  - %s (ID: %v)\n", tableInfo["Name"], tableInfo["ID"])
+                    }
+                }
+            }
+        },
+    }
+}
+
+// 索引管理命令
+func newIndexCmd() *cobra.Command {
+    return &cobra.Command{
+        Use:   "index",
+        Short: "Manage indexes",
+        Run: func(cmd *cobra.Command, args []string) {
+            fmt.Println("=== Index Management ===")
+            systemInfo, err := manager.SystemManager().GetAllSystemInfo()
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "Failed to get system info: %v\n", err)
+                return
+            }
+            if tableDetails, ok := systemInfo["tableDetails"].(map[uint8]map[string]interface{}); ok {
+                for tableID, details := range tableDetails {
+                    tableName := ""
+                    if name, ok := details["name"].(string); ok {
+                        tableName = name
+                    }
+                    fmt.Printf("Table: %s (ID: %d)\n", tableName, tableID)
+                    if indexes, ok := details["indexes"].([]interface{}); ok {
+                        for _, index := range indexes {
+                            if indexInfo, ok := index.(map[string]interface{}); ok {
+                                indexName := ""
+                                if name, ok := indexInfo["Name"].(string); ok {
+                                    indexName = name
+                                }
+                                fmt.Printf("  - Index: %s (ID: %v)\n", indexName, indexInfo["ID"])
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    }
+}
+
+// 配置管理命令
+func newConfigCmd() *cobra.Command {
+    return &cobra.Command{
+        Use:   "config",
+        Short: "Manage configuration",
+        Run: func(cmd *cobra.Command, args []string) {
+            configMgr := manager.ConfigManager()
+            config, err := configMgr.GetConfig()
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "Failed to get config: %v\n", err)
+                return
+            }
+            fmt.Println("=== Configuration ===")
+            fmt.Printf("Storage Type: %s\n", config.StoreType)
+            fmt.Println("Options:")
+            for key, value := range config.Options {
+                fmt.Printf("  - %s: %s\n", key, value)
+            }
+        },
+    }
+}
+
+// 备份管理命令
+func newBackupCmd() *cobra.Command {
+    var backupPath string
+    var restoreFile string
+    var operation string
+
+    cmd := &cobra.Command{
+        Use:   "backup",
+        Short: "Manage backups",
+        Run: func(cmd *cobra.Command, args []string) {
+            backupMgr := manager.BackupManager()
+            switch operation {
+            case "create":
+                if backupPath == "" {
+                    backupPath = "./backups"
+                }
+                path, err := backupMgr.Backup(backupPath)
+                if err != nil {
+                    fmt.Fprintf(os.Stderr, "Failed to create backup: %v\n", err)
+                    return
+                }
+                fmt.Printf("Backup created successfully at: %s\n", path)
+            case "restore":
+                if restoreFile == "" {
+                    fmt.Fprintf(os.Stderr, "Restore file is required\n")
+                    return
+                }
+                err := backupMgr.Restore(restoreFile)
+                if err != nil {
+                    fmt.Fprintf(os.Stderr, "Failed to restore backup: %v\n", err)
+                    return
+                }
+                fmt.Println("Backup restored successfully")
+            default:
+                fmt.Println("=== Backup Management ===")
+                fmt.Println("Usage: myapp db backup --op=create [--path=./backups]")
+                fmt.Println("       myapp db backup --op=restore --file=<backup file>")
+            }
+        },
+    }
+
+    cmd.Flags().StringVar(&operation, "op", "", "Operation: create or restore")
+    cmd.Flags().StringVar(&backupPath, "path", "./backups", "Backup path")
+    cmd.Flags().StringVar(&restoreFile, "file", "", "Restore file")
+
+    return cmd
+}
+
+// 性能统计命令
+func newStatsCmd() *cobra.Command {
+    return &cobra.Command{
+        Use:   "stats",
+        Short: "Get performance statistics",
+        Run: func(cmd *cobra.Command, args []string) {
+            statsMgr := manager.StatsManager()
+            queryStats, err := statsMgr.GetQueryStats()
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "Failed to get stats: %v\n", err)
+                return
+            }
+            fmt.Println("=== Performance Statistics ===")
+            fmt.Printf("Query Count: %d\n", queryStats.Count)
+            fmt.Printf("Total Time: %d ms\n", queryStats.TotalTime)
+            if queryStats.Count > 0 {
+                fmt.Printf("Average Time: %.2f ms\n", float64(queryStats.TotalTime)/float64(queryStats.Count))
+            }
+        },
+    }
+}
+
+// 监控命令
+func newMonitorCmd() *cobra.Command {
+    return &cobra.Command{
+        Use:   "monitor",
+        Short: "Monitor database status",
+        Run: func(cmd *cobra.Command, args []string) {
+            fmt.Println("=== Database Monitor ===")
+            fmt.Println("Starting monitoring... (Press Ctrl+C to stop)")
+            
+            // 这里可以实现实时监控逻辑
+            // 例如：
+            // monitor := manager.Monitor(time.Second*5, management.Thresholds{...})
+            // for {
+            //     status := monitor.Status()
+            //     fmt.Printf("Memory: %.2f MB, Queries: %d\n", status.MemoryUsage, status.QueryCount)
+            //     time.Sleep(time.Second)
+            // }
+        },
+    }
+}
 ```
 
-#### 2. 自定义命令集成
+**使用方法**：
+
+```bash
+# 查看数据库状态
+myapp db status
+
+# 查看系统信息
+myapp db system
+
+# 管理索引
+myapp db index
+
+# 查看配置
+myapp db config
+
+# 创建备份
+myapp db backup --op=create --path=./backups
+
+# 恢复备份
+myapp db backup --op=restore --file=./backups/backup_20260205_123456
+
+# 查看性能统计
+myapp db stats
+
+# 监控数据库
+myapp db monitor
+```
+
+**优势**：
+
+1. **无冲突**：完全避免与系统 `sfsdb` 命令的冲突
+2. **集成度高**：与项目的其他命令无缝集成
+3. **灵活性强**：可以根据项目需求定制命令行为和输出格式
+4. **性能好**：直接调用管理接口，避免命令行解析的开销
+5. **可维护性强**：代码结构清晰，易于理解和扩展
+
+#### 3. 一键集成（推荐）
+
+为了简化集成过程，sfsDb 提供了一键集成函数，允许您通过一行代码集成所有管理功能：
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/liaoran123/sfsDb/management"
+    "github.com/spf13/cobra"
+)
+
+func main() {
+    // 创建根命令
+    rootCmd := &cobra.Command{
+        Use:   "yourapp",
+        Short: "Your Application",
+        Run: func(cmd *cobra.Command, args []string) {
+            fmt.Println("Your Application")
+        },
+    }
+
+    // 一键集成管理命令
+    management.AddManagementCommands(rootCmd, func() storage.Store {
+        // 返回您项目的存储实例
+        return getDBStore() // 替换为您的存储实例获取方法
+    })
+
+    // 执行命令
+    if err := rootCmd.Execute(); err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
+}
+
+// 替换为您项目的存储实例获取方法
+func getDBStore() storage.Store {
+    // 这里返回您项目的存储实例
+    return yourProject.GetDatabaseStore()
+}
+```
+
+**集成要点**：
+
+1. **一行代码集成**：通过 `management.AddManagementCommands` 函数一键集成所有管理功能
+2. **存储实例获取**：提供一个函数来获取您项目的存储实例
+3. **命令自定义**：可以指定管理命令的名称（默认为 "db"）
+4. **功能完整**：自动集成所有核心管理命令
+
+**优势**：
+
+1. **最简单**：一行代码完成所有集成工作
+2. **无侵入性**：不修改项目现有的数据库管理逻辑
+3. **功能完整**：提供所有核心管理功能
+4. **高度定制**：可以自定义命令名称和存储实例获取方法
+5. **维护便捷**：后续 sfsDb 更新时自动获得新功能
+
+#### 4. 基于现有存储实例的集成（适合已有数据库的项目）
+
+如果您的项目已经有了自定义的数据库打开方式，可以直接使用现有的存储实例集成管理功能：
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/liaoran123/sfsDb/management"
+    "github.com/spf13/cobra"
+)
+
+var (
+    manager *management.Manager
+)
+
+func main() {
+    // 创建根命令
+    rootCmd := &cobra.Command{
+        Use:   "yourapp",
+        Short: "Your Application",
+        Run: func(cmd *cobra.Command, args []string) {
+            fmt.Println("Your Application")
+        },
+    }
+
+    // 创建数据库管理子命令
+    dbCmd := &cobra.Command{
+        Use:   "db",
+        Short: "Database management commands",
+        PersistentPreRun: func(cmd *cobra.Command, args []string) {
+            // 使用您项目现有的存储实例
+            // 这里假设您的项目已经有了一个名为 getDBStore() 的函数
+            // 该函数返回一个实现了 storage.Store 接口的实例
+            store := getDBStore() // 替换为您项目的数据库获取方法
+            
+            // 创建管理器
+            manager = management.NewManager(store)
+        },
+    }
+
+    // 添加具体的管理命令
+    dbCmd.AddCommand(
+        newStatusCmd(),
+        newStatsCmd(),
+        // 其他管理命令...
+    )
+
+    rootCmd.AddCommand(dbCmd)
+    rootCmd.Execute()
+}
+
+// 状态命令
+func newStatusCmd() *cobra.Command {
+    return &cobra.Command{
+        Use:   "status",
+        Short: "Get database status",
+        Run: func(cmd *cobra.Command, args []string) {
+            status, err := manager.GetStatus()
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "Failed to get status: %v\n", err)
+                return
+            }
+            fmt.Println("=== Database Status ===")
+            fmt.Printf("Memory Usage: %.2f MB\n", float64(status.Memory.Alloc)/1024/1024)
+            fmt.Printf("Storage Type: %s\n", status.Storage.StoreType)
+        },
+    }
+}
+
+// 性能统计命令
+func newStatsCmd() *cobra.Command {
+    return &cobra.Command{
+        Use:   "stats",
+        Short: "Get performance statistics",
+        Run: func(cmd *cobra.Command, args []string) {
+            statsMgr := manager.StatsManager()
+            queryStats, err := statsMgr.GetQueryStats()
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "Failed to get stats: %v\n", err)
+                return
+            }
+            fmt.Println("=== Performance Statistics ===")
+            fmt.Printf("Query Count: %d\n", queryStats.Count)
+            fmt.Printf("Total Time: %d ms\n", queryStats.TotalTime)
+        },
+    }
+}
+
+// 替换为您项目的数据库获取方法
+func getDBStore() storage.Store {
+    // 这里应该返回您项目现有的存储实例
+    // 例如：
+    // return yourProject.GetDatabaseStore()
+    return nil // 示例代码，实际使用时需要替换
+}
+```
+
+**集成要点**：
+
+1. **使用现有存储实例**：直接使用项目中已有的存储实例，不需要重新创建
+2. **适配器模式**：如果存储实例接口不完全兼容，可以创建适配器
+3. **命令集成**：将管理命令集成到项目现有的命令结构中
+4. **功能选择**：根据需要选择集成的管理功能，不需要全部集成
+
+**优势**：
+
+1. **无侵入性**：不修改项目现有的数据库管理逻辑
+2. **灵活性高**：适应各种自定义的数据库打开方式
+3. **集成度高**：与项目的现有命令结构无缝集成
+4. **功能完整**：提供所有 sfsDb 的管理功能
+
+#### 4. 自定义命令集成
 
 其他项目也可以基于 sfsdb 的命令结构，创建自己的命令体系：
 

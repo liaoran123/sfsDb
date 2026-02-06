@@ -184,7 +184,7 @@ func (sm *SystemManager) GetAllSystemInfo() (map[string]interface{}, error) {
 				Name: tableName,
 				ID:   tableID,
 			})
-			// 初始化表详情
+			// 初始化或更新表详情
 			if _, ok := tableDetails[tableID]; !ok {
 				tableDetails[tableID] = map[string]interface{}{
 					"name":    tableName,
@@ -193,31 +193,62 @@ func (sm *SystemManager) GetAllSystemInfo() (map[string]interface{}, error) {
 				}
 				fieldsMap[tableID] = []FieldInfo{}
 				indexesMap[tableID] = []IndexInfo{}
+			} else {
+				// 如果表详情已存在，更新表名
+				tableDetails[tableID]["name"] = tableName
 			}
 		} else if parts[0] == "sys" && len(parts) >= 4 {
 			// 处理字段信息: sys-tableid-field-name
 			if parts[2] == "field" {
 				var tableID uint8
-				fmt.Sscanf(parts[1], "%d", &tableID)
-				fieldName := strings.Join(parts[3:], "-")
-				fieldID := uint8(value[0])
-				fieldsMap[tableID] = append(fieldsMap[tableID], FieldInfo{
-					Name:    fieldName,
-					ID:      fieldID,
-					TableID: tableID,
-				})
+				_, err := fmt.Sscanf(parts[1], "%d", &tableID)
+				if err == nil && len(value) > 0 {
+					// 确保fieldsMap[tableID]已初始化
+					if _, ok := fieldsMap[tableID]; !ok {
+						fieldsMap[tableID] = []FieldInfo{}
+					}
+					// 确保tableDetails[tableID]已初始化
+					if _, ok := tableDetails[tableID]; !ok {
+						tableDetails[tableID] = map[string]interface{}{
+							"name":    "Unknown",
+							"fields":  []FieldInfo{},
+							"indexes": []IndexInfo{},
+						}
+					}
+					fieldName := strings.Join(parts[3:], "-")
+					fieldID := uint8(value[0])
+					fieldsMap[tableID] = append(fieldsMap[tableID], FieldInfo{
+						Name:    fieldName,
+						ID:      fieldID,
+						TableID: tableID,
+					})
+				}
 			}
 			// 处理索引信息: sys-tableid-idx-name
 			if parts[2] == "idx" {
 				var tableID uint8
-				fmt.Sscanf(parts[1], "%d", &tableID)
-				indexName := strings.Join(parts[3:], "-")
-				indexID := uint8(value[0])
-				indexesMap[tableID] = append(indexesMap[tableID], IndexInfo{
-					Name:    indexName,
-					ID:      indexID,
-					TableID: tableID,
-				})
+				_, err := fmt.Sscanf(parts[1], "%d", &tableID)
+				if err == nil && len(value) > 0 {
+					// 确保indexesMap[tableID]已初始化
+					if _, ok := indexesMap[tableID]; !ok {
+						indexesMap[tableID] = []IndexInfo{}
+					}
+					// 确保tableDetails[tableID]已初始化
+					if _, ok := tableDetails[tableID]; !ok {
+						tableDetails[tableID] = map[string]interface{}{
+							"name":    "Unknown",
+							"fields":  []FieldInfo{},
+							"indexes": []IndexInfo{},
+						}
+					}
+					indexName := strings.Join(parts[3:], "-")
+					indexID := uint8(value[0])
+					indexesMap[tableID] = append(indexesMap[tableID], IndexInfo{
+						Name:    indexName,
+						ID:      indexID,
+						TableID: tableID,
+					})
+				}
 			}
 		}
 	}

@@ -218,63 +218,6 @@
                                             </tr>
                                         </tbody>
                                     </table>
-                                    
-                                    <!-- 表详细信息 -->
-                                    <h6 class="mt-4 mb-3">表详细信息</h6>
-                                    <div v-for="(details, tableID) in systemData.tableDetails" :key="tableID" class="card mb-3">
-                                        <div class="card-header">
-                                            {{ details.name }} (ID: {{ tableID }})
-                                        </div>
-                                        <div class="card-body">
-                                            <!-- 字段信息 -->
-                                            <div class="mb-4">
-                                                <h6>字段信息</h6>
-                                                <div v-if="details.fields && details.fields.length > 0">
-                                                    <table class="table table-sm">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>字段名</th>
-                                                                <th>字段ID</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            <tr v-for="field in details.fields" :key="field.ID">
-                                                                <td>{{ field.Name }}</td>
-                                                                <td>{{ field.ID }}</td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                                <div v-else class="text-muted">
-                                                    无字段信息
-                                                </div>
-                                            </div>
-                                            
-                                            <!-- 索引信息 -->
-                                            <div>
-                                                <h6>索引信息</h6>
-                                                <div v-if="details.indexes && details.indexes.length > 0">
-                                                    <table class="table table-sm">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>索引名</th>
-                                                                <th>索引ID</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            <tr v-for="index in details.indexes" :key="index.ID">
-                                                                <td>{{ index.Name }}</td>
-                                                                <td>{{ index.ID }}</td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                                <div v-else class="text-muted">
-                                                    无索引信息
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
                                 </div>
                                 <div v-else class="alert alert-info">
                                     未找到表信息
@@ -478,27 +421,55 @@
                                 <!-- 键值变更统计 -->
                                 <div class="mb-6">
                                     <h6 class="mb-3">键值变更统计</h6>
-                                    <div v-if="monitorData.keyChangeStats" class="table-responsive">
-                                        <table class="table table-striped">
-                                            <thead>
-                                                <tr>
-                                                    <th>表ID</th>
-                                                    <th>索引名</th>
-                                                    <th>Put操作次数</th>
-                                                    <th>Delete操作次数</th>
-                                                    <th>总计</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="(stats, key) in monitorData.keyChangeStats" :key="key">
-                                                    <td>{{ stats.tbId }}</td>
-                                                    <td>{{ stats.indxName }}</td>
-                                                    <td>{{ stats.putCount }}</td>
-                                                    <td>{{ stats.deleteCount }}</td>
-                                                    <td>{{ stats.putCount - stats.deleteCount }}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
+                                    <div v-if="monitorData.keyChangeStats" class="card bg-light">
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <h6 class="mb-3">Put操作统计</h6>
+                                                    <div v-if="monitorData.keyChangeStats.PutCounters" class="table-responsive">
+                                                        <table class="table table-striped">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>键</th>
+                                                                    <th>操作次数</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                <tr v-for="(count, key) in monitorData.keyChangeStats.PutCounters" :key="key">
+                                                                    <td>{{ key }}</td>
+                                                                    <td>{{ count }}</td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                    <div v-else class="alert alert-info">
+                                                        暂无Put操作数据
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <h6 class="mb-3">Delete操作统计</h6>
+                                                    <div v-if="monitorData.keyChangeStats.DeleteCounters" class="table-responsive">
+                                                        <table class="table table-striped">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>键</th>
+                                                                    <th>操作次数</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                <tr v-for="(count, key) in monitorData.keyChangeStats.DeleteCounters" :key="key">
+                                                                    <td>{{ key }}</td>
+                                                                    <td>{{ count }}</td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                    <div v-else class="alert alert-info">
+                                                        暂无Delete操作数据
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div v-else class="alert alert-info">
                                         键值变更统计数据未获取

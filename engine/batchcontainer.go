@@ -48,11 +48,11 @@ func (c *batchContainer) Add(key []byte, ValueMapKey uint8) {
 	if c.values[0] == nil {
 		c.batch.Delete(key)
 		//删除索引计数器
-		monitor.AtomicMap(monitor.AtomicDec).Inc(key[0], key[2]) //key[0]为表ID，key[2]为索引ID
+		//monitor.AtomicMap(monitor.AtomicDec).Inc(key[0], key[2]) //key[0]为表ID，key[2]为索引ID
 	} else {
 		c.batch.Put(key, c.values[ValueMapKey])
 		//添加索引计数器
-		monitor.AtomicMap(monitor.AtomicInt).Inc(key[0], key[2]) //key[0]为表ID，key[2]为索引ID
+		//monitor.AtomicMap(monitor.AtomicInt).Inc(key[0], key[2]) //key[0]为表ID，key[2]为索引ID
 	}
 }
 
@@ -69,13 +69,24 @@ func (c *batchContainer) GetValue(key uint8) []byte {
 // 添加/删除记录操作
 // 添加时，key值已经存在的field值，value中会过滤掉，不重复添加。
 func (c *batchContainer) Operation(fieldsBytes *map[string][]byte, existFields ...string) {
+	var mapkey int
+	var KeyFun monitor.Keyfun
+	if c.values[0] == nil {
+		KeyFun = monitor.KeyDec
+	} else {
+		KeyFun = monitor.KeyInc
+	}
 	for _, index := range c.indexs.GetAllIndexes() {
 		switch index := index.(type) {
 		case PrimaryKey:
 			// batch并发安全，防止多个goroutine同时操作
 			pkValue := c.indexs.getPrimaryKey().JoinValue(fieldsBytes, c.tbid)
 			c.Add(pkValue, 0) //添加主键记录key=pkValue,value=record
+			//添加主键索引计数器
+			mapkey = monitor.GetIndexKey(c.tbid, index.GetId())
+			KeyFun(mapkey, c.tbid, index.Name())
 		case FullTextIndex:
+			mapkey = monitor.GetIndexKey(c.tbid, index.GetId())
 			joinValues := index.JoinFullValues(fieldsBytes, c.tbid, existFields...)
 			defer util.PutBytesArray(joinValues)
 			for _, joinValue := range joinValues {
@@ -83,6 +94,7 @@ func (c *batchContainer) Operation(fieldsBytes *map[string][]byte, existFields .
 					continue
 				}
 				c.Add(append([]byte{}, joinValue...), 2) //添加全文索引key=joinValue,value=t.primaryKey.ID()
+				KeyFun(mapkey, c.tbid, index.Name())
 			}
 		default:
 			indexValue := index.JoinValue(fieldsBytes, c.tbid, existFields...)
@@ -90,6 +102,8 @@ func (c *batchContainer) Operation(fieldsBytes *map[string][]byte, existFields .
 				continue
 			}
 			c.Add(append([]byte{}, indexValue...), 1) //添加普通索引key=indexValues,value=pkValue
+			mapkey = monitor.GetIndexKey(c.tbid, index.GetId())
+			KeyFun(mapkey, c.tbid, index.Name())
 		}
 	}
 	// 检查是否超过最大批量操作数量

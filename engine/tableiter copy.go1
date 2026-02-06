@@ -3,12 +3,12 @@ package engine
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/liaoran123/sfsDb/match"
-	"github.com/liaoran123/sfsDb/monitor"
 	"github.com/liaoran123/sfsDb/record"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
@@ -222,6 +222,39 @@ func (t *TableIter) Match(rd *map[string]any, match []match.Match) bool {
 	return true
 }
 
+// 记录查询使用情况
+func (t *TableIter) recordQueryUsage(startTime time.Time) {
+	if t.index != nil {
+		duration := time.Since(startTime)
+		// 判断是否是覆盖查询
+		covered := t.isCoveredQuery()
+		t.index.RecordUsage(duration, covered)
+	}
+}
+
+// 判断是否是覆盖查询
+func (t *TableIter) isCoveredQuery() bool {
+	// 对于没有选择字段的查询，默认不是覆盖查询
+	if len(t.selects) == 0 {
+		return false
+	}
+
+	// 对于主键索引，它包含了所有字段，所以任何查询都是覆盖查询
+	if _, ok := t.index.(PrimaryKey); ok {
+		return true
+	}
+
+	// 对于普通索引，检查选择的字段是否都在索引字段中
+	indexFields := t.index.GetFields()
+	for _, selectField := range t.selects {
+		if !slices.Contains(indexFields, selectField) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // 遍历迭代器返回解析后的记录，不包含版本号字段。
 // 用于外部调用，不包含版本号字段。
 func (t *TableIter) GetRecordSet(esc bool, limit ...int) (r record.Records) {
@@ -245,17 +278,9 @@ func (t *TableIter) GetRecordSet(esc bool, limit ...int) (r record.Records) {
 	}, esc, limit...)
 
 	// 记录查询耗时
-	t.RecordIndexTime(startTime)
-	return r
-}
+	t.recordQueryUsage(startTime)
 
-// 跟踪索引耗时
-func (t *TableIter) RecordIndexTime(startTime time.Time) {
-	endTime := time.Now()
-	//计算耗时
-	duration := endTime.Sub(startTime)
-	indexKey := monitor.GetIndexKey(t.table.id, t.index.GetId())
-	monitor.GIndexStatsMap.Settime(indexKey, duration, t.table.name, t.index.Name())
+	return r
 }
 
 // 遍历迭代器返回解析后的记录，包含版本号字段。
@@ -279,7 +304,8 @@ func (t *TableIter) GetRecords(esc bool, limit ...int) (r record.Records) {
 	}, esc, limit...)
 
 	// 记录查询耗时
-	t.RecordIndexTime(startTime)
+	t.recordQueryUsage(startTime)
+
 	return r
 }
 
