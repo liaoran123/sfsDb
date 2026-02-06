@@ -27,7 +27,7 @@ func TestSettimeConcurrent(t *testing.T) {
 			indexKey := index % 10 // 使用0-9的indexKey
 
 			// 调用Settime方法
-			statsMap.Settime(indexKey, time.Millisecond, "testTable", "testIndex")
+			statsMap.Settime(indexKey, time.Millisecond, "testTable", "testIndex", "testSearchType")
 		}(i)
 	}
 

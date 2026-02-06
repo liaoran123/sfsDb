@@ -10,21 +10,21 @@ import (
 func TestKeysMap_IncAsync(t *testing.T) {
 	// 创建 KeysMap 实例
 	km := NewKeysMap()
-	
+
 	// 异步增加计数器
 	km.IncAsync(1, 1, "test")
-	
+
 	// 等待一段时间，确保异步操作完成
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// 获取所有计数器数据
 	all := km.GetAll()
-	
+
 	// 验证计数器值
 	if len(all) != 1 {
 		t.Errorf("Expected 1 counter, got %d", len(all))
 	}
-	
+
 	if stats, ok := all[1]; ok {
 		if stats.PutCount.Load() != 1 {
 			t.Errorf("Expected PutCount=1, got %d", stats.PutCount.Load())
@@ -41,19 +41,19 @@ func TestKeysMap_IncAsync(t *testing.T) {
 func TestKeysMap_DecAsync(t *testing.T) {
 	// 创建 KeysMap 实例
 	km := NewKeysMap()
-	
+
 	// 先同步增加计数器，确保键存在
 	km.Inc(1, 1, "test")
-	
+
 	// 异步减少计数器
 	km.DecAsync(1, 1, "test")
-	
+
 	// 等待一段时间，确保异步操作完成
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// 获取所有计数器数据
 	all := km.GetAll()
-	
+
 	// 验证计数器值
 	if stats, ok := all[1]; ok {
 		if stats.DeleteCount.Load() != 1 {
@@ -68,11 +68,11 @@ func TestKeysMap_DecAsync(t *testing.T) {
 func TestKeysMap_ConcurrentIncAsync(t *testing.T) {
 	// 创建 KeysMap 实例
 	km := NewKeysMap()
-	
+
 	// 并发增加计数器
 	var wg sync.WaitGroup
 	count := 100
-	
+
 	for i := 0; i < count; i++ {
 		wg.Add(1)
 		go func() {
@@ -80,16 +80,16 @@ func TestKeysMap_ConcurrentIncAsync(t *testing.T) {
 			km.IncAsync(1, 1, "test")
 		}()
 	}
-	
+
 	// 等待所有协程完成
 	wg.Wait()
-	
+
 	// 等待一段时间，确保所有异步操作完成
 	time.Sleep(500 * time.Millisecond)
-	
+
 	// 获取所有计数器数据
 	all := km.GetAll()
-	
+
 	// 验证计数器值
 	if stats, ok := all[1]; ok {
 		if stats.PutCount.Load() != int64(count) {
@@ -104,22 +104,22 @@ func TestKeysMap_ConcurrentIncAsync(t *testing.T) {
 func TestIndexStatsMap_SettimeAsync(t *testing.T) {
 	// 创建 IndexStatsMap 实例
 	ism := NewIndexStatsMap()
-	
+
 	// 异步记录索引耗时
 	duration := 10 * time.Millisecond
-	ism.SettimeAsync(1, duration, "test_table", "test_index")
-	
+	ism.SettimeAsync(1, duration, "test_table", "test_index", "")
+
 	// 等待一段时间，确保异步操作完成
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// 获取所有统计数据
 	all := ism.GetAll()
-	
+
 	// 验证统计数据
 	if len(all) != 1 {
 		t.Errorf("Expected 1 stats, got %d", len(all))
 	}
-	
+
 	if stats, ok := all[1]; ok {
 		if stats.Count.Load() != 1 {
 			t.Errorf("Expected Count=1, got %d", stats.Count.Load())
@@ -139,29 +139,29 @@ func TestIndexStatsMap_SettimeAsync(t *testing.T) {
 func TestIndexStatsMap_ConcurrentSettimeAsync(t *testing.T) {
 	// 创建 IndexStatsMap 实例
 	ism := NewIndexStatsMap()
-	
+
 	// 并发记录索引耗时
 	var wg sync.WaitGroup
 	count := 100
-	
+
 	for i := 0; i < count; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			duration := 10 * time.Millisecond
-			ism.SettimeAsync(1, duration, "test_table", "test_index")
+			ism.SettimeAsync(1, duration, "test_table", "test_index", "")
 		}()
 	}
-	
+
 	// 等待所有协程完成
 	wg.Wait()
-	
+
 	// 等待一段时间，确保所有异步操作完成
 	time.Sleep(500 * time.Millisecond)
-	
+
 	// 获取所有统计数据
 	all := ism.GetAll()
-	
+
 	// 验证统计数据
 	if stats, ok := all[1]; ok {
 		if stats.Count.Load() != int64(count) {
@@ -176,15 +176,15 @@ func TestIndexStatsMap_ConcurrentSettimeAsync(t *testing.T) {
 func BenchmarkKeysMap_IncAsync(b *testing.B) {
 	// 创建 KeysMap 实例
 	km := NewKeysMap()
-	
+
 	// 重置计时器
 	b.ResetTimer()
-	
+
 	// 执行性能测试
 	for i := 0; i < b.N; i++ {
 		km.IncAsync(i, 1, "test")
 	}
-	
+
 	// 等待所有异步操作完成
 	time.Sleep(1 * time.Second)
 }
@@ -193,16 +193,16 @@ func BenchmarkKeysMap_IncAsync(b *testing.B) {
 func BenchmarkIndexStatsMap_SettimeAsync(b *testing.B) {
 	// 创建 IndexStatsMap 实例
 	ism := NewIndexStatsMap()
-	
+
 	// 重置计时器
 	b.ResetTimer()
-	
+
 	// 执行性能测试
 	for i := 0; i < b.N; i++ {
 		duration := 10 * time.Millisecond
-		ism.SettimeAsync(i, duration, "test_table", "test_index")
+		ism.SettimeAsync(i, duration, "test_table", "test_index", "")
 	}
-	
+
 	// 等待所有异步操作完成
 	time.Sleep(1 * time.Second)
 }

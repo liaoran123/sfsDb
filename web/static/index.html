@@ -530,6 +530,7 @@
                                                 <tr>
                                                     <th>表名</th>
                                                     <th>索引名</th>
+                                                    <th>搜索类型</th>
                                                     <th>使用次数</th>
                                                     <th>平均搜索耗时 (ms)</th>
                                                     <th>总搜索耗时 (ms)</th>
@@ -541,6 +542,7 @@
                                                 <tr v-for="(stats, key) in monitorData.indexStats" :key="key">
                                                     <td>{{ stats.tblName }}</td>
                                                     <td>{{ stats.indxName }}</td>
+                                                    <td>{{ stats.searchType }}</td>
                                                     <td>{{ stats.count }}</td>
                                                     <td>{{ (stats.avgTime / 1000000).toFixed(2) }}</td>
                                                     <td>{{ (stats.totalTime / 1000000).toFixed(2) }}</td>

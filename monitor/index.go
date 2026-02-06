@@ -23,11 +23,11 @@ func NewIndexStatsMap() *IndexStatsMap {
 	return &IndexStatsMap{}
 }
 
-func (i *IndexStatsMap) Settime(indexKey int, duration time.Duration, tblName string, indxName string) {
+func (i *IndexStatsMap) Settime(indexKey int, duration time.Duration, tblName string, indxName string, searchType string) {
 	value, ok := i.Data.Load(indexKey)
 	if !ok {
 		// 使用 LoadOrStore 避免竞态条件
-		newValue := NewIndexStats(tblName, indxName)
+		newValue := NewIndexStats(tblName, indxName, searchType)
 		value, ok = i.Data.LoadOrStore(indexKey, newValue)
 		if !ok {
 			value = newValue
@@ -42,10 +42,10 @@ func (i *IndexStatsMap) Settime(indexKey int, duration time.Duration, tblName st
 }
 
 // SettimeAsync 异步记录索引耗时
-func (i *IndexStatsMap) SettimeAsync(indexKey int, duration time.Duration, tblName string, indxName string) {
+func (i *IndexStatsMap) SettimeAsync(indexKey int, duration time.Duration, tblName string, indxName string, searchType string) {
 	// 提交任务到全局 Pool
 	globalPool.Submit(func() {
-		i.Settime(indexKey, duration, tblName, indxName)
+		i.Settime(indexKey, duration, tblName, indxName, searchType)
 	})
 }
 
@@ -62,19 +62,21 @@ func (i *IndexStatsMap) GetAll() map[int]*IndexStats {
 //var IndexStatsMap = make(map[int]*IndexStats)
 
 type IndexStats struct {
-	TblName   string        `json:"tblName"`
-	IndxName  string        `json:"indxName"`
-	Count     atomic.Int64  `json:"count"`     //搜索次数
-	AvgTime   time.Duration `json:"avgTime"`   //平均搜索耗时
-	TotalTime atomic.Int64  `json:"totalTime"` //总搜索耗时（纳秒）
-	MaxTime   atomic.Int64  `json:"maxTime"`   //最大搜索耗时（纳秒）
-	MinTime   atomic.Int64  `json:"minTime"`   //最小搜索耗时（纳秒）
+	TblName    string        `json:"tblName"`
+	IndxName   string        `json:"indxName"`
+	Count      atomic.Int64  `json:"count"`      //搜索次数
+	AvgTime    time.Duration `json:"avgTime"`    //平均搜索耗时
+	TotalTime  atomic.Int64  `json:"totalTime"`  //总搜索耗时（纳秒）
+	MaxTime    atomic.Int64  `json:"maxTime"`    //最大搜索耗时（纳秒）
+	MinTime    atomic.Int64  `json:"minTime"`    //最小搜索耗时（纳秒）
+	SearchType string        `json:"searchType"` //搜索类型（全量/索引）
 }
 
-func NewIndexStats(tblName string, indxName string) *IndexStats {
+func NewIndexStats(tblName string, indxName string, searchType string) *IndexStats {
 	stats := &IndexStats{
-		TblName:  tblName,
-		IndxName: indxName,
+		TblName:    tblName,
+		IndxName:   indxName,
+		SearchType: searchType,
 	}
 	// 初始化为较大的值
 	stats.MinTime.Store(int64(time.Hour * 24 * 365))
@@ -116,13 +118,14 @@ func (i *IndexStats) GetCount() (int64, time.Duration, time.Duration, time.Durat
 // MarshalJSON 自定义JSON序列化方法
 func (i *IndexStats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
-		"tblName":   i.TblName,
-		"indxName":  i.IndxName,
-		"count":     i.Count.Load(),
-		"avgTime":   i.AvgTime,
-		"totalTime": time.Duration(i.TotalTime.Load()),
-		"maxTime":   time.Duration(i.MaxTime.Load()),
-		"minTime":   time.Duration(i.MinTime.Load()),
+		"tblName":    i.TblName,
+		"indxName":   i.IndxName,
+		"searchType": i.SearchType,
+		"count":      i.Count.Load(),
+		"avgTime":    i.AvgTime,
+		"totalTime":  time.Duration(i.TotalTime.Load()),
+		"maxTime":    time.Duration(i.MaxTime.Load()),
+		"minTime":    time.Duration(i.MinTime.Load()),
 	})
 }
 

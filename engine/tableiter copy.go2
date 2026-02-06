@@ -245,17 +245,17 @@ func (t *TableIter) GetRecordSet(esc bool, limit ...int) (r record.Records) {
 	}, esc, limit...)
 
 	// 记录查询耗时
-	t.RecordIndexTime(startTime, "GetRecordSet")
+	t.RecordIndexTime(startTime)
 	return r
 }
 
 // 跟踪索引耗时
-func (t *TableIter) RecordIndexTime(startTime time.Time, searchType string) {
+func (t *TableIter) RecordIndexTime(startTime time.Time) {
 	endTime := time.Now()
 	//计算耗时
 	duration := endTime.Sub(startTime)
 	indexKey := monitor.GetIndexKey(t.table.id, t.index.GetId())
-	monitor.GIndexStatsMap.SettimeAsync(indexKey, duration, t.table.name, t.index.Name(), searchType)
+	monitor.GIndexStatsMap.SettimeAsync(indexKey, duration, t.table.name, t.index.Name())
 }
 
 // 遍历迭代器返回解析后的记录，包含版本号字段。
@@ -279,7 +279,7 @@ func (t *TableIter) GetRecords(esc bool, limit ...int) (r record.Records) {
 	}, esc, limit...)
 
 	// 记录查询耗时
-	t.RecordIndexTime(startTime, "GetRecords")
+	t.RecordIndexTime(startTime)
 	return r
 }
 
@@ -535,17 +535,14 @@ func (t *TableIter) GetPrimaryKeys(k, v []byte, fields ...string) (r any) {
 // if len(fields) == 0 ，默认是提取主键值，否则提取指定字段值
 // 用于与其他迭代器进行匹配。
 func (t *TableIter) Map(fields ...string) (data map[any]bool) {
-	startTime := time.Now()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	data = GetMap()
 	traverseCount := 0
-	t.mu.Lock()
 	for t.iter.First(); t.iter.Valid(); t.iter.Next() {
 		data[t.GetPrimaryKeys(t.iter.Key(), t.iter.Value(), fields...)] = true
 		traverseCount++
 	}
-	t.mu.Unlock()
-	// 记录查询耗时
-	t.RecordIndexTime(startTime, "Map")
 	return
 }
 
@@ -587,39 +584,29 @@ func (t *TableIter) Value() []byte {
 
 // Seek 移动到大于等于指定key的位置
 func (t *TableIter) Seek(key []byte) bool {
-	startTime := time.Now()
-	t.mu.Lock()
-	exist := t.iter.Seek(key)
-	t.mu.Unlock()
-	t.RecordIndexTime(startTime, "Seek")
-	return exist
+	return t.iter.Seek(key)
 }
 
 // 判断是否存在指定的主键记录
 func (t *TableIter) Exist() bool {
-	startTime := time.Now()
-	t.mu.Lock()
-	exist := t.iter.First()
-	t.mu.Unlock()
-	t.RecordIndexTime(startTime, "Exist")
-	return exist
+	return t.iter.First()
 }
 
 // 统计索引记录数
 func (t *TableIter) Count() int {
-	startTime := time.Now()
-	i := 0
 	t.mu.Lock()
+	defer t.mu.Unlock()
+	i := 0
+
 	// 重置迭代器到开头
 	t.iter.First()
+
 	// 遍历计数
 	for t.iter.Valid() {
 		i++
 		t.iter.Next()
 	}
-	t.mu.Unlock()
-	// 记录查询耗时
-	t.RecordIndexTime(startTime, "Count")
+
 	return i
 }
 

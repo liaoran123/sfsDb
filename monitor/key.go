@@ -107,14 +107,9 @@ func (k *Keys) Dec() {
 // MarshalJSON 自定义JSON序列化方法
 func (k *Keys) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
-		"tbId":        k.TbId,
-		"indxName":    k.IndxName,
-		"putCount":    k.PutCount.Load(),
-		"deleteCount": k.DeleteCount.Load(),
+		"TbId":        k.TbId,
+		"IndxName":    k.IndxName,
+		"PutCount":    k.PutCount.Load(),
+		"DeleteCount": k.DeleteCount.Load(),
 	})
 }
-
-// GetAllCounters 获取所有计数器数据
-// 返回:
-//
-//	map[string]int64: put操作的计数器数据
