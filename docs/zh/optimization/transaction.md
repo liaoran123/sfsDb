@@ -6,9 +6,280 @@ sfsDb 支持事务操作，用于确保数据一致性和可靠性。事务是�
 
 ## 2. 事务类型
 
-sfsDb 支持两种主要的事务操作方式：
-
 ### 2.1 自动事务
+
+默认情况下，sfsDb 的每个操作（如插入、更新、删除）都会自动作为一个单独的事务执行：
+
+```go
+// 自动事务：每个操作单独作为一个事务
+_, err := table.Insert(&user) // 自动事务
+if err != nil {
+    panic(err)
+}
+
+_, err = table.Delete(&deleteUser) // 自动事务
+if err != nil {
+    panic(err)
+}
+```
+
+### 2.2 手动事务（批量操作）
+
+对于需要原子性执行的多个操作，sfsDb 提供了手动事务机制，通过批处理（batch）实现：
+
+```go
+// 1. 获取批量操作对象
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    panic("无法获取批量操作对象")
+}
+
+// 2. 添加多个操作到批处理
+_, err := table.Insert(&user1, batch)
+if err != nil {
+    panic(err)
+}
+
+_, err = table.Insert(&user2, batch)
+if err != nil {
+    panic(err)
+}
+
+// 3. 手动提交批处理（所有操作一次性执行）
+err = storage.KVDb.WriteBatch(batch)
+if err != nil {
+    panic(fmt.Sprintf("批量提交失败: %v", err))
+}
+```
+
+## 3. 事务机制详解
+
+sfsDb 提供了三种主要的事务机制，可根据不同场景选择使用：
+
+### 3.1 事务隔离级别
+
+sfsDb 支持四种事务隔离级别，可根据数据一致性和性能需求选择：
+
+| 隔离级别 | 描述 | 脏读 | 不可重复读 | 幻读 | 性能 |
+|---------|------|------|------------|------|------|
+| READ_UNCOMMITTED | 读未提交 | 可能 | 可能 | 可能 | 最高 |
+| READ_COMMITTED | 读已提交 | 避免 | 可能 | 可能 | 高 |
+| REPEATABLE_READ | 可重复读 | 避免 | 避免 | 可能 | 中 |
+| SERIALIZABLE | 可序列化 | 避免 | 避免 | 避免 | 最低 |
+
+**使用示例**：
+
+```go
+// 创建带指定隔离级别的事务
+options := &engine.TransactionOptions{
+    IsolationLevel: engine.RepeatableRead, // 使用可重复读隔离级别
+    AllowNested:    true,                  // 允许嵌套事务
+}
+
+tx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+```
+
+### 3.2 嵌套事务支持
+
+sfsDb 支持嵌套事务，允许在一个事务中创建另一个事务，适用于复杂的业务逻辑场景：
+
+**使用示例**：
+
+```go
+// 创建允许嵌套事务的事务
+options := &engine.TransactionOptions{
+    IsolationLevel: engine.RepeatableRead,
+    AllowNested:    true, // 启用嵌套事务
+}
+
+parentTx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+
+// 在父事务中执行操作
+parentData := map[string]any{"name": "Parent", "value": 100}
+parentID, err := parentTx.Insert(&parentData)
+if err != nil {
+    panic(err)
+}
+
+// 创建嵌套事务
+nestedTx, err := parentTx.BeginNested()
+if err != nil {
+    panic(err)
+}
+
+// 在嵌套事务中执行操作
+nestedData := map[string]any{"name": "Nested", "value": 200}
+nestedID, err := nestedTx.Insert(&nestedData)
+if err != nil {
+    panic(err)
+}
+
+// 提交嵌套事务
+err = nestedTx.Commit()
+if err != nil {
+    panic(err)
+}
+
+// 提交父事务
+err = parentTx.Commit()
+if err != nil {
+    panic(err)
+}
+```
+
+**嵌套事务特点**：
+- 嵌套事务共享父事务的 Batch，确保原子性
+- 嵌套事务有自己的缓存，支持读取自己的写操作
+- 只有根事务才会真正提交到存储引擎
+- 嵌套事务的回滚不会影响父事务的操作
+
+### 3.3 事务超时设置
+
+sfsDb 支持设置事务超时时间，避免事务长时间运行占用资源：
+
+```go
+// 创建带超时的事务
+options := &engine.TransactionOptions{
+    IsolationLevel: engine.RepeatableRead,
+    Timeout:        30 * time.Second, // 设置30秒超时
+}
+
+tx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+```
+
+### 3.4 单独使用公共 Batch（原子性）
+
+**适用场景**：
+- 批量更新多个表的数据，确保原子性
+- 简单的写入操作，不需要读取一致性
+- 性能要求较高的场景，避免事务开销
+
+**优势**：
+- 轻量级，性能开销小
+- 确保操作的原子性
+- 适用于简单的批量写入操作
+
+**示例**：
+
+```go
+// 1. 获取共享的 batch 对象
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    panic("无法获取批量操作对象")
+}
+
+// 2. 在多个表上执行操作
+table1 := engine.TableNew("users")
+table2 := engine.TableNew("orders")
+
+// 在表1上执行操作
+user := map[string]any{"name": "John", "age": 30}
+_, err := table1.Insert(&user, batch)
+if err != nil {
+    panic(err)
+}
+
+// 在表2上执行操作
+order := map[string]any{"user_id": 1, "product": "A"}
+_, err = table2.Insert(&order, batch)
+if err != nil {
+    panic(err)
+}
+
+// 3. 一次性提交所有操作
+err = storage.KVDb.WriteBatch(batch)
+if err != nil {
+    panic(fmt.Sprintf("批量提交失败: %v", err))
+}
+```
+
+### 3.2 单独使用快照（一致性）
+
+**适用场景**：
+- 生成报表、数据分析等只读操作
+- 需要读取一致数据视图的场景
+- 长时间运行的查询，避免读取过程中数据变化
+
+**优势**：
+- 提供一致性的数据视图
+- 不阻塞其他写入操作
+- 适用于复杂的只读查询
+
+**示例**：
+
+```go
+// 获取存储快照
+snapshot := storage.KVDb.GetSnapshot()
+if snapshot == nil {
+    panic("无法获取快照")
+}
+defer snapshot.Release()
+
+// 使用快照进行读取操作
+// 注意：实际使用中，快照通常通过事务接口间接使用
+```
+
+### 3.3 使用完整事务（隔离性）
+
+**适用场景**：
+- 转账操作、库存管理等需要完整 ACID 特性的场景
+- 涉及多个步骤的业务逻辑，需要确保全部成功或全部失败
+- 并发环境下需要数据隔离的操作
+
+**优势**：
+- 提供完整的 ACID 特性
+- 确保数据的一致性和隔离性
+- 支持回滚操作
+
+**示例**：
+
+```go
+// 1. 开始事务
+tx, err := table.Begin()
+if err != nil {
+    panic(err)
+}
+
+// 2. 在事务中执行操作
+// 插入操作
+user := map[string]any{"name": "John", "age": 30}
+userID, err := tx.Insert(&user)
+if err != nil {
+    tx.Rollback()
+    panic(err)
+}
+
+// 更新操作
+updateData := map[string]any{"id": userID, "age": 31}
+err = tx.Update(&updateData)
+if err != nil {
+    tx.Rollback()
+    panic(err)
+}
+
+// 3. 提交事务
+err = tx.Commit()
+if err != nil {
+    panic(err)
+}
+```
+
+### 3.4 组合使用场景
+
+- **批量事务**：使用公共 Batch 的原子性 + 事务的隔离性，处理多表复杂操作
+- **快照事务**：使用快照的一致性 + 事务的隔离性，确保读取一致性的同时支持写入操作
+- **多表事务**：通过 TransactionManager 管理多个表的事务，共享同一个 Batch 确保原子性
+
+## 4. 事务最佳实践
 
 默认情况下，sfsDb 的每个操作（如插入、更新、删除）都会自动作为一个单独的事务执行：
 
@@ -439,6 +710,236 @@ func multiTableTransactionExample() error {
         fmt.Println("多表事务执行成功")
         return nil
     })
+}
+```
+
+## 10. 高级并发控制
+
+### 10.1 锁超时机制
+
+sfsDb 实现了锁超时机制，防止事务无限期持有锁，从而避免死锁或性能问题。
+
+#### 10.1.1 设置锁超时
+
+```go
+// 为表设置锁超时
+table.SetLockTimeout(30 * time.Second)
+```
+
+#### 10.1.2 带超时获取锁
+
+```go
+// 带超时获取读锁
+err := table.acquireRowReadLock("primary_key_value", 0, 10*time.Second)
+
+// 带超时获取写锁
+err := table.acquireRowWriteLock("primary_key_value", 0, 10*time.Second)
+```
+
+### 10.2 死锁检测
+
+sfsDb 包含内置的死锁检测器，可以识别和处理死锁情况。
+
+#### 10.2.1 检测死锁
+
+```go
+// 检测表中的死锁
+deadlockedTxs := table.DetectDeadlock()
+if len(deadlockedTxs) > 0 {
+    fmt.Printf("检测到死锁的事务: %v\n", deadlockedTxs)
+}
+```
+
+#### 10.2.2 事务锁跟踪
+
+```go
+// 开始事务锁跟踪
+table.BeginTransaction(txID)
+
+// 记录持有锁
+table.RecordHeldLock(txID, "primary_key_value")
+
+// 记录等待锁（触发死锁检测）
+table.RecordWaitingLock(txID, "another_primary_key_value")
+
+// 结束事务锁跟踪
+table.EndTransaction(txID)
+```
+
+### 10.3 锁升级/降级
+
+sfsDb 支持锁升级（从读到写）和降级（从写到读）操作。
+
+#### 10.3.1 锁升级
+
+```go
+// 从读锁升级为写锁
+err := table.UpgradeLock("primary_key_value", txID, 5*time.Second)
+if err != nil {
+    fmt.Printf("升级锁失败: %v\n", err)
+}
+```
+
+#### 10.3.2 锁降级
+
+```go
+// 从写锁降级为读锁
+err := table.DowngradeLock("primary_key_value", txID)
+if err != nil {
+    fmt.Printf("降级锁失败: %v\n", err)
+}
+```
+
+### 10.4 锁统计和监控
+
+sfsDb 提供了全面的锁统计和监控功能。
+
+#### 10.4.1 获取锁统计信息
+
+```go
+// 获取锁统计信息
+stats := table.GetLockStats()
+fmt.Printf("总锁数: %d\n", stats.TotalLocks)
+fmt.Printf("读锁数: %d\n", stats.ReadLocks)
+fmt.Printf("写锁数: %d\n", stats.WriteLocks)
+fmt.Printf("平均锁等待时间: %v\n", stats.LockWaitTime)
+fmt.Printf("平均锁持有时间: %v\n", stats.LockHoldTime)
+```
+
+#### 10.4.2 锁清理
+
+```go
+// 清理过期锁
+cleanedCount := table.CleanupExpiredLocks()
+fmt.Printf("清理了 %d 个过期锁\n", cleanedCount)
+
+// 启动定期锁清理
+// table.StartLockCleanup(1 * time.Minute)
+```
+
+### 10.5 延长锁超时
+
+sfsDb 允许为长时间运行的操作延长锁超时。
+
+```go
+// 延长锁超时
+if table.IsLockAboutToExpire("primary_key_value", 5*time.Second) {
+    err := table.ExtendLockTimeout("primary_key_value", 10*time.Second)
+    if err != nil {
+        fmt.Printf("延长锁超时失败: %v\n", err)
+    }
+}
+```
+
+## 11. 金融事务示例
+
+### 11.1 银行转账示例
+
+```go
+// 使用事务执行银行转账
+func transferFunds(fromID, toID int, amount float64) error {
+    // 创建批处理对象
+    batch := storage.KVDb.GetBatch()
+    if batch == nil {
+        return fmt.Errorf("创建批处理对象失败")
+    }
+
+    // 使用事务管理器
+    return engine.WithTransaction(batch, []*engine.Table{accountTable}, func(transactions map[*engine.Table]engine.Transaction) error {
+        tx := transactions[accountTable]
+
+        // 读取转出账户
+        fromFields := map[string]any{"id": fromID}
+        fromRecord, err := tx.Read(&fromFields)
+        if err != nil {
+            return err
+        }
+        if fromRecord == nil {
+            return fmt.Errorf("转出账户不存在")
+        }
+
+        // 读取转入账户
+        toFields := map[string]any{"id": toID}
+        toRecord, err := tx.Read(&toFields)
+        if err != nil {
+            return err
+        }
+        if toRecord == nil {
+            return fmt.Errorf("转入账户不存在")
+        }
+
+        // 获取余额（示例简化处理）
+        fromBalance := 1000.0
+        toBalance := 500.0
+
+        // 检查余额是否充足
+        if fromBalance < amount {
+            return fmt.Errorf("余额不足")
+        }
+
+        // 更新余额
+        newFromBalance := fromBalance - amount
+        newToBalance := toBalance + amount
+
+        // 更新转出账户
+        updateFromFields := map[string]any{
+            "id":      fromID,
+            "balance": newFromBalance,
+        }
+        if err := tx.Update(&updateFromFields); err != nil {
+            return err
+        }
+
+        // 更新转入账户
+        updateToFields := map[string]any{
+            "id":      toID,
+            "balance": newToBalance,
+        }
+        if err := tx.Update(&updateToFields); err != nil {
+            return err
+        }
+
+        return nil
+    })
+}
+```
+
+### 11.2 并发转账示例
+
+```go
+// 并发转账示例
+func testConcurrentTransfers() {
+    var wg sync.WaitGroup
+    var mu sync.Mutex
+    errorCount := 0
+    transferCount := 0
+
+    // 启动10个并发转账协程
+    for i := 0; i < 10; i++ {
+        wg.Add(1)
+        go func(i int) {
+            defer wg.Done()
+            
+            amount := float64(100 + i*10)
+            targetID := 2 + (i % 3)
+            
+            err := transferFunds(1, targetID, amount)
+            
+            mu.Lock()
+            defer mu.Unlock()
+            
+            if err != nil {
+                errorCount++
+                fmt.Printf("转账失败: %v\n", err)
+            } else {
+                transferCount++
+                fmt.Printf("转账成功: 从 1 到 %d, 金额 %.2f\n", targetID, amount)
+            }
+        }(i)
+    }
+
+    wg.Wait()
+    fmt.Printf("并发转账测试完成: %d 成功, %d 失败\n", transferCount, errorCount)
 }
 ```
 

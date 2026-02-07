@@ -13,32 +13,47 @@ import (
 func parseSize(s string) (int, error) {
 	s = strings.TrimSpace(s)
 
-	// 检查是否包含单位
-	if strings.HasSuffix(s, "MB") {
-		val := strings.TrimSuffix(s, "MB")
-		if size, err := strconv.Atoi(val); err == nil {
-			return size * 1024 * 1024, nil
-		}
-	}
-	if strings.HasSuffix(s, "KB") {
-		val := strings.TrimSuffix(s, "KB")
-		if size, err := strconv.Atoi(val); err == nil {
-			return size * 1024, nil
-		}
-	}
-	if strings.HasSuffix(s, "GB") {
-		val := strings.TrimSuffix(s, "GB")
-		if size, err := strconv.Atoi(val); err == nil {
-			return size * 1024 * 1024 * 1024, nil
-		}
-	}
+	// 检查是否包含单位（支持大小写）
+	sLower := strings.ToLower(s)
+	var multiplier int
+	var valueStr string
 
-	// 尝试直接解析为整数
-	if size, err := strconv.Atoi(s); err == nil {
+	switch {
+	case strings.HasSuffix(sLower, "mb"):
+		multiplier = 1024 * 1024
+		valueStr = strings.TrimSuffix(s, "MB")
+		if valueStr == s {
+			valueStr = strings.TrimSuffix(s, "mb")
+		}
+	case strings.HasSuffix(sLower, "kb"):
+		multiplier = 1024
+		valueStr = strings.TrimSuffix(s, "KB")
+		if valueStr == s {
+			valueStr = strings.TrimSuffix(s, "kb")
+		}
+	case strings.HasSuffix(sLower, "gb"):
+		multiplier = 1024 * 1024 * 1024
+		valueStr = strings.TrimSuffix(s, "GB")
+		if valueStr == s {
+			valueStr = strings.TrimSuffix(s, "gb")
+		}
+	default:
+		// 尝试直接解析为整数
+		size, err := strconv.Atoi(s)
+		if err != nil {
+			return 0, fmt.Errorf("invalid size format: %s, expected number or number with unit (KB, MB, GB)", s)
+		}
 		return size, nil
 	}
 
-	return 0, fmt.Errorf("invalid size format: %s", s)
+	// 解析数值部分
+	size, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid size value: %s, %v", valueStr, err)
+	}
+
+	// 计算最终大小
+	return size * multiplier, nil
 }
 
 // loadConfigFromStore 从存储中加载配置到 opts
@@ -54,7 +69,7 @@ func loadConfigFromStore(path string, opts *opt.Options) error {
 	// 尝试打开临时存储来读取配置
 	tempDB, err := leveldb.OpenFile(path, tempOpts)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open temp DB for config loading: %v", err)
 	}
 	defer tempDB.Close()
 
@@ -63,6 +78,7 @@ func loadConfigFromStore(path string, opts *opt.Options) error {
 		key    string
 		parser func(string) (interface{}, error)
 		apply  func(interface{}) error
+		desc   string
 	}{
 		{
 			key: "config:write_buffer",
@@ -70,11 +86,12 @@ func loadConfigFromStore(path string, opts *opt.Options) error {
 				return parseSize(s)
 			},
 			apply: func(val interface{}) error {
-				if size, ok := val.(int); ok {
+				if size, ok := val.(int); ok && size > 0 {
 					opts.WriteBuffer = size
 				}
 				return nil
 			},
+			desc: "write buffer size",
 		},
 		{
 			key: "config:max_open_files",
@@ -82,11 +99,12 @@ func loadConfigFromStore(path string, opts *opt.Options) error {
 				return strconv.Atoi(s)
 			},
 			apply: func(val interface{}) error {
-				if size, ok := val.(int); ok {
+				if size, ok := val.(int); ok && size > 0 {
 					opts.OpenFilesCacheCapacity = size
 				}
 				return nil
 			},
+			desc: "max open files",
 		},
 		{
 			key: "config:block_cache",
@@ -94,21 +112,58 @@ func loadConfigFromStore(path string, opts *opt.Options) error {
 				return parseSize(s)
 			},
 			apply: func(val interface{}) error {
-				if size, ok := val.(int); ok {
+				if size, ok := val.(int); ok && size > 0 {
 					opts.BlockCacheCapacity = size
 				}
 				return nil
 			},
+			desc: "block cache capacity",
+		},
+		{
+			key: "config:compression",
+			parser: func(s string) (interface{}, error) {
+				return strconv.ParseBool(s)
+			},
+			apply: func(val interface{}) error {
+				if enabled, ok := val.(bool); ok {
+					if enabled {
+						opts.Compression = opt.DefaultCompression
+					} else {
+						opts.Compression = opt.NoCompression
+					}
+				}
+				return nil
+			},
+			desc: "compression enabled",
 		},
 	}
 
 	// 加载所有配置项
+	configLoaded := false
 	for _, item := range configItems {
-		if value, err := tempDB.Get([]byte(item.key), nil); err == nil {
-			if parsedVal, err := item.parser(string(value)); err == nil {
-				item.apply(parsedVal)
-			}
+		value, err := tempDB.Get([]byte(item.key), nil)
+		if err != nil {
+			// 配置项不存在，跳过
+			continue
 		}
+
+		parsedVal, err := item.parser(string(value))
+		if err != nil {
+			// 解析失败，跳过该配置项
+			continue
+		}
+
+		if err := item.apply(parsedVal); err != nil {
+			// 应用失败，跳过
+			continue
+		}
+
+		configLoaded = true
+	}
+
+	if !configLoaded {
+		// 没有加载到任何配置，使用默认配置
+		// 这里不返回错误，因为配置加载失败不应该阻止数据库打开
 	}
 
 	return nil
@@ -126,17 +181,18 @@ func NewLevelDBStore(Path string, opts *opt.Options) (Store, error) {
 		}
 
 		// 尝试从存储中读取配置
-		if err := loadConfigFromStore(Path, opts); err == nil {
-			// 配置加载成功，opts 已经被更新
+		if err := loadConfigFromStore(Path, opts); err != nil {
+			// 配置加载失败，使用默认配置继续
+			// 这里不返回错误，因为配置加载失败不应该阻止数据库打开
 		}
 	}
-	ldb, err := leveldb.OpenFile(Path, opts)
-	if err != nil {
+	ldb, openErr := leveldb.OpenFile(Path, opts)
+	if openErr != nil {
 		// 尝试修复损坏的数据库
-		ldb, err = leveldb.RecoverFile(Path, opts)
-		if err != nil {
+		ldb, recoverErr := leveldb.RecoverFile(Path, opts)
+		if recoverErr != nil {
 			// 修复失败，返回更详细的错误信息
-			return nil, NewError(fmt.Sprintf("数据库打开失败且修复失败: 打开错误: %v, 修复错误: %v", err, err))
+			return nil, NewError(fmt.Sprintf("数据库打开失败且修复失败: 打开错误: %v, 修复错误: %v", openErr, recoverErr))
 		}
 		// 修复成功，直接使用恢复后的数据库实例
 		return &LevelDBStore{

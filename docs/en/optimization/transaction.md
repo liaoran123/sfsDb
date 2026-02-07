@@ -6,9 +6,280 @@ sfsDb supports transaction operations to ensure data consistency and reliability
 
 ## 2. Transaction Types
 
-sfsDb supports two main transaction operation methods:
-
 ### 2.1 Automatic Transactions
+
+By default, each sfsDb operation (such as insert, update, delete) is automatically executed as a separate transaction:
+
+```go
+// Automatic transactions: each operation is a separate transaction
+_, err := table.Insert(&user) // Automatic transaction
+if err != nil {
+    panic(err)
+}
+
+_, err = table.Delete(&deleteUser) // Automatic transaction
+if err != nil {
+    panic(err)
+}
+```
+
+### 2.2 Manual Transactions (Batch Operations)
+
+For multiple operations that need to be executed atomically, sfsDb provides a manual transaction mechanism implemented through batching:
+
+```go
+// 1. Get batch operation object
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    panic("Failed to get batch operation object")
+}
+
+// 2. Add multiple operations to batch
+_, err := table.Insert(&user1, batch)
+if err != nil {
+    panic(err)
+}
+
+_, err = table.Insert(&user2, batch)
+if err != nil {
+    panic(err)
+}
+
+// 3. Manually commit batch (all operations executed at once)
+err = storage.KVDb.WriteBatch(batch)
+if err != nil {
+    panic(fmt.Sprintf("Batch commit failed: %v", err))
+}
+```
+
+## 3. Transaction Mechanisms
+
+sfsDb provides three main transaction mechanisms that can be selected based on different scenarios:
+
+### 3.1 Transaction Isolation Levels
+
+sfsDb supports four transaction isolation levels, which can be selected based on data consistency and performance requirements:
+
+| Isolation Level | Description | Dirty Read | Non-repeatable Read | Phantom Read | Performance |
+|----------------|-------------|------------|---------------------|-------------|-------------|
+| READ_UNCOMMITTED | Read Uncommitted | Possible | Possible | Possible | Highest |
+| READ_COMMITTED | Read Committed | Avoided | Possible | Possible | High |
+| REPEATABLE_READ | Repeatable Read | Avoided | Avoided | Possible | Medium |
+| SERIALIZABLE | Serializable | Avoided | Avoided | Avoided | Lowest |
+
+**Usage Example**:
+
+```go
+// Create transaction with specified isolation level
+options := &engine.TransactionOptions{
+    IsolationLevel: engine.RepeatableRead, // Use repeatable read isolation level
+    AllowNested:    true,                  // Allow nested transactions
+}
+
+tx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+```
+
+### 3.2 Nested Transaction Support
+
+sfsDb supports nested transactions, allowing you to create another transaction within a transaction, which is suitable for complex business logic scenarios:
+
+**Usage Example**:
+
+```go
+// Create transaction that allows nested transactions
+options := &engine.TransactionOptions{
+    IsolationLevel: engine.RepeatableRead,
+    AllowNested:    true, // Enable nested transactions
+}
+
+parentTx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+
+// Execute operation in parent transaction
+parentData := map[string]any{"name": "Parent", "value": 100}
+parentID, err := parentTx.Insert(&parentData)
+if err != nil {
+    panic(err)
+}
+
+// Create nested transaction
+nestedTx, err := parentTx.BeginNested()
+if err != nil {
+    panic(err)
+}
+
+// Execute operation in nested transaction
+nestedData := map[string]any{"name": "Nested", "value": 200}
+nestedID, err := nestedTx.Insert(&nestedData)
+if err != nil {
+    panic(err)
+}
+
+// Commit nested transaction
+err = nestedTx.Commit()
+if err != nil {
+    panic(err)
+}
+
+// Commit parent transaction
+err = parentTx.Commit()
+if err != nil {
+    panic(err)
+}
+```
+
+**Nested Transaction Features**:
+- Nested transactions share the parent transaction's Batch, ensuring atomicity
+- Nested transactions have their own cache, supporting reading their own write operations
+- Only the root transaction actually commits to the storage engine
+- Rolling back a nested transaction does not affect the parent transaction's operations
+
+### 3.3 Transaction Timeout Setting
+
+sfsDb supports setting transaction timeout to avoid long-running transactions occupying resources:
+
+```go
+// Create transaction with timeout
+options := &engine.TransactionOptions{
+    IsolationLevel: engine.RepeatableRead,
+    Timeout:        30 * time.Second, // Set 30-second timeout
+}
+
+tx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+```
+
+### 3.4 Using Shared Batch Only (Atomicity)
+
+**Applicable Scenarios**:
+- Batch updating data across multiple tables, ensuring atomicity
+- Simple write operations that don't require read consistency
+- High-performance scenarios where transaction overhead should be avoided
+
+**Advantages**:
+- Lightweight with minimal performance overhead
+- Ensures atomicity of operations
+- Suitable for simple batch write operations
+
+**Example**:
+
+```go
+// 1. Get shared batch object
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    panic("Failed to get batch operation object")
+}
+
+// 2. Execute operations on multiple tables
+table1 := engine.TableNew("users")
+table2 := engine.TableNew("orders")
+
+// Execute operation on table1
+user := map[string]any{"name": "John", "age": 30}
+_, err := table1.Insert(&user, batch)
+if err != nil {
+    panic(err)
+}
+
+// Execute operation on table2
+order := map[string]any{"user_id": 1, "product": "A"}
+_, err = table2.Insert(&order, batch)
+if err != nil {
+    panic(err)
+}
+
+// 3. Commit all operations at once
+err = storage.KVDb.WriteBatch(batch)
+if err != nil {
+    panic(fmt.Sprintf("Batch commit failed: %v", err))
+}
+```
+
+### 3.2 Using Snapshot Only (Consistency)
+
+**Applicable Scenarios**:
+- Report generation, data analysis, and other read-only operations
+- Scenarios requiring a consistent view of data
+- Long-running queries that need to avoid data changes during execution
+
+**Advantages**:
+- Provides a consistent view of data
+- Does not block other write operations
+- Suitable for complex read-only queries
+
+**Example**:
+
+```go
+// Get storage snapshot
+snapshot := storage.KVDb.GetSnapshot()
+if snapshot == nil {
+    panic("Failed to get snapshot")
+}
+defer snapshot.Release()
+
+// Use snapshot for read operations
+// Note: In practice, snapshots are typically used indirectly through transaction interfaces
+```
+
+### 3.3 Using Full Transaction (Isolation)
+
+**Applicable Scenarios**:
+- Banking transfers, inventory management, and other scenarios requiring full ACID properties
+- Business logic involving multiple steps that must all succeed or fail together
+- Operations requiring data isolation in concurrent environments
+
+**Advantages**:
+- Provides complete ACID properties
+- Ensures data consistency and isolation
+- Supports rollback operations
+
+**Example**:
+
+```go
+// 1. Start transaction
+tx, err := table.Begin()
+if err != nil {
+    panic(err)
+}
+
+// 2. Execute operations in transaction
+// Insert operation
+user := map[string]any{"name": "John", "age": 30}
+userID, err := tx.Insert(&user)
+if err != nil {
+    tx.Rollback()
+    panic(err)
+}
+
+// Update operation
+updateData := map[string]any{"id": userID, "age": 31}
+err = tx.Update(&updateData)
+if err != nil {
+    tx.Rollback()
+    panic(err)
+}
+
+// 3. Commit transaction
+err = tx.Commit()
+if err != nil {
+    panic(err)
+}
+```
+
+### 3.4 Combined Usage Scenarios
+
+- **Batch Transaction**: Using shared Batch for atomicity + transaction for isolation, handling complex multi-table operations
+- **Snapshot Transaction**: Using snapshot for consistency + transaction for isolation, ensuring read consistency while supporting write operations
+- **Multi-table Transaction**: Using TransactionManager to manage transactions across multiple tables, sharing the same Batch to ensure atomicity
+
+## 4. Transaction Best Practices
 
 By default, each sfsDb operation (such as insert, update, delete) is automatically executed as a separate transaction:
 
@@ -439,6 +710,236 @@ func multiTableTransactionExample() error {
         fmt.Println("Multi-table transaction completed successfully")
         return nil
     })
+}
+```
+
+## 10. Advanced Concurrency Control
+
+### 10.1 Lock Timeout Mechanism
+
+sfsDb implements a lock timeout mechanism to prevent transactions from holding locks indefinitely, which could lead to deadlocks or performance issues.
+
+#### 10.1.1 Setting Lock Timeout
+
+```go
+// Set lock timeout for table
+table.SetLockTimeout(30 * time.Second)
+```
+
+#### 10.1.2 Acquiring Locks with Timeout
+
+```go
+// Acquire read lock with timeout
+err := table.acquireRowReadLock("primary_key_value", 0, 10*time.Second)
+
+// Acquire write lock with timeout
+err := table.acquireRowWriteLock("primary_key_value", 0, 10*time.Second)
+```
+
+### 10.2 Deadlock Detection
+
+sfsDb includes a built-in deadlock detector that can identify and handle deadlock situations.
+
+#### 10.2.1 Detecting Deadlocks
+
+```go
+// Detect deadlocks in the table
+deadlockedTxs := table.DetectDeadlock()
+if len(deadlockedTxs) > 0 {
+    fmt.Printf("Detected deadlocks in transactions: %v\n", deadlockedTxs)
+}
+```
+
+#### 10.2.2 Transaction Lock Tracking
+
+```go
+// Begin transaction lock tracking
+table.BeginTransaction(txID)
+
+// Record held lock
+table.RecordHeldLock(txID, "primary_key_value")
+
+// Record waiting lock (triggers deadlock detection)
+table.RecordWaitingLock(txID, "another_primary_key_value")
+
+// End transaction lock tracking
+table.EndTransaction(txID)
+```
+
+### 10.3 Lock Upgrade/Downgrade
+
+sfsDb supports lock upgrade (from read to write) and downgrade (from write to read) operations.
+
+#### 10.3.1 Lock Upgrade
+
+```go
+// Upgrade from read lock to write lock
+err := table.UpgradeLock("primary_key_value", txID, 5*time.Second)
+if err != nil {
+    fmt.Printf("Failed to upgrade lock: %v\n", err)
+}
+```
+
+#### 10.3.2 Lock Downgrade
+
+```go
+// Downgrade from write lock to read lock
+err := table.DowngradeLock("primary_key_value", txID)
+if err != nil {
+    fmt.Printf("Failed to downgrade lock: %v\n", err)
+}
+```
+
+### 10.4 Lock Statistics and Monitoring
+
+sfsDb provides comprehensive lock statistics and monitoring capabilities.
+
+#### 10.4.1 Getting Lock Statistics
+
+```go
+// Get lock statistics
+stats := table.GetLockStats()
+fmt.Printf("Total locks: %d\n", stats.TotalLocks)
+fmt.Printf("Read locks: %d\n", stats.ReadLocks)
+fmt.Printf("Write locks: %d\n", stats.WriteLocks)
+fmt.Printf("Average lock wait time: %v\n", stats.LockWaitTime)
+fmt.Printf("Average lock hold time: %v\n", stats.LockHoldTime)
+```
+
+#### 10.4.2 Lock Cleanup
+
+```go
+// Cleanup expired locks
+cleanedCount := table.CleanupExpiredLocks()
+fmt.Printf("Cleaned %d expired locks\n", cleanedCount)
+
+// Start periodic lock cleanup
+// table.StartLockCleanup(1 * time.Minute)
+```
+
+### 10.5 Extending Lock Timeout
+
+sfsDb allows extending lock timeouts for long-running operations.
+
+```go
+// Extend lock timeout
+if table.IsLockAboutToExpire("primary_key_value", 5*time.Second) {
+    err := table.ExtendLockTimeout("primary_key_value", 10*time.Second)
+    if err != nil {
+        fmt.Printf("Failed to extend lock timeout: %v\n", err)
+    }
+}
+```
+
+## 11. Financial Transaction Example
+
+### 11.1 Banking Transfer Example
+
+```go
+// Execute banking transfer using transactions
+func transferFunds(fromID, toID int, amount float64) error {
+    // Create batch
+    batch := storage.KVDb.GetBatch()
+    if batch == nil {
+        return fmt.Errorf("failed to create batch")
+    }
+
+    // Use transaction manager
+    return engine.WithTransaction(batch, []*engine.Table{accountTable}, func(transactions map[*engine.Table]engine.Transaction) error {
+        tx := transactions[accountTable]
+
+        // Read from account
+        fromFields := map[string]any{"id": fromID}
+        fromRecord, err := tx.Read(&fromFields)
+        if err != nil {
+            return err
+        }
+        if fromRecord == nil {
+            return fmt.Errorf("from account not found")
+        }
+
+        // Read to account
+        toFields := map[string]any{"id": toID}
+        toRecord, err := tx.Read(&toFields)
+        if err != nil {
+            return err
+        }
+        if toRecord == nil {
+            return fmt.Errorf("to account not found")
+        }
+
+        // Get balances (simplified for example)
+        fromBalance := 1000.0
+        toBalance := 500.0
+
+        // Check if sufficient funds
+        if fromBalance < amount {
+            return fmt.Errorf("insufficient funds")
+        }
+
+        // Update balances
+        newFromBalance := fromBalance - amount
+        newToBalance := toBalance + amount
+
+        // Update from account
+        updateFromFields := map[string]any{
+            "id":      fromID,
+            "balance": newFromBalance,
+        }
+        if err := tx.Update(&updateFromFields); err != nil {
+            return err
+        }
+
+        // Update to account
+        updateToFields := map[string]any{
+            "id":      toID,
+            "balance": newToBalance,
+        }
+        if err := tx.Update(&updateToFields); err != nil {
+            return err
+        }
+
+        return nil
+    })
+}
+```
+
+### 11.2 Concurrent Transfer Example
+
+```go
+// Concurrent transfer example
+func testConcurrentTransfers() {
+    var wg sync.WaitGroup
+    var mu sync.Mutex
+    errorCount := 0
+    transferCount := 0
+
+    // Start 10 concurrent transfer goroutines
+    for i := 0; i < 10; i++ {
+        wg.Add(1)
+        go func(i int) {
+            defer wg.Done()
+            
+            amount := float64(100 + i*10)
+            targetID := 2 + (i % 3)
+            
+            err := transferFunds(1, targetID, amount)
+            
+            mu.Lock()
+            defer mu.Unlock()
+            
+            if err != nil {
+                errorCount++
+                fmt.Printf("Transfer failed: %v\n", err)
+            } else {
+                transferCount++
+                fmt.Printf("Transfer successful: from 1 to %d, amount %.2f\n", targetID, amount)
+            }
+        }(i)
+    }
+
+    wg.Wait()
+    fmt.Printf("Concurrent transfer test completed: %d successful, %d failed\n", transferCount, errorCount)
 }
 ```
 

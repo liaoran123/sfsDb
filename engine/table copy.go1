@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
-	"sync"
 	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
@@ -18,7 +17,6 @@ const SPLIT = util.SPLIT //分隔符
 表结构，半结构泛型化支持
 提供灵活的组合索引优化查询
 */
-
 type Table struct {
 	id   uint8  // 表id
 	name string // 表名
@@ -33,15 +31,11 @@ type Table struct {
 	indexs              *Indexs          // 索引集合
 	counter             AutoInt          // 自动增值计数器，使用自定义的AutoInt
 	kvStore             storage.Store
-	fieldIDManager      *IDManager        // 字段ID管理器
-	indexIDManager      *IDManager        // 索引ID管理器
-	timeFields          map[string]bool   // 标记字段是否为时间类型
-	primaryFields       []string          // 缓存的主键字段列表
-	primaryFieldsLoaded bool              // 主键字段列表是否已加载
-	rowLocks            sync.Map          // 行级锁映射，key: 主键值，value: *RowLock
-	lockTimeout         time.Duration     // 锁超时时间
-	transactionLocks    sync.Map          // 事务锁信息映射，key: 事务ID，value: *TransactionLockInfo
-	deadlockDetector    *DeadlockDetector // 死锁检测器
+	fieldIDManager      *IDManager      // 字段ID管理器
+	indexIDManager      *IDManager      // 索引ID管理器
+	timeFields          map[string]bool // 标记字段是否为时间类型
+	primaryFields       []string        // 缓存的主键字段列表
+	primaryFieldsLoaded bool            // 主键字段列表是否已加载
 }
 
 // 创建或获取一个表
@@ -58,7 +52,6 @@ func TableNew(name string) (*Table, error) {
 		kvStore: storage.KVDb,
 	}
 	tb.indexs = NewIndexs(&tb.fields)
-	tb.deadlockDetector = NewDeadlockDetector(tb)
 	if TableIDManager == nil {
 		TableIDManager = NewIDManager(tb.kvStore)
 	}
@@ -101,18 +94,6 @@ func (t *Table) SetFields(fields map[string]any) error {
 		}
 	}
 
-	// 确保v字段的类型是string
-	if _, ok := fields["v"]; ok {
-		// 如果用户提供了v字段，确保其类型是string
-		if _, ok := fields["v"].(string); !ok {
-			// 如果不是string类型，将其设置为string类型
-			fields["v"] = ""
-		}
-	} else {
-		// 如果用户没有提供v字段，默认设置为string类型
-		fields["v"] = ""
-	}
-
 	t.fields = fields
 	t.fieldsid = make(map[uint8]string, len(t.fields))
 	if t.fieldIDManager == nil {
@@ -128,8 +109,7 @@ func (t *Table) SetFields(fields map[string]any) error {
 		t.fieldsid[id] = field
 	}
 	//添加版本号字段，并设置id为255
-	//t.fields["v"] = 0
-	t.fields["v"] = "" //generateEnhancedVersion() // 使用增强版版本号 为字符串类型
+	t.fields["v"] = 0
 	t.fieldsid[uint8(255)] = "v"
 
 	// 更新时间字段映射
@@ -219,11 +199,6 @@ func (t *Table) GetFieldsName() []string {
 //go:inline
 func (t *Table) CheckType(fields *map[string]any) error {
 	for field, value := range *fields {
-		// 跳过对版本号字段v的类型检查，因为它是系统默认字段，类型由系统控制
-		if field == "v" {
-			continue
-		}
-
 		fieldValue, exists := t.fields[field]
 		// 只检查已经存在于表中的字段的类型
 		if exists {
@@ -392,3 +367,5 @@ func (t *Table) BatchRecordByteToAny(records []*map[string][]byte) []*map[string
 func (t *Table) GetAllIndexNameIdMap() map[string]uint8 {
 	return t.indexs.GetAllIndexNameIdMap()
 }
+
+

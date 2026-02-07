@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
@@ -53,8 +52,8 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	currentID = (*fields)[pkfield].(int)
 	//currentID = util.AnyToInt((*fields)[pkfield])
 	// 添加初始版本号
-	if _, hasVersion := (*fields)["v"]; !hasVersion || (*fields)["v"] == "" {
-		(*fields)["v"] = generateEnhancedVersion() // 使用增强版版本号
+	if _, hasVersion := (*fields)["v"]; !hasVersion {
+		(*fields)["v"] = 1 // 初始版本号为1
 	}
 
 	// 转换字段为字节数组
@@ -193,8 +192,8 @@ func (t *Table) BatchInsert(records []*map[string]any, batchs ...storage.Batch) 
 		}
 
 		// 添加初始版本号
-		if _, hasVersion := (*fields)["v"]; !hasVersion || (*fields)["v"] == "" {
-			(*fields)["v"] = generateEnhancedVersion() // 使用增强版版本号
+		if _, hasVersion := (*fields)["v"]; !hasVersion {
+			(*fields)["v"] = 1 // 初始版本号为1
 		}
 
 		// 转换字段为字节数组
@@ -263,65 +262,28 @@ func (t *Table) BatchInsertWithSize(records []*map[string]any, batchSize int, ba
 
 // 删除记录
 // fields *map[string]any 主键值，可能是组合主键
-// 之前Delete的缺省参数为batchs ...storage.Batch ，支持乐观锁需要增加一个参数，故而为兼容之前的函数，
-// 使用使用 params ...any 。batch和timeout合并为一个参数组数
-func (t *Table) Delete(fields *map[string]any, params ...any) error {
-	// 解析参数，支持超时参数和batch参数
-	var batch storage.Batch
-	var timeout time.Duration
-
-	// 处理可变参数
-	for _, param := range params {
-		switch v := param.(type) {
-		case storage.Batch:
-			batch = v
-		case time.Duration:
-			timeout = v
-		}
-	}
-
-	// 如果没有提供batch，使用默认batch
-	if batch == nil {
-		batch = t.kvStore.GetBatch()
-		if batch == nil {
-			return fmt.Errorf("failed to get batch")
-		}
-	}
+func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 	//检查是否提供了所有主键字段
 	for _, field := range t.GetPrimaryFields() {
 		if _, ok := (*fields)[field]; !ok {
 			return fmt.Errorf("必须提供主键字段 '%s'", field)
 		}
 	}
-
-	// 获取主键值用于行级锁
-	pkField := t.GetPrimaryFields()[0]
-	pkValue := (*fields)[pkField]
-
-	// 获取行级排他锁（使用默认事务ID）
-	if err := t.acquireRowWriteLock(pkValue, 0, timeout); err != nil {
+	//读取记录
+	record, err := t.Read(fields)
+	if err != nil {
 		return err
 	}
-	// 直接使用 Unlock 释放写锁
-	lockKey := fmt.Sprintf("%v", pkValue)
-	defer func() {
-		if rowLock, ok := t.rowLocks.Load(lockKey); ok {
-			rl := rowLock.(*RowLock)
-			rl.rwLock.Unlock()
-		}
-	}()
-
-	//读取记录 - 直接使用 ReadByBytes 避免死锁
-	fieldsBytes := t.FieldsToBytes(fields)
-	key := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
-	record := t.ReadByBytes(key)
 	if record == nil {
 		return fmt.Errorf("主键值 '%v' 的记录不存在", fields)
 	}
 
+	var batch storage.Batch
 	//是否用户手动控制事务
-	useBatch := batch != nil
-	if !useBatch { //用户未手动控制事务，创建新batch
+	useBatch := len(batchs) > 0
+	if useBatch { //用户手动控制事务
+		batch = batchs[0]
+	} else {
 		batch = t.kvStore.GetBatch()
 	}
 
@@ -335,7 +297,7 @@ func (t *Table) Delete(fields *map[string]any, params ...any) error {
 	}
 	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
 	BatchContainer.Operation(fieldsBytes)
-	if !useBatch { //用户未手动控制事务，自动提交
+	if len(batchs) == 0 { //用户未手动控制事务，自动提交
 		t.kvStore.WriteBatch(batch)
 	}
 	//fmt.Printf("Delete BatchContainer.Len(): %v\n", BatchContainer.Len())
@@ -343,98 +305,39 @@ func (t *Table) Delete(fields *map[string]any, params ...any) error {
 }
 
 // 从按主键数据库读取记录
-func (t *Table) Read(fields *map[string]any, timeout ...time.Duration) ([]byte, error) {
-	// 获取主键值用于行级锁
-	pkField := t.GetPrimaryFields()[0]
-	pkValue := (*fields)[pkField]
-
-	// 获取行级共享锁（使用默认事务ID）
-	if err := t.acquireRowReadLock(pkValue, 0, timeout...); err != nil {
-		return nil, err
-	}
-	// 直接使用 RUnlock 释放读锁
-	lockKey := fmt.Sprintf("%v", pkValue)
-	defer func() {
-		if rowLock, ok := t.rowLocks.Load(lockKey); ok {
-			rl := rowLock.(*RowLock)
-			rl.rwLock.RUnlock()
-		}
-	}()
-
+func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 	fieldsBytes := t.FieldsToBytes(fields)
 	key := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
 	return t.ReadByBytes(key), nil
 }
 
-// ReadWithTimeout 带超时的读取方法
-func (t *Table) ReadWithTimeout(fields *map[string]any, timeout time.Duration) ([]byte, error) {
-	return t.Read(fields, timeout)
-}
-
 // 更新记录，不支持修改主键字段
 // fields *map[string]any 主键值，可能是组合主键
 // 乐观锁并发控制，允许多个事务同时读取记录，但只有一个事务能成功更新记录，避免了并发更新冲突。
-// 之前Update的缺省参数为batchs ...storage.Batch ，支持乐观锁需要增加一个参数，故而为兼容之前的函数，
-// 使用使用 params ...any 。batch和timeout合并为一个参数组数
-func (t *Table) Update(fields *map[string]any, params ...any) error {
-	// 解析参数，支持超时参数和batch参数
-	var batch storage.Batch
-	var timeout time.Duration
-
-	// 处理可变参数
-	for _, param := range params {
-		switch v := param.(type) {
-		case storage.Batch:
-			batch = v
-		case time.Duration:
-			timeout = v
-		}
-	}
-
-	// 如果没有提供batch，使用默认batch
-	if batch == nil {
-		batch = t.kvStore.GetBatch()
-		if batch == nil {
-			return fmt.Errorf("failed to get batch")
-		}
-	}
+func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	//检查是否提供了所有主键字段
 	for _, field := range t.GetPrimaryFields() {
 		if _, ok := (*fields)[field]; !ok {
 			return fmt.Errorf("必须提供主键字段 '%s'", field)
 		}
 	}
-
-	// 获取主键值用于行级锁
-	pkField := t.GetPrimaryFields()[0]
-	pkValue := (*fields)[pkField]
-
-	// 获取行级排他锁（使用默认事务ID）
-	if err := t.acquireRowWriteLock(pkValue, 0, timeout); err != nil {
-		return err
-	}
-	// 直接使用 Unlock 释放写锁
-	lockKey := fmt.Sprintf("%v", pkValue)
-	defer func() {
-		if rowLock, ok := t.rowLocks.Load(lockKey); ok {
-			rl := rowLock.(*RowLock)
-			rl.rwLock.Unlock()
-		}
-	}()
-
 	// 检查字段类型是否匹配
 	if err := t.CheckType(fields); err != nil {
 		return err
 	}
+	var batch storage.Batch
 	//是否用户手动控制事务
-	useBatch := batch != nil
-	if !useBatch { //用户未手动控制事务，创建新batch
+	useBatch := len(batchs) > 0
+	if useBatch { //用户手动控制事务
+		batch = batchs[0]
+	} else {
 		batch = t.kvStore.GetBatch()
 	}
-	//读取记录 - 直接使用 ReadByBytes 避免死锁
-	fieldsBytes := t.FieldsToBytes(fields)
-	key := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
-	record := t.ReadByBytes(key)
+	//读取记录
+	record, err := t.Read(fields)
+	if err != nil {
+		return err
+	}
 	if record == nil {
 		return fmt.Errorf("主键值 '%v' 的记录不存在", fields)
 	}
@@ -464,22 +367,19 @@ func (t *Table) Update(fields *map[string]any, params ...any) error {
 
 	//---------更新-----------------------
 	// 获取当前版本号
-	currentVersionBytes, exists := (*fieldsBytes)["v"]
+	currentVersionbyte, exists := (*fieldsBytes)["v"]
 	if !exists {
-		currentVersionBytes = []byte{1} // 默认版本号
+		currentVersionbyte = []byte{1} // 默认版本号
 	}
-	currentVersion := string(currentVersionBytes)
+	currentVersion := int(util.Bytes(currentVersionbyte).Uint64())
 
 	// 检查版本号是否匹配
-	if updateVersion, hasVersion := (*fields)["v"].(string); hasVersion {
+	if updateVersion, hasVersion := (*fields)["v"].(int); hasVersion {
 		if updateVersion != currentVersion {
-			return fmt.Errorf("optimistic lock conflict: version mismatch, expected %s, got %s", currentVersion, updateVersion)
+			return fmt.Errorf("optimistic lock conflict: version mismatch, expected %d, got %d", currentVersion, updateVersion)
 		}
 	}
-
-	// 更新版本号为增强版版本号
-	enhancedVersion := generateEnhancedVersion()
-	(*fields)["v"] = enhancedVersion
+	(*fields)["v"] = currentVersion + 1 // 更新版本号
 
 	//更新字段值
 	for field, val := range *fields {
@@ -498,7 +398,7 @@ func (t *Table) Update(fields *map[string]any, params ...any) error {
 	//添加全文索引key=joinValue,value=nil
 	BatchContainer.Operation(fieldsBytes, updateFields...)
 	//提交事务
-	if !useBatch { //用户未手动控制事务，自动提交
+	if len(batchs) == 0 { //用户未手动控制事务，自动提交
 		if err := t.kvStore.WriteBatch(batch); err != nil {
 			return err
 		}

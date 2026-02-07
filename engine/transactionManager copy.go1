@@ -6,16 +6,6 @@ import (
 	"github.com/liaoran123/sfsDb/storage"
 )
 
-// TransactionManager 管理多表事务
-// 用于简化多表事务的创建、提交和回滚操作
-// 所有表共享同一个batch，确保原子性
-
-type TransactionManager struct {
-	transactions []Transaction // 管理的事务列表
-	batch        storage.Batch // 共享的batch
-	committed    bool          // 是否已提交
-}
-
 // NewTransactionManager 创建一个新的事务管理器
 // batch: 共享的batch对象，用于所有事务
 func NewTransactionManager(batch storage.Batch) *TransactionManager {

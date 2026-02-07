@@ -1,0 +1,561 @@
+package engine
+
+import (
+	"fmt"
+	"math/rand"
+	"sync"
+	"time"
+)
+
+// 本地随机数生成器实例
+var (
+	rng      = rand.New(rand.NewSource(time.Now().UnixNano()))
+	rngMutex sync.Mutex
+)
+
+// 生成增强版版本号
+func generateEnhancedVersion() string {
+	// 时间戳（毫秒）+ 随机序列号
+	rngMutex.Lock()
+	randomNum := rng.Intn(1000)
+	rngMutex.Unlock()
+	return fmt.Sprintf("%d_%d", time.Now().UnixMilli(), randomNum)
+}
+
+// 锁类型常量
+const (
+	LockTypeNone  = 0 // 无锁
+	LockTypeRead  = 1 // 读锁
+	LockTypeWrite = 2 // 写锁
+)
+
+// 行级锁结构
+type RowLock struct {
+	rwLock     sync.RWMutex
+	lockedAt   time.Time
+	lockHolder uint64        // 锁持有者 ID（事务 ID）
+	timeout    time.Duration // 锁超时时间
+	isExpired  bool          // 标记是否已过期
+	lockType   int           // 锁类型：LockTypeNone, LockTypeRead, LockTypeWrite
+	readCount  int           // 读锁计数器
+}
+
+// 锁状态信息
+type LockInfo struct {
+	Table      string        // 表名
+	PrimaryKey string        // 主键值
+	LockType   int           // 锁类型
+	LockHolder uint64        // 锁持有者
+	LockedAt   time.Time     // 加锁时间
+	Timeout    time.Duration // 超时时间
+	IsExpired  bool          // 是否已过期
+}
+
+// 事务锁信息
+type TransactionLockInfo struct {
+	TxID         uint64               // 事务ID
+	HeldLocks    map[string]*LockInfo // 持有的锁
+	WaitingFor   *LockInfo            // 等待的锁
+	StartTime    time.Time            // 事务开始时间
+	IsDeadlocked bool                 // 是否死锁
+}
+
+// 死锁检测器
+type DeadlockDetector struct {
+	table *Table
+	mutex sync.Mutex
+}
+
+// 创建死锁检测器
+func NewDeadlockDetector(table *Table) *DeadlockDetector {
+	return &DeadlockDetector{
+		table: table,
+	}
+}
+
+// 检测死锁
+func (dd *DeadlockDetector) DetectDeadlock() []uint64 {
+	dd.mutex.Lock()
+	defer dd.mutex.Unlock()
+
+	// 构建等待图
+	waitForGraph := make(map[uint64][]uint64)
+	transactionLocks := make(map[uint64]*TransactionLockInfo)
+
+	// 收集所有事务锁信息
+	dd.table.transactionLocks.Range(func(key, value interface{}) bool {
+		txID := key.(uint64)
+		tli := value.(*TransactionLockInfo)
+		transactionLocks[txID] = tli
+
+		// 如果事务正在等待锁
+		if tli.WaitingFor != nil && tli.WaitingFor.LockHolder != 0 {
+			waitForGraph[txID] = append(waitForGraph[txID], tli.WaitingFor.LockHolder)
+		}
+
+		return true
+	})
+
+	// 检测循环等待
+	var deadlockedTxs []uint64
+	visited := make(map[uint64]bool)
+	recStack := make(map[uint64]bool)
+
+	var hasCycle func(txID uint64) bool
+	hasCycle = func(txID uint64) bool {
+		if !visited[txID] {
+			visited[txID] = true
+			recStack[txID] = true
+
+			for _, neighbor := range waitForGraph[txID] {
+				if !visited[neighbor] && hasCycle(neighbor) {
+					return true
+				} else if recStack[neighbor] {
+					// 找到循环，收集死锁的事务
+					if !contains(deadlockedTxs, txID) {
+						deadlockedTxs = append(deadlockedTxs, txID)
+					}
+					if !contains(deadlockedTxs, neighbor) {
+						deadlockedTxs = append(deadlockedTxs, neighbor)
+					}
+					return true
+				}
+			}
+		}
+		recStack[txID] = false
+		return false
+	}
+
+	// 对每个事务检查是否存在循环
+	for txID := range transactionLocks {
+		if !visited[txID] {
+			hasCycle(txID)
+		}
+	}
+
+	return deadlockedTxs
+}
+
+// 辅助函数：检查切片是否包含元素
+func contains(slice []uint64, item uint64) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+// 获取行级共享锁（读锁）
+func (t *Table) acquireRowReadLock(pkValue any, txID uint64, timeout ...time.Duration) error {
+	lockKey := fmt.Sprintf("%v", pkValue)
+	rowLock, _ := t.rowLocks.LoadOrStore(lockKey, &RowLock{
+		lockedAt:  time.Now(),
+		timeout:   30 * time.Second, // 默认超时时间
+		isExpired: false,
+		lockType:  LockTypeNone,
+		readCount: 0,
+	})
+	rl := rowLock.(*RowLock)
+
+	// 设置超时时间
+	if len(timeout) > 0 {
+		rl.timeout = timeout[0]
+	}
+
+	// 检查锁是否已过期
+	if rl.isExpired || time.Since(rl.lockedAt) > rl.timeout {
+		rl.isExpired = true
+		// 尝试释放过期锁
+		if rl.rwLock.TryRLock() {
+			// 成功获取锁，更新锁状态
+			rl.lockedAt = time.Now()
+			rl.isExpired = false
+			rl.lockType = LockTypeRead
+			rl.lockHolder = txID
+			rl.readCount = 1
+			return nil
+		}
+		return fmt.Errorf("锁已过期且无法获取")
+	}
+
+	rl.rwLock.RLock()
+	rl.lockedAt = time.Now()
+	rl.lockType = LockTypeRead
+	rl.lockHolder = txID
+	rl.readCount++
+	return nil
+}
+
+// 获取行级排他锁（写锁）
+func (t *Table) acquireRowWriteLock(pkValue any, txID uint64, timeout ...time.Duration) error {
+	lockKey := fmt.Sprintf("%v", pkValue)
+	rowLock, _ := t.rowLocks.LoadOrStore(lockKey, &RowLock{
+		lockedAt:  time.Now(),
+		timeout:   30 * time.Second, // 默认超时时间
+		isExpired: false,
+		lockType:  LockTypeNone,
+		readCount: 0,
+	})
+	rl := rowLock.(*RowLock)
+
+	// 设置超时时间
+	if len(timeout) > 0 {
+		rl.timeout = timeout[0]
+	}
+
+	// 检查锁是否已过期
+	if rl.isExpired || time.Since(rl.lockedAt) > rl.timeout {
+		rl.isExpired = true
+		// 尝试释放过期锁
+		if rl.rwLock.TryLock() {
+			// 成功获取锁，更新锁状态
+			rl.lockedAt = time.Now()
+			rl.isExpired = false
+			rl.lockType = LockTypeWrite
+			rl.lockHolder = txID
+			rl.readCount = 0
+			return nil
+		}
+		return fmt.Errorf("锁已过期且无法获取")
+	}
+
+	rl.rwLock.Lock()
+	rl.lockedAt = time.Now()
+	rl.lockType = LockTypeWrite
+	rl.lockHolder = txID
+	rl.readCount = 0
+	return nil
+}
+
+// 释放行级锁
+func (t *Table) releaseRowLock(pkValue interface{}) {
+	lockKey := fmt.Sprintf("%v", pkValue)
+	if rowLock, ok := t.rowLocks.Load(lockKey); ok {
+		rl := rowLock.(*RowLock)
+		switch rl.lockType {
+		case LockTypeRead:
+			rl.readCount--
+			if rl.readCount <= 0 {
+				rl.rwLock.RUnlock()
+				rl.lockType = LockTypeNone
+				rl.lockHolder = 0
+				rl.readCount = 0
+				// 清理过期锁
+				if time.Since(rl.lockedAt) > rl.timeout {
+					t.rowLocks.Delete(lockKey)
+				}
+			} else {
+				rl.rwLock.RUnlock()
+			}
+		case LockTypeWrite:
+			rl.rwLock.Unlock()
+			rl.lockType = LockTypeNone
+			rl.lockHolder = 0
+			rl.readCount = 0
+			// 清理过期锁
+			if time.Since(rl.lockedAt) > rl.timeout {
+				t.rowLocks.Delete(lockKey)
+			}
+		}
+	}
+}
+
+// 获取锁状态信息
+func (t *Table) GetLockInfo(pkValue interface{}) *LockInfo {
+	lockKey := fmt.Sprintf("%v", pkValue)
+	if rowLock, ok := t.rowLocks.Load(lockKey); ok {
+		rl := rowLock.(*RowLock)
+		return &LockInfo{
+			Table:      t.name,
+			PrimaryKey: lockKey,
+			LockType:   rl.lockType,
+			LockHolder: rl.lockHolder,
+			LockedAt:   rl.lockedAt,
+			Timeout:    rl.timeout,
+			IsExpired:  rl.isExpired || time.Since(rl.lockedAt) > rl.timeout,
+		}
+	}
+	return nil
+}
+
+// 清理过期锁
+func (t *Table) CleanupExpiredLocks() int {
+	count := 0
+	t.rowLocks.Range(func(key, value interface{}) bool {
+		rowLock := value.(*RowLock)
+		if rowLock.isExpired || time.Since(rowLock.lockedAt) > rowLock.timeout {
+			t.rowLocks.Delete(key)
+			count++
+		}
+		return true
+	})
+	return count
+}
+
+// 启动定期清理过期锁的协程
+func (t *Table) StartLockCleanup(interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			cleanedCount := t.CleanupExpiredLocks()
+			if cleanedCount > 0 {
+				// 这里可以添加日志记录
+				// fmt.Printf("表 %s 清理了 %d 个过期锁\n", t.name, cleanedCount)
+			}
+		}
+	}()
+}
+
+// 清理所有锁
+func (t *Table) CleanupAllLocks() int {
+	count := 0
+	t.rowLocks.Range(func(key, value interface{}) bool {
+		t.rowLocks.Delete(key)
+		count++
+		return true
+	})
+	return count
+}
+
+// 锁统计信息
+type LockStats struct {
+	TotalLocks       int           // 总锁数量
+	ReadLocks        int           // 读锁数量
+	WriteLocks       int           // 写锁数量
+	ExpiredLocks     int           // 过期锁数量
+	LockWaitTime     time.Duration // 平均锁等待时间
+	LockHoldTime     time.Duration // 平均锁持有时间
+	LockTimeouts     int           // 锁超时次数
+	DeadlockDetected int           // 检测到的死锁次数
+}
+
+// 清理事务锁信息
+func (t *Table) CleanupTransactionLocks() int {
+	count := 0
+	t.transactionLocks.Range(func(key, value interface{}) bool {
+		t.transactionLocks.Delete(key)
+		count++
+		return true
+	})
+	return count
+}
+
+// 获取锁统计信息
+func (t *Table) GetLockStats() *LockStats {
+	stats := &LockStats{}
+	totalLocks := 0
+	readLocks := 0
+	writeLocks := 0
+	expiredLocks := 0
+	totalWaitTime := time.Duration(0)
+	totalHoldTime := time.Duration(0)
+	totalTransactions := 0
+
+	// 统计锁信息
+	t.rowLocks.Range(func(key, value interface{}) bool {
+		totalLocks++
+		rowLock := value.(*RowLock)
+
+		switch rowLock.lockType {
+		case LockTypeRead:
+			readLocks++
+		case LockTypeWrite:
+			writeLocks++
+		}
+
+		if rowLock.isExpired || time.Since(rowLock.lockedAt) > rowLock.timeout {
+			expiredLocks++
+		} else {
+			totalHoldTime += time.Since(rowLock.lockedAt)
+		}
+
+		return true
+	})
+
+	// 统计事务信息
+	t.transactionLocks.Range(func(key, value interface{}) bool {
+		totalTransactions++
+		tli := value.(*TransactionLockInfo)
+		if tli.WaitingFor != nil {
+			totalWaitTime += time.Since(tli.StartTime)
+		}
+		if tli.IsDeadlocked {
+			stats.DeadlockDetected++
+		}
+		return true
+	})
+
+	// 计算平均值
+	if totalLocks > 0 {
+		stats.LockHoldTime = totalHoldTime / time.Duration(totalLocks)
+	}
+	if totalTransactions > 0 {
+		stats.LockWaitTime = totalWaitTime / time.Duration(totalTransactions)
+	}
+
+	// 设置统计结果
+	stats.TotalLocks = totalLocks
+	stats.ReadLocks = readLocks
+	stats.WriteLocks = writeLocks
+	stats.ExpiredLocks = expiredLocks
+
+	return stats
+}
+
+// 设置锁超时时间
+func (t *Table) SetLockTimeout(timeout time.Duration) {
+	t.lockTimeout = timeout
+}
+
+// 获取锁超时时间
+func (t *Table) GetLockTimeout() time.Duration {
+	return t.lockTimeout
+}
+
+// 检查锁是否即将过期
+func (t *Table) IsLockAboutToExpire(pkValue interface{}, threshold time.Duration) bool {
+	lockInfo := t.GetLockInfo(pkValue)
+	if lockInfo != nil {
+		remainingTime := lockInfo.Timeout - time.Since(lockInfo.LockedAt)
+		return remainingTime < threshold
+	}
+	return false
+}
+
+// 延长锁的过期时间
+func (t *Table) ExtendLockTimeout(pkValue interface{}, additionalTime time.Duration) error {
+	lockKey := fmt.Sprintf("%v", pkValue)
+	if rowLock, ok := t.rowLocks.Load(lockKey); ok {
+		rl := rowLock.(*RowLock)
+		rl.timeout += additionalTime
+		rl.lockedAt = time.Now() // 重置锁时间
+		rl.isExpired = false
+		return nil
+	}
+	return fmt.Errorf("锁不存在")
+}
+
+// 开始事务锁跟踪
+func (t *Table) BeginTransaction(txID uint64) {
+	t.transactionLocks.Store(txID, &TransactionLockInfo{
+		TxID:         txID,
+		HeldLocks:    make(map[string]*LockInfo),
+		StartTime:    time.Now(),
+		IsDeadlocked: false,
+	})
+}
+
+// 结束事务锁跟踪
+func (t *Table) EndTransaction(txID uint64) {
+	if tli, ok := t.transactionLocks.Load(txID); ok {
+		transactionLockInfo := tli.(*TransactionLockInfo)
+		// 释放所有持有的锁
+		for lockKey := range transactionLockInfo.HeldLocks {
+			// 解析主键值
+			// 这里简化处理，实际需要根据lockKey格式解析
+			t.releaseRowLock(lockKey)
+		}
+		t.transactionLocks.Delete(txID)
+	}
+}
+
+// 记录事务持有锁
+func (t *Table) RecordHeldLock(txID uint64, pkValue interface{}) {
+	lockInfo := t.GetLockInfo(pkValue)
+	if lockInfo != nil {
+		if tli, ok := t.transactionLocks.Load(txID); ok {
+			transactionLockInfo := tli.(*TransactionLockInfo)
+			lockKey := fmt.Sprintf("%v", pkValue)
+			transactionLockInfo.HeldLocks[lockKey] = lockInfo
+		}
+	}
+}
+
+// 记录事务等待锁
+func (t *Table) RecordWaitingLock(txID uint64, pkValue interface{}) {
+	lockInfo := t.GetLockInfo(pkValue)
+	if tli, ok := t.transactionLocks.Load(txID); ok {
+		transactionLockInfo := tli.(*TransactionLockInfo)
+		transactionLockInfo.WaitingFor = lockInfo
+		// 检测死锁
+		t.DetectDeadlock()
+	}
+}
+
+// 检测死锁
+func (t *Table) DetectDeadlock() []uint64 {
+	deadlockedTxs := t.deadlockDetector.DetectDeadlock()
+	// 标记死锁的事务
+	for _, txID := range deadlockedTxs {
+		if tli, ok := t.transactionLocks.Load(txID); ok {
+			transactionLockInfo := tli.(*TransactionLockInfo)
+			transactionLockInfo.IsDeadlocked = true
+		}
+	}
+	return deadlockedTxs
+}
+
+// 获取事务锁信息
+func (t *Table) GetTransactionLockInfo(txID uint64) *TransactionLockInfo {
+	if tli, ok := t.transactionLocks.Load(txID); ok {
+		return tli.(*TransactionLockInfo)
+	}
+	return nil
+}
+
+// 锁升级：从读锁升级为写锁
+func (t *Table) UpgradeLock(pkValue interface{}, txID uint64, timeout ...time.Duration) error {
+	lockKey := fmt.Sprintf("%v", pkValue)
+	if rowLock, ok := t.rowLocks.Load(lockKey); ok {
+		rl := rowLock.(*RowLock)
+
+		// 检查是否是读锁且持有者是当前事务
+		if rl.lockType == LockTypeRead && rl.lockHolder == txID {
+			// 释放读锁
+			rl.readCount--
+			if rl.readCount <= 0 {
+				rl.rwLock.RUnlock()
+			} else {
+				rl.rwLock.RUnlock()
+				return fmt.Errorf("无法升级锁：其他事务也持有读锁")
+			}
+
+			// 获取写锁
+			err := t.acquireRowWriteLock(pkValue, txID, timeout...)
+			if err != nil {
+				// 重新获取读锁
+				t.acquireRowReadLock(pkValue, txID, timeout...)
+				return err
+			}
+			return nil
+		}
+		return fmt.Errorf("无法升级锁：当前不是读锁或持有者不是当前事务")
+	}
+	return fmt.Errorf("锁不存在")
+}
+
+// 锁降级：从写锁降级为读锁
+func (t *Table) DowngradeLock(pkValue interface{}, txID uint64) error {
+	lockKey := fmt.Sprintf("%v", pkValue)
+	if rowLock, ok := t.rowLocks.Load(lockKey); ok {
+		rl := rowLock.(*RowLock)
+
+		// 检查是否是写锁且持有者是当前事务
+		if rl.lockType == LockTypeWrite && rl.lockHolder == txID {
+			// 释放写锁
+			rl.rwLock.Unlock()
+
+			// 获取读锁
+			err := t.acquireRowReadLock(pkValue, txID)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		return fmt.Errorf("无法降级锁：当前不是写锁或持有者不是当前事务")
+	}
+	return fmt.Errorf("锁不存在")
+}

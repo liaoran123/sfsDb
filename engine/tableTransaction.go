@@ -2,10 +2,42 @@ package engine
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
+
+// 事务隔离级别常量
+const (
+	// ReadUncommitted 读未提交：允许读取未提交的数据，可能导致脏读、不可重复读、幻读
+	ReadUncommitted = "READ_UNCOMMITTED"
+	// ReadCommitted 读已提交：只能读取已提交的数据，避免脏读，但可能导致不可重复读、幻读
+	ReadCommitted = "READ_COMMITTED"
+	// RepeatableRead 可重复读：确保同一事务中多次读取同一数据时结果一致，避免脏读、不可重复读，但可能导致幻读
+	RepeatableRead = "REPEATABLE_READ"
+	// Serializable 可序列化：最高隔离级别，完全避免脏读、不可重复读、幻读，但性能最低
+	Serializable = "SERIALIZABLE"
+)
+
+// 事务选项结构体
+type TransactionOptions struct {
+	// 隔离级别
+	IsolationLevel string
+	// 是否启用嵌套事务
+	AllowNested bool
+	// 事务超时时间
+	Timeout time.Duration
+}
+
+// 默认事务选项
+func DefaultTransactionOptions() *TransactionOptions {
+	return &TransactionOptions{
+		IsolationLevel: RepeatableRead,
+		AllowNested:    false,
+		Timeout:        0,
+	}
+}
 
 // Transaction 定义事务接口
 type Transaction interface {
@@ -23,6 +55,12 @@ type Transaction interface {
 	Commit() error
 	// Rollback 回滚事务
 	Rollback() error
+	// BeginNested 创建一个嵌套事务
+	BeginNested() (Transaction, error)
+	// GetOptions 获取事务选项
+	GetOptions() *TransactionOptions
+	// GetTxID 获取事务ID
+	GetTxID() uint64
 }
 
 // TableTransaction 实现Transaction接口的具体结构体
@@ -35,37 +73,67 @@ type TableTransaction struct {
 	// 事务内修改缓存，用于读取自己的写操作
 	// key: 主键值的字符串表示，value: 记录的字节数组
 	cache map[string][]byte // 事务内修改缓存 //隔离性
+	// 事务选项
+	options       *TransactionOptions
+	// 父事务（用于嵌套事务）
+	parent        *TableTransaction
+	// 子事务列表
+	children      []*TableTransaction
+	// 事务ID
+	txID          uint64
+	// 事务开始时间
+	startTime     time.Time
 }
 
 // Begin 创建一个新的事务
 func (t *Table) Begin() (Transaction, error) {
+	return t.BeginWithOptions(DefaultTransactionOptions())
+}
+
+// BeginWithOptions 使用指定选项创建一个新的事务
+func (t *Table) BeginWithOptions(options *TransactionOptions) (Transaction, error) {
 	batch := t.kvStore.GetBatch()
 	if batch == nil {
 		return nil, fmt.Errorf("failed to create batch for transaction")
 	}
 
-	return t.BeginWithBatch(batch)
+	return t.BeginWithBatchAndOptions(batch, options)
 }
 
 // BeginWithBatch 创建一个使用外部传入batch的事务
 // 用于实现多表事务，多个表共享同一个batch
 func (t *Table) BeginWithBatch(batch storage.Batch) (Transaction, error) {
+	return t.BeginWithBatchAndOptions(batch, DefaultTransactionOptions())
+}
+
+// BeginWithBatchAndOptions 使用外部传入batch和指定选项创建一个事务
+func (t *Table) BeginWithBatchAndOptions(batch storage.Batch, options *TransactionOptions) (Transaction, error) {
 	if batch == nil {
 		return nil, fmt.Errorf("batch cannot be nil")
+	}
+
+	if options == nil {
+		options = DefaultTransactionOptions()
 	}
 
 	// 为每个事务创建自己的快照实例，而不是共享表级别的快照
 	var snapshot storage.Snapshot
 	var err error
 
-	// 检查是否是LevelDBStore，如果是则创建快照
-	if levelDBStore, ok := t.kvStore.(*storage.LevelDBStore); ok {
-		// 创建一个新的快照实例
-		snapshot, err = levelDBStore.Snapshot()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create snapshot: %v", err)
+	// 根据隔离级别决定是否创建快照
+	if options.IsolationLevel == RepeatableRead || options.IsolationLevel == Serializable {
+		// 检查是否是LevelDBStore，如果是则创建快照
+		if levelDBStore, ok := t.kvStore.(*storage.LevelDBStore); ok {
+			// 创建一个新的快照实例
+			snapshot, err = levelDBStore.Snapshot()
+			if err != nil {
+				return nil, fmt.Errorf("failed to create snapshot: %v", err)
+			}
 		}
 	}
+
+	// 生成事务ID
+	txID := uint64(time.Now().UnixNano())
 
 	return &TableTransaction{
 		table:         t,
@@ -74,7 +142,40 @@ func (t *Table) BeginWithBatch(batch storage.Batch) (Transaction, error) {
 		snapshot:      snapshot,
 		originalStore: t.kvStore,
 		cache:         make(map[string][]byte), // 初始化事务内缓存
+		options:       options,
+		txID:          txID,
+		startTime:     time.Now(),
 	}, nil
+}
+
+// BeginNested 创建一个嵌套事务
+func (tx *TableTransaction) BeginNested() (Transaction, error) {
+	if !tx.options.AllowNested {
+		return nil, fmt.Errorf("nested transactions are not allowed")
+	}
+
+	if tx.committed {
+		return nil, fmt.Errorf("cannot create nested transaction on committed transaction")
+	}
+
+	// 为嵌套事务创建新的缓存，但共享同一个batch
+	nestedTx := &TableTransaction{
+		table:         tx.table,
+		batch:         tx.batch, // 共享父事务的batch
+		committed:     false,
+		snapshot:      tx.snapshot, // 共享父事务的快照
+		originalStore: tx.originalStore,
+		cache:         make(map[string][]byte), // 新的缓存
+		options:       tx.options,
+		parent:        tx,
+		txID:          uint64(time.Now().UnixNano()),
+		startTime:     time.Now(),
+	}
+
+	// 将嵌套事务添加到父事务的子事务列表
+	tx.children = append(tx.children, nestedTx)
+
+	return nestedTx, nil
 }
 
 // checkCommitted 检查事务是否已提交
@@ -132,8 +233,8 @@ func (tx *TableTransaction) Update(fields *map[string]any) error {
 		}
 
 		// 2. 准备更新字段列表
-		updateFields := GetStringSliceWithStrategy()
-		defer PutStringSliceWithStrategy(updateFields)
+		updateFields := GetStringSlice()   //GetStringSliceWithStrategy()
+		defer PutStringSlice(updateFields) //defer PutStringSliceWithStrategy(updateFields)
 		for field := range *fields {
 			// 排除主键字段
 			if pk.MatchFields(field) {
@@ -163,13 +264,17 @@ func (tx *TableTransaction) Update(fields *map[string]any) error {
 		}
 
 		// 6. 更新版本号
-		currentVersionbyte, exists := (*fieldsBytes)["v"]
+		// 检查是否存在版本号字段
+		_, exists := (*fieldsBytes)["v"]
 		if !exists {
-			currentVersionbyte = []byte{1} // 默认版本号
+			// 如果不存在，设置默认版本号
+			defaultVersion := generateEnhancedVersion()
+			(*fieldsBytes)["v"] = util.AnyToBytes(defaultVersion)
 		}
-		currentVersion := int(util.Bytes(currentVersionbyte).Uint64())
-		(*fields)["v"] = currentVersion + 1
-		(*fieldsBytes)["v"] = util.AnyToBytes(currentVersion + 1)
+		// 使用增强版版本号
+		enhancedVersion := generateEnhancedVersion()
+		(*fields)["v"] = enhancedVersion
+		(*fieldsBytes)["v"] = util.AnyToBytes(enhancedVersion)
 
 		// 7. 格式化记录
 		updatedRecord := tx.table.FormatRecord(fieldsBytes)
@@ -277,26 +382,48 @@ func (tx *TableTransaction) Search(fields *map[string]any, ops ...util.Compariso
 	return tbiter, err
 }
 
+// GetOptions 获取事务选项
+func (tx *TableTransaction) GetOptions() *TransactionOptions {
+	return tx.options
+}
+
+// GetTxID 获取事务ID
+func (tx *TableTransaction) GetTxID() uint64 {
+	return tx.txID
+}
+
 // Commit 提交事务
 func (tx *TableTransaction) Commit() error {
 	if err := tx.checkCommitted(); err != nil {
 		return err
 	}
 
-	// 1. 提交批量操作
-	// 使用原始存储执行写操作
-	err := tx.originalStore.WriteBatch(tx.batch)
-	if err != nil {
-		// 提交失败，释放快照资源
+	// 提交所有子事务
+	for _, child := range tx.children {
+		if !child.committed {
+			if err := child.Commit(); err != nil {
+				return err
+			}
+		}
+	}
+
+	// 只有根事务才真正提交batch
+	if tx.parent == nil {
+		// 1. 提交批量操作
+		// 使用原始存储执行写操作
+		err := tx.originalStore.WriteBatch(tx.batch)
+		if err != nil {
+			// 提交失败，释放快照资源
+			if tx.snapshot != nil {
+				tx.snapshot.Release()
+			}
+			return err
+		}
+
+		// 2. 释放快照资源
 		if tx.snapshot != nil {
 			tx.snapshot.Release()
 		}
-		return err
-	}
-
-	// 2. 释放快照资源
-	if tx.snapshot != nil {
-		tx.snapshot.Release()
 	}
 
 	// 3. 标记事务已结束，清空缓存
@@ -314,9 +441,21 @@ func (tx *TableTransaction) Rollback() error {
 		return err
 	}
 
-	// 1. 释放快照资源
-	if tx.snapshot != nil {
-		tx.snapshot.Release()
+	// 回滚所有子事务
+	for _, child := range tx.children {
+		if !child.committed {
+			if err := child.Rollback(); err != nil {
+				return err
+			}
+		}
+	}
+
+	// 只有根事务才释放快照资源
+	if tx.parent == nil {
+		// 1. 释放快照资源
+		if tx.snapshot != nil {
+			tx.snapshot.Release()
+		}
 	}
 
 	// 2. 标记事务已结束，清空缓存
@@ -324,14 +463,4 @@ func (tx *TableTransaction) Rollback() error {
 	tx.cache = nil
 
 	return nil
-}
-
-// TransactionManager 管理多表事务
-// 用于简化多表事务的创建、提交和回滚操作
-// 所有表共享同一个batch，确保原子性
-
-type TransactionManager struct {
-	transactions []Transaction // 管理的事务列表
-	batch        storage.Batch // 共享的batch
-	committed    bool          // 是否已提交
 }

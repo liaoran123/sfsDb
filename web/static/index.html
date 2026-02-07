@@ -465,7 +465,14 @@
                     <!-- 键值监控 -->
                     <div v-if="activePage === 'key'" class="card">
                         <div class="card-body">
-                            <h5 class="card-title mb-4">键值监控</h5>
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h5 class="card-title mb-0">键值监控</h5>
+                                <button class="btn btn-primary" @click="refreshData" :disabled="loading">
+                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    <span v-if="loading"> 刷新中...</span>
+                                    <span v-else>刷新数据</span>
+                                </button>
+                            </div>
                             <div v-if="loading" class="text-center">
                                 <div class="spinner-border" role="status">
                                     <span class="visually-hidden">加载中...</span>
@@ -511,7 +518,14 @@
                     <!-- 索引统计 -->
                     <div v-if="activePage === 'indexStats'" class="card">
                         <div class="card-body">
-                            <h5 class="card-title mb-4">索引统计</h5>
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h5 class="card-title mb-0">索引统计</h5>
+                                <button class="btn btn-primary" @click="refreshData" :disabled="loading">
+                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    <span v-if="loading"> 刷新中...</span>
+                                    <span v-else>刷新数据</span>
+                                </button>
+                            </div>
                             <div v-if="loading" class="text-center">
                                 <div class="spinner-border" role="status">
                                     <span class="visually-hidden">加载中...</span>
@@ -894,6 +908,10 @@
                     } finally {
                         this.loading = false;
                     }
+                },
+                async refreshData() {
+                    // 调用现有的 loadData 方法来刷新数据
+                    await this.loadData();
                 },
                 
             },

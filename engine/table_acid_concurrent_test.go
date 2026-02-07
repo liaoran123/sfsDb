@@ -232,10 +232,10 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 
 	// 设置表字段
 	fields2 := map[string]any{
-		"id":      0,
-		"name":    "",
-		"data":    "",
-		"version": 0,
+		"id":   0,
+		"name": "",
+		"data": "",
+		"v":    0, // 版本号字段默认是v
 	}
 	err = table2.SetFields(fields2)
 	if err != nil {
@@ -256,10 +256,10 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 	// 3.2 初始数据插入
 	for i := 1; i <= 10; i++ {
 		initialRecord := map[string]any{
-			"id":      i,
-			"name":    fmt.Sprintf("初始数据%d", i),
-			"data":    fmt.Sprintf("内容%d", i),
-			"version": 1,
+			"id":   i,
+			"name": fmt.Sprintf("初始数据%d", i),
+			"data": fmt.Sprintf("内容%d", i),
+			"v":    1, // 版本号字段默认是v
 		}
 		_, err := table2.Insert(&initialRecord)
 		if err != nil {
@@ -303,7 +303,7 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 				}
 
 				// 验证记录的版本号至少为1
-				version := records[0]["version"].(int)
+				version := records[0]["v"].(int)
 				if version < 1 {
 					t.Errorf("reader %d 读取到无效的版本号: %d", readerID, version)
 					continue
@@ -343,7 +343,7 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 				}
 
 				// 获取当前版本号
-				currentVersion := records[0]["version"].(int)
+				currentVersion := records[0]["v"].(int)
 
 				// 创建batch，更新记录
 				batch := table2.kvStore.GetBatch()
@@ -354,9 +354,9 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 
 				// 更新记录，版本号+1
 				updateRecord := map[string]any{
-					"id":      recordID,
-					"data":    fmt.Sprintf("更新内容_%d_%d", writerID, j),
-					"version": currentVersion + 1,
+					"id":   recordID,
+					"data": fmt.Sprintf("更新内容_%d_%d", writerID, j),
+					"v":    currentVersion + 1,
 				}
 				err = table2.Update(&updateRecord, batch)
 				if err != nil {
@@ -394,7 +394,7 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 
 		// 验证所有记录的版本号都大于等于1
 		for i, record := range finalRecords2 {
-			version := record["version"].(int)
+			version := record["v"].(int)
 			if version < 1 {
 				t.Errorf("记录%d的版本号无效: %d", i+1, version)
 			}

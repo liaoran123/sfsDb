@@ -59,17 +59,16 @@ func (i *IndexStatsMap) GetAll() map[int]*IndexStats {
 	return result
 }
 
-//var IndexStatsMap = make(map[int]*IndexStats)
-
 type IndexStats struct {
 	TblName    string        `json:"tblName"`
 	IndxName   string        `json:"indxName"`
+	SearchType string        `json:"searchType"` //搜索类型（全量/索引）
 	Count      atomic.Int64  `json:"count"`      //搜索次数
 	AvgTime    time.Duration `json:"avgTime"`    //平均搜索耗时
 	TotalTime  atomic.Int64  `json:"totalTime"`  //总搜索耗时（纳秒）
 	MaxTime    atomic.Int64  `json:"maxTime"`    //最大搜索耗时（纳秒）
 	MinTime    atomic.Int64  `json:"minTime"`    //最小搜索耗时（纳秒）
-	SearchType string        `json:"searchType"` //搜索类型（全量/索引）
+
 }
 
 func NewIndexStats(tblName string, indxName string, searchType string) *IndexStats {
@@ -107,7 +106,7 @@ func (i *IndexStats) RecordTime(duration time.Duration) {
 
 	// 原子更新最小时间
 	oldMin := i.MinTime.Load()
-	if int64(duration) < oldMin {
+	if int64(duration) < oldMin && duration > 0 {
 		i.MinTime.Store(int64(duration))
 	}
 }

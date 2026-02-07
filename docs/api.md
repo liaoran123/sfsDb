@@ -610,7 +610,7 @@ for iter.First(); iter.Valid(); iter.Next() {
 
 ### 性能优化建议
 
-1. **及时释放资源**：使用完毕后调用 `Release()` 方法释放迭代器资源
+1. **及时释放资源**：使用完毕后调用 `engine.GlobalTableIterPool.Put(iter)` 释放迭代器资源，调用 `record.PutRecords(records)` 释放记录集合资源
 2. **合理使用分页**：对于大量数据，使用分页功能减少内存占用
 3. **使用跳跃区间**：对于需要跳过特定范围数据的场景，使用跳跃区间提高遍历效率
 4. **使用匹配条件**：在遍历前设置匹配条件，减少不必要的记录处理
@@ -635,6 +635,34 @@ if err != nil {
 }
 ```
 
+## 事务管理
+
+### WithTransaction
+```go
+func WithTransaction(batch storage.Batch, tables []*Table, fn func(map[*Table]Transaction) error) error
+```
+- **功能**：执行事务操作，确保多个表的操作原子性
+- **参数**：
+  - `batch`：批量操作对象
+  - `tables`：参与事务的表列表
+  - `fn`：事务回调函数，包含具体的事务逻辑
+- **返回值**：
+  - `error`：错误信息
+
+### Transaction 接口
+```go
+type Transaction interface {
+    Get(fields *map[string]any) ([]byte, error)
+    Set(fields *map[string]any) error
+    Delete(fields *map[string]any) error
+}
+```
+- **功能**：事务操作接口，提供事务内的读写删操作
+- **方法**：
+  - `Get`：获取记录
+  - `Set`：设置记录
+  - `Delete`：删除记录
+
 ## 性能优化建议
 
 1. **合理设计表结构**：
@@ -656,6 +684,11 @@ if err != nil {
 5. **资源管理**：
    - 及时释放迭代器资源
    - 合理使用对象池
+
+6. **事务优化**：
+   - 对于多表操作，使用事务确保原子性
+   - 减少事务范围，只包含必要的操作
+   - 使用批量操作提高事务性能
 
 ## 使用示例
 
@@ -895,5 +928,319 @@ defer jobIter.Release()
 for jobIter.First(); jobIter.Valid(); jobIter.Next() {
     record := userTable.ParseRecordValue(jobIter.Value())
     fmt.Printf("职位包含'经理'的记录: %v\n", record)
+}
+```
+
+### 事务使用示例
+
+#### 示例1：金融事务示例：银行转账
+
+```go
+// 金融事务示例：银行转账
+func transferFunds(fromID, toID int, amount float64) error {
+    batch := storage.KVDb.GetBatch()
+    if batch == nil {
+        return fmt.Errorf("failed to create batch")
+    }
+    
+    return engine.WithTransaction(batch, []*engine.Table{accountTable}, func(transactions map[*engine.Table]engine.Transaction) error {
+        tx := transactions[accountTable]
+        
+        // 获取转出账户
+        fromFields := map[string]any{"id": fromID}
+        fromIter, err := tx.Search(&fromFields)
+        if err != nil {
+            return err
+        }
+        defer engine.GlobalTableIterPool.Put(fromIter)
+        
+        fromRecords := fromIter.GetRecords(true)
+        defer record.PutRecords(fromRecords)
+        if len(fromRecords) == 0 {
+            return fmt.Errorf("from account not found")
+        }
+        
+        fromRecord := fromRecords[0]
+        fromBalance, ok := fromRecord["balance"].(float64)
+        if !ok {
+            return fmt.Errorf("invalid balance type")
+        }
+        
+        // 检查余额
+        if fromBalance < amount {
+            return fmt.Errorf("insufficient funds")
+        }
+        
+        // 获取转入账户
+        toFields := map[string]any{"id": toID}
+        toIter, err := tx.Search(&toFields)
+        if err != nil {
+            return err
+        }
+        defer engine.GlobalTableIterPool.Put(toIter)
+        
+        toRecords := toIter.GetRecords(true)
+        defer record.PutRecords(toRecords)
+        if len(toRecords) == 0 {
+            return fmt.Errorf("to account not found")
+        }
+        
+        toRecord := toRecords[0]
+        toBalance, ok := toRecord["balance"].(float64)
+        if !ok {
+            return fmt.Errorf("invalid balance type")
+        }
+        
+        // 更新余额
+        fromRecordMap := map[string]any(fromRecord)
+        fromRecordMap["balance"] = fromBalance - amount
+        
+        toRecordMap := map[string]any(toRecord)
+        toRecordMap["balance"] = toBalance + amount
+        
+        // 保存更新
+        if err := tx.Update(&fromRecordMap); err != nil {
+            return err
+        }
+        if err := tx.Update(&toRecordMap); err != nil {
+            return err
+        }
+        
+        return nil
+    })
+}
+
+// 使用示例
+func main() {
+    // 创建账户表
+    accountTable, err := engine.TableNew("accounts")
+    if err != nil {
+        panic(err)
+    }
+    
+    // 设置字段
+    fields := map[string]any{
+        "id":      0,
+        "name":    "",
+        "balance": 0.0,
+    }
+    err = accountTable.SetFields(fields)
+    if err != nil {
+        panic(err)
+    }
+    
+    // 插入测试数据
+    account1 := map[string]any{"id": 1, "name": "Alice", "balance": 1000.0}
+    account2 := map[string]any{"id": 2, "name": "Bob", "balance": 500.0}
+    _, err = accountTable.Insert(&account1)
+    if err != nil {
+        panic(err)
+    }
+    _, err = accountTable.Insert(&account2)
+    if err != nil {
+        panic(err)
+    }
+    
+    // 执行转账
+    fmt.Println("=== 执行转账 ===")
+    err = transferFunds(1, 2, 200.0)
+    if err != nil {
+        fmt.Printf("转账失败: %v\n", err)
+        return
+    }
+    fmt.Println("转账成功！")
+    
+    // 验证结果
+    fmt.Println("\n=== 转账后余额 ===")
+    iter, err := accountTable.Search(nil)
+    if err != nil {
+        panic(err)
+    }
+    defer engine.GlobalTableIterPool.Put(iter)
+    
+    records := iter.GetRecords(true)
+    defer record.PutRecords(records)
+    
+    for _, r := range records {
+        fmt.Printf("账户 %s: 余额 %.2f\n", r["name"], r["balance"])
+    }
+}
+```
+
+#### 示例2：多表事务
+
+```go
+// 多表事务示例：订单处理
+func processOrder(orderID, userID int, amount float64, productIDs []int) error {
+    batch := storage.KVDb.GetBatch()
+    if batch == nil {
+        return fmt.Errorf("failed to create batch")
+    }
+    
+    return engine.WithTransaction(batch, []*engine.Table{orderTable, userTable, productTable}, func(transactions map[*engine.Table]engine.Transaction) error {
+        // 1. 检查用户余额
+        userTx := transactions[userTable]
+        userFields := map[string]any{"id": userID}
+        userIter, err := userTx.Search(&userFields)
+        if err != nil {
+            return err
+        }
+        defer engine.GlobalTableIterPool.Put(userIter)
+        
+        userRecords := userIter.GetRecords(true)
+        defer record.PutRecords(userRecords)
+        if len(userRecords) == 0 {
+            return fmt.Errorf("user not found")
+        }
+        
+        userRecord := userRecords[0]
+        userBalance, ok := userRecord["balance"].(float64)
+        if !ok {
+            return fmt.Errorf("invalid balance type")
+        }
+        
+        if userBalance < amount {
+            return fmt.Errorf("insufficient funds")
+        }
+        
+        // 2. 检查产品库存
+        productTx := transactions[productTable]
+        for _, productID := range productIDs {
+            productFields := map[string]any{"id": productID}
+            productIter, err := productTx.Search(&productFields)
+            if err != nil {
+                return err
+            }
+            defer engine.GlobalTableIterPool.Put(productIter)
+            
+            productRecords := productIter.GetRecords(true)
+            defer record.PutRecords(productRecords)
+            if len(productRecords) == 0 {
+                return fmt.Errorf("product %d not found", productID)
+            }
+            
+            productRecord := productRecords[0]
+            stock, ok := productRecord["stock"].(int)
+            if !ok {
+                return fmt.Errorf("invalid stock type")
+            }
+            
+            if stock <= 0 {
+                return fmt.Errorf("product %d out of stock", productID)
+            }
+        }
+        
+        // 3. 创建订单
+        orderTx := transactions[orderTable]
+        order := map[string]any{
+            "id":      orderID,
+            "user_id": userID,
+            "amount":  amount,
+            "status":  "completed",
+        }
+        _, err = orderTx.Insert(&order)
+        if err != nil {
+            return err
+        }
+        
+        // 4. 扣减用户余额
+        userRecordMap := map[string]any(userRecord)
+        userRecordMap["balance"] = userBalance - amount
+        if err := userTx.Update(&userRecordMap); err != nil {
+            return err
+        }
+        
+        // 5. 扣减产品库存
+        for _, productID := range productIDs {
+            productFields := map[string]any{"id": productID}
+            productIter, err := productTx.Search(&productFields)
+            if err != nil {
+                return err
+            }
+            defer engine.GlobalTableIterPool.Put(productIter)
+            
+            productRecords := productIter.GetRecords(true)
+            defer record.PutRecords(productRecords)
+            if len(productRecords) == 0 {
+                return fmt.Errorf("product %d not found", productID)
+            }
+            
+            productRecord := productRecords[0]
+            productRecordMap := map[string]any(productRecord)
+            stock, _ := productRecord["stock"].(int)
+            productRecordMap["stock"] = stock - 1
+            if err := productTx.Update(&productRecordMap); err != nil {
+                return err
+            }
+        }
+        
+        return nil
+    })
+}
+```
+
+#### 示例3：并发事务
+
+```go
+// 并发事务示例：多线程转账
+func testConcurrentTransfers() {
+    var wg sync.WaitGroup
+    var mutex sync.Mutex
+    var errors []error
+    
+    // 启动10个并发转账
+    for i := 0; i < 10; i++ {
+        wg.Add(1)
+        go func(transferID int) {
+            defer wg.Done()
+            
+            // 随机选择转出和转入账户
+            fromID := 1 + transferID%3
+            toID := 1 + (transferID+1)%3
+            amount := 10.0
+            
+            err := transferFunds(fromID, toID, amount)
+            if err != nil {
+                mutex.Lock()
+                errors = append(errors, fmt.Errorf("transfer %d failed: %v", transferID, err))
+                mutex.Unlock()
+                return
+            }
+            
+            fmt.Printf("Transfer %d: %d -> %d, amount: %.2f\n", transferID, fromID, toID, amount)
+        }(i)
+    }
+    
+    wg.Wait()
+    
+    // 打印错误
+    if len(errors) > 0 {
+        fmt.Println("\nErrors:")
+        for _, err := range errors {
+            fmt.Println(err)
+        }
+    } else {
+        fmt.Println("\nAll transfers completed successfully!")
+    }
+    
+    // 验证最终余额
+    fmt.Println("\nFinal balances:")
+    iter, err := accountTable.Search(nil)
+    if err != nil {
+        panic(err)
+    }
+    defer engine.GlobalTableIterPool.Put(iter)
+    
+    records := iter.GetRecords(true)
+    defer record.PutRecords(records)
+    
+    var totalBalance float64
+    for _, r := range records {
+        balance := r["balance"].(float64)
+        fmt.Printf("Account %s: %.2f\n", r["name"], balance)
+        totalBalance += balance
+    }
+    
+    fmt.Printf("Total balance: %.2f\n", totalBalance)
 }
 ```

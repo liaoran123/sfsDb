@@ -1,61 +1,3 @@
-# sfsDb
-
-sfsDb 是一个轻量级嵌入式关系型数据库，专注于提供高性能、灵活的存储解决方案，同时保持代码简洁和资源占用低。
-
-## 项目特点
-
-### 核心亮点
-
-1. **轻量级设计，复杂查询场景支持**
-   - 采用创新设计，在保持轻量级的同时，能够支持相当复杂的查询场景
-   - 超越了传统嵌入式数据库的能力边界，为应用提供更强大的数据处理能力
-
-2. **原生支持考据级全文索引**
-   - 内置高性能全文索引引擎，提供精准的文本搜索能力
-   - 支持复杂的文本匹配和检索需求，满足考据级应用场景
-
-3. **基于 LevelDB 封装实现**
-   - 使用 `github.com/syndtr/goleveldb/leveldb` 库作为存储引擎基础
-   - 充分利用 LevelDB 的 LSM-Tree 架构优势，提供高性能的读写操作
-
-### 其他特性
-
-- **灵活的存储模型**：支持多种数据结构和存储格式
-- **高性能查询**：优化的查询引擎，提供快速的数据检索
-- **简单易用的 API**：简洁直观的接口设计，降低开发成本
-- **跨平台兼容**：支持多种操作系统和环境
-
-## 生产应用示例
-
-### 考据级文档搜索引擎
-
-sfsDb 已在实际生产环境中得到应用，其中最典型的案例是 **ReSearchCMS** - 一个专业的考据级文档搜索引擎。
-
-- **项目地址**: [https://github.com/liaoran123/ReSearchCMS](https://github.com/liaoran123/ReSearchCMS)
-- **应用场景**: 提供高精度、高性能的文档搜索功能，支持复杂的文本匹配和检索需求
-- **技术亮点**: 充分利用 sfsDb 的原生全文索引和高性能查询能力，实现了考据级的文档搜索体验
-
-## 主要目标用户群体
-
-- **嵌入式系统开发者**：轻量级、易部署的特性适合嵌入式设备
-- **边缘计算场景**：边缘节点需要本地数据存储，sfsDb 可以提供轻量级解决方案
-- **IoT 应用开发者**：针对 IoT 设备产生的时序数据，优化存储和查询
-- **游戏开发者**：游戏服务器需要高性能的本地存储，适合使用轻量级数据库
-- **其他**：......
-
-
-## 快速开始
-
-### 安装
-
-```bash
-# 通过 Go 模块安装
-go get github.com/liaoran123/sfsDb
-```
-
-### 基本使用
-
-```go
 package main
 
 import (
@@ -63,22 +5,21 @@ import (
 
 	"github.com/liaoran123/sfsDb/engine"
 	"github.com/liaoran123/sfsDb/record"
-	"github.com/liaoran123/sfsDb/storage"
 )
 
-func main() {
+func main2() {
 	fmt.Println("sfsDb 基本使用示例")
 	fmt.Println("==================")
-
-	// 1. 初始化数据库
-	fmt.Println("\n1. 初始化数据库")
-	_, err := storage.OpenDefaultDb("./basic_example_db")
-	if err != nil {
-		fmt.Printf("打开数据库失败: %v\n", err)
-		return
-	}
-	defer storage.CloseDb()
-
+	/*
+		// 1. 初始化数据库
+		fmt.Println("\n1. 初始化数据库")
+		_, err := storage.OpenDefaultDb("./basic_example_db_new")
+		if err != nil {
+			fmt.Printf("打开数据库失败: %v\n", err)
+			return
+		}
+		defer storage.CloseDb()
+	*/
 	// 2. 创建/打开用户表
 	fmt.Println("\n2. 创建用户表")
 	userTable, err := engine.TableNew("users")
@@ -246,48 +187,3 @@ func main() {
 
 	fmt.Println("\n测试完成，所有操作均成功执行！")
 }
-
-```
-
-## 文档
-
-### 使用指南
-- [中文详细使用指南](./docs/sfsDbUserGuide.md)
-- [English User Guide](./docs/sfsDbUserGuide.en.md)
-
-### 其他文档
-- [性能基准测试报告](./engine/comprehensive_benchmark_report.md)
-- [事务基准测试报告](./engine/transaction_benchmark_report.md) - 详细的事务性能测试和分析
-- [迭代器资源管理指南](./docs/iterator_management.md) - 详细说明迭代器的管理方式和生命周期
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request 来帮助改进 sfsDb！
-
-## 许可证
-
-sfsDb 采用双许可证模式：
-
-### 核心引擎 - BSD 2-clause 许可证
-- **开源免费**: 核心数据库引擎使用 BSD 2-clause 开源许可证
-- **商业友好**: 允许自由使用、修改和商业分发
-- **许可证文本**: 详见 [LICENSE](./LICENSE) 文件
-
-### 企业版插件 - 商业许可证
-- **高级功能**: 企业版插件（如高级安全特性、多节点协调等）使用商业许可证
-- **支持服务**: 包含专业技术支持、定期更新和企业级功能
-- **许可证文本**: 详见 [LICENSE.COMMERCIAL](./LICENSE.COMMERCIAL) 文件
-
-### 依赖库许可证
-- **LevelDB**: 使用 BSD 2-clause 开源许可证，与 sfsDb 核心引擎许可证一致
-- **其他依赖**: 详见 `go.mod` 文件中的依赖声明
-
-### 许可证兼容性
-BSD 2-clause 许可证是最自由的开源许可证之一，与所有主要商业许可证完全兼容：
-- 允许在闭源商业产品中使用
-- 允许修改后闭源分发
-- 无需在衍生作品中包含原始许可证文本
-- 与 LevelDB 的许可证保持一致，确保技术栈的许可证兼容性
-
-这意味着 sfsDb 可以自由地基于 LevelDB 进行封装和商业开发，用户可以放心在商业项目中使用 sfsDb。
-
