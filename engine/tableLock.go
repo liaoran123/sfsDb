@@ -146,6 +146,13 @@ func contains(slice []uint64, item uint64) bool {
 	return false
 }
 
+// 生成锁键
+func (t *Table) generateLockKey(fields *map[string]any) string {
+	fieldsBytes := t.FieldsToBytes(fields)
+	pkKey := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
+	return string(pkKey)
+}
+
 // 获取行级共享锁（读锁）
 func (t *Table) acquireRowReadLock(pkValue any, txID uint64, timeout ...time.Duration) error {
 	lockKey := fmt.Sprintf("%v", pkValue)

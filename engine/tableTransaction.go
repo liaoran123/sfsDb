@@ -73,6 +73,8 @@ type TableTransaction struct {
 	// 事务内修改缓存，用于读取自己的写操作
 	// key: 主键值的字符串表示，value: 记录的字节数组
 	cache map[string][]byte // 事务内修改缓存 //隔离性
+	// 锁键缓存，避免重复生成锁键
+	lockKeyCache map[string]string // 锁键缓存
 	// 事务选项
 	options       *TransactionOptions
 	// 父事务（用于嵌套事务）
@@ -142,6 +144,7 @@ func (t *Table) BeginWithBatchAndOptions(batch storage.Batch, options *Transacti
 		snapshot:      snapshot,
 		originalStore: t.kvStore,
 		cache:         make(map[string][]byte), // 初始化事务内缓存
+		lockKeyCache:  make(map[string]string), // 初始化锁键缓存
 		options:       options,
 		txID:          txID,
 		startTime:     time.Now(),
@@ -166,6 +169,7 @@ func (tx *TableTransaction) BeginNested() (Transaction, error) {
 		snapshot:      tx.snapshot, // 共享父事务的快照
 		originalStore: tx.originalStore,
 		cache:         make(map[string][]byte), // 新的缓存
+		lockKeyCache:  make(map[string]string), // 新的锁键缓存
 		options:       tx.options,
 		parent:        tx,
 		txID:          uint64(time.Now().UnixNano()),
@@ -209,6 +213,9 @@ func (tx *TableTransaction) Insert(fields *map[string]any) (int, error) {
 
 	// 将记录存入缓存，用于读取自己的写操作
 	tx.cache[cacheKey] = record
+
+	// 缓存锁键
+	tx.lockKeyCache[cacheKey] = tx.table.generateLockKey(fields)
 
 	return id, nil
 }
@@ -297,6 +304,9 @@ func (tx *TableTransaction) Update(fields *map[string]any) error {
 		delete(tx.cache, cacheKey)
 	}
 
+	// 缓存锁键
+	tx.lockKeyCache[cacheKey] = tx.table.generateLockKey(fields)
+
 	return nil
 }
 
@@ -317,6 +327,9 @@ func (tx *TableTransaction) Delete(fields *map[string]any) error {
 
 	// 从缓存中删除记录，确保读一致性
 	delete(tx.cache, cacheKey)
+
+	// 缓存锁键
+	tx.lockKeyCache[cacheKey] = tx.table.generateLockKey(fields)
 
 	return nil
 }
@@ -429,6 +442,7 @@ func (tx *TableTransaction) Commit() error {
 	// 3. 标记事务已结束，清空缓存
 	tx.committed = true
 	tx.cache = nil
+	tx.lockKeyCache = nil
 
 	return nil
 }
@@ -461,6 +475,7 @@ func (tx *TableTransaction) Rollback() error {
 	// 2. 标记事务已结束，清空缓存
 	tx.committed = true
 	tx.cache = nil
+	tx.lockKeyCache = nil
 
 	return nil
 }

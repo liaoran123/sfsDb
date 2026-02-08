@@ -67,12 +67,12 @@ import (
 )
 
 func main() {
-	fmt.Println("sfsDb 基本使用示例")
-	fmt.Println("==================")
+	fmt.Println("sfsDb README示例代码测试")
+	fmt.Println("====================")
 
 	// 1. 初始化数据库
 	fmt.Println("\n1. 初始化数据库")
-	_, err := storage.OpenDefaultDb("./basic_example_db")
+	_, err := storage.OpenDefaultDb("./readme_example_db")
 	if err != nil {
 		fmt.Printf("打开数据库失败: %v\n", err)
 		return
@@ -151,11 +151,12 @@ func main() {
 	fmt.Println("\n7. 主键查询")
 	{
 		iter, err := userTable.Search(&map[string]any{"id": 1})
+		defer engine.GlobalTableIterPool.Put(iter)
 		if err != nil {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
-		records := iter.GetRecords(true)
+		records := iter.GetRecordSet(true)
 		defer record.PutRecords(records)
 
 		if len(records) > 0 {
@@ -167,11 +168,12 @@ func main() {
 	fmt.Println("\n8. 普通索引查询")
 	{
 		nameIter, err := userTable.Search(&map[string]any{"name": "李四"})
+		defer engine.GlobalTableIterPool.Put(nameIter)
 		if err != nil {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
-		nameRecords := nameIter.GetRecords(true)
+		nameRecords := nameIter.GetRecordSet(true)
 		defer record.PutRecords(nameRecords)
 
 		if len(nameRecords) > 0 {
@@ -196,11 +198,13 @@ func main() {
 	// 验证更新
 	{
 		iter, err := userTable.Search(&map[string]any{"id": 1})
+		defer engine.GlobalTableIterPool.Put(iter)
 		if err != nil {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
-		records := iter.GetRecords(true)
+		records := iter.GetRecordSet(true)
+		defer record.PutRecords(records)
 		if len(records) > 0 {
 			fmt.Printf("更新后的数据: %v\n", records[0])
 		}
@@ -221,11 +225,13 @@ func main() {
 	// 验证删除
 	{
 		iter, err := userTable.Search(&map[string]any{"id": 3})
+		defer engine.GlobalTableIterPool.Put(iter)
 		if err != nil {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
-		records := iter.GetRecords(true)
+		records := iter.GetRecordSet(true)
+		defer record.PutRecords(records)
 		fmt.Printf("删除后查询结果数: %d\n", len(records))
 	}
 
@@ -233,11 +239,13 @@ func main() {
 	fmt.Println("\n11. 查询所有数据")
 	{
 		allIter, err := userTable.Search(&map[string]any{})
+		defer engine.GlobalTableIterPool.Put(allIter)
 		if err != nil {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
-		allRecords := allIter.GetRecords(true)
+		allRecords := allIter.GetRecordSet(true)
+		defer record.PutRecords(allRecords)
 		fmt.Printf("当前表中共有 %d 条记录\n", len(allRecords))
 		for i, r := range allRecords {
 			fmt.Printf("记录 %d: %v\n", i+1, r)
@@ -252,13 +260,42 @@ func main() {
 ## 文档
 
 ### 使用指南
-- [中文详细使用指南](./docs/sfsDbUserGuide.md)
-- [English User Guide](./docs/sfsDbUserGuide.en.md)
+- [中文文档首页](./docs/zh/README.md) - 中文文档总览
+- [English Documentation Home](./docs/en/README.md) - English documentation overview
+- [基础操作指南](./docs/zh/basic/) - 包含表创建、字段修改等基础操作
+- [Basic Operations Guide](./docs/en/basic/) - Includes table creation, field modification and other basic operations
 
-### 其他文档
-- [性能基准测试报告](./engine/comprehensive_benchmark_report.md)
+### 核心功能文档
+- [事务优化指南](./docs/zh/optimization/transaction.md) - 详细的事务性能优化指南（中文）
+- [Transaction Optimization Guide](./docs/en/optimization/transaction.md) - Detailed transaction performance optimization guide (English)
+- [全文索引使用指南](./docs/zh/advanced/full_text_search.md) - 全文索引的高级使用方法（中文）
+- [Full Text Search Guide](./docs/en/advanced/full_text_search.md) - Advanced full text search usage (English)
+- [索引管理指南](./docs/zh/advanced/index_management.md) - 索引的创建、管理和优化（中文）
+- [Index Management Guide](./docs/en/advanced/index_management.md) - Index creation, management and optimization (English)
+
+### 性能测试报告
+- [综合性能基准测试报告](./engine/comprehensive_benchmark_report.md) - 详细的性能测试和分析
 - [事务基准测试报告](./engine/transaction_benchmark_report.md) - 详细的事务性能测试和分析
-- [迭代器资源管理指南](./docs/iterator_management.md) - 详细说明迭代器的管理方式和生命周期
+- [ACID vs Non-ACID 性能比较报告](./engine/acid_vs_nonacid_benchmark_report.md) - ACID特性对性能的影响分析
+
+### 资源管理
+- [对象池使用指南](./docs/zh/optimization/object_pool.md) - 高效的对象复用机制（中文）
+- [Object Pool Guide](./docs/en/optimization/object_pool.md) - Efficient object reuse mechanism (English)
+- [索引缓存指南](./docs/zh/optimization/index_cache.md) - 提升查询性能的索引缓存机制（中文）
+- [Index Cache Guide](./docs/en/optimization/index_cache.md) - Index caching mechanism for improved query performance (English)
+
+### 高级功能
+- [主键管理指南](./docs/zh/advanced/primary_key.md) - 主键的设计和使用（中文）
+- [Primary Key Guide](./docs/en/advanced/primary_key.md) - Primary key design and usage (English)
+- [表管理指南](./docs/zh/advanced/management.md) - 表的创建、修改和管理（中文）
+- [Table Management Guide](./docs/en/advanced/management.md) - Table creation, modification and management (English)
+
+### API 参考
+- [API 参考文档](./docs/api.md) - 详细的 API 文档
+
+### 命令行工具
+- [命令行工具指南](./docs/cli_commands.md) - 详细的命令行工具使用指南（中文）
+- [CLI Commands Guide](./docs/cli_commands.en.md) - Detailed CLI commands usage guide (English)
 
 ## 贡献
 

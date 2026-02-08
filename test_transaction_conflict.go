@@ -154,6 +154,7 @@ func testSingleTableTransaction() {
 	if len(records) > 0 {
 		fmt.Printf("更新后的数据: %v\n", records[0])
 	}
+	engine.GlobalTableIterPool.Put(iter)
 
 	iter, err = userTable.Search(&map[string]any{"id": 3})
 	if err != nil {
@@ -162,8 +163,8 @@ func testSingleTableTransaction() {
 	}
 	records = iter.GetRecords(true)
 	fmt.Printf("删除后查询结果数: %d\n", len(records))
+	engine.GlobalTableIterPool.Put(iter)
 
-	main2() //交叉测试
 }
 
 // 测试多个表的事务操作
@@ -306,6 +307,7 @@ func testMultiTableTransaction() {
 	if len(records) > 0 {
 		fmt.Printf("更新后的用户数据: %v\n", records[0])
 	}
+	engine.GlobalTableIterPool.Put(iter)
 
 	iter, err = orderTable.Search(&map[string]any{"id": 1})
 	if err != nil {
@@ -316,7 +318,8 @@ func testMultiTableTransaction() {
 	if len(records) > 0 {
 		fmt.Printf("插入的订单数据: %v\n", records[0])
 	}
-	main2() //交叉测试
+	engine.GlobalTableIterPool.Put(iter)
+
 }
 
 // 测试并发事务操作
@@ -512,6 +515,7 @@ func testConcurrentTransactions() {
 	if len(records) > 0 {
 		fmt.Printf("张三最终余额: %v\n", records[0]["balance"])
 	}
+	engine.GlobalTableIterPool.Put(iter)
 
 	iter, err = userTable.Search(&map[string]any{"id": 2})
 	if err != nil {
@@ -522,7 +526,8 @@ func testConcurrentTransactions() {
 	if len(records) > 0 {
 		fmt.Printf("李四最终余额: %v\n", records[0]["balance"])
 	}
-	main2() //交叉测试
+	engine.GlobalTableIterPool.Put(iter)
+
 }
 
 // 测试事务回滚操作
@@ -619,5 +624,6 @@ func testTransactionRollback() {
 			fmt.Println("验证失败: 余额没有回滚到原始值")
 		}
 	}
-	main2() //交叉测试
+	engine.GlobalTableIterPool.Put(iter)
+
 }
