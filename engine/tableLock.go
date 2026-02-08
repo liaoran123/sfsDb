@@ -2,24 +2,19 @@ package engine
 
 import (
 	"fmt"
-	"math/rand"
 	"sync"
 	"time"
 )
 
-// 本地随机数生成器实例
-var (
-	rng      = rand.New(rand.NewSource(time.Now().UnixNano()))
-	rngMutex sync.Mutex
-)
+// 版本号计数器，使用无锁实现
+var versionCounter AutoInt
 
 // 生成增强版版本号
 func generateEnhancedVersion() string {
-	// 时间戳（毫秒）+ 随机序列号
-	rngMutex.Lock()
-	randomNum := rng.Intn(1000)
-	rngMutex.Unlock()
-	return fmt.Sprintf("%d_%d", time.Now().UnixMilli(), randomNum)
+	// 时间戳（毫秒）+ 无锁递增计数器
+	// 使用固定格式拼接，确保唯一性和顺序性
+	counter := versionCounter.Increment()
+	return fmt.Sprintf("%d_%d", time.Now().UnixMilli(), counter)
 }
 
 // 锁类型常量

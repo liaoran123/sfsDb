@@ -32,13 +32,10 @@ func (tm *TransactionManager) AddTable(table *Table) (Transaction, error) {
 	if tm.committed {
 		return nil, fmt.Errorf("transaction manager already committed")
 	}
-
-	// 为表创建使用共享batch的事务
 	tx, err := table.BeginWithBatch(tm.batch)
 	if err != nil {
 		return nil, err
 	}
-
 	// 将事务添加到管理列表
 	tm.transactions = append(tm.transactions, tx)
 	return tx, nil

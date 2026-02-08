@@ -50,8 +50,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	if err = t.CheckType(fields); err != nil {
 		return -1, err
 	}
-	currentID = (*fields)[pkfield].(int)
-	//currentID = util.AnyToInt((*fields)[pkfield])
+	currentID = util.AnyToInt((*fields)[pkfield])
 	// 添加初始版本号
 	if _, hasVersion := (*fields)["v"]; !hasVersion || (*fields)["v"] == "" {
 		(*fields)["v"] = generateEnhancedVersion() // 使用增强版版本号

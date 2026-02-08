@@ -3,14 +3,14 @@ package util
 import (
 	"math"
 	"reflect"
+	"strconv"
 )
 
-// anyToInt 使用 reflect 包将任意数值类型转换为 int，处理所有数值类型
+// AnyToInt 使用 reflect 包将任意类型转换为 int，处理所有数值类型和字符串类型
 func AnyToInt(v any) int {
 	if v == nil {
 		return int(0)
 	}
-
 	// 使用 reflect 包获取值的类型和值
 	val := reflect.ValueOf(v)
 	switch val.Kind() {
@@ -32,6 +32,13 @@ func AnyToInt(v any) int {
 			return int(math.MinInt64)
 		}
 		return int(floatVal)
+	//字符串
+	case reflect.String:
+		if i, err := strconv.Atoi(val.String()); err == nil {
+			return i
+		}
+		return 0
+
 	default:
 		return int(0)
 	}

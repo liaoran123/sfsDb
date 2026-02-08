@@ -28,14 +28,23 @@ type TransactionOptions struct {
 	AllowNested bool
 	// 事务超时时间
 	Timeout time.Duration
+	// 最大重试次数
+	MaxRetries int
+	// 初始重试延迟
+	InitialRetryDelay time.Duration
+	// 重试退避因子
+	RetryBackoffFactor float64
 }
 
 // 默认事务选项
 func DefaultTransactionOptions() *TransactionOptions {
 	return &TransactionOptions{
-		IsolationLevel: RepeatableRead,
-		AllowNested:    false,
-		Timeout:        0,
+		IsolationLevel:     RepeatableRead,
+		AllowNested:        false,
+		Timeout:            0,
+		MaxRetries:         3,
+		InitialRetryDelay:  10 * time.Millisecond,
+		RetryBackoffFactor: 2.0,
 	}
 }
 
@@ -76,15 +85,15 @@ type TableTransaction struct {
 	// 锁键缓存，避免重复生成锁键
 	lockKeyCache map[string]string // 锁键缓存
 	// 事务选项
-	options       *TransactionOptions
+	options *TransactionOptions
 	// 父事务（用于嵌套事务）
-	parent        *TableTransaction
+	parent *TableTransaction
 	// 子事务列表
-	children      []*TableTransaction
+	children []*TableTransaction
 	// 事务ID
-	txID          uint64
+	txID uint64
 	// 事务开始时间
-	startTime     time.Time
+	startTime time.Time
 }
 
 // Begin 创建一个新的事务
@@ -259,7 +268,21 @@ func (tx *TableTransaction) Update(fields *map[string]any) error {
 		batchContainer := NewBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
 		batchContainer.Operation(fieldsBytes, updateFields...)
 
-		// 5. 更新字段值
+		// 5. 检查版本号是否匹配
+		currentVersionBytes, exists := (*fieldsBytes)["v"]
+		if !exists {
+			currentVersionBytes = []byte{1} // 默认版本号
+		}
+		currentVersion := string(currentVersionBytes)
+
+		// 检查版本号是否匹配
+		if updateVersion, hasVersion := (*fields)["v"].(string); hasVersion {
+			if updateVersion != currentVersion {
+				return fmt.Errorf("optimistic lock conflict: version mismatch, expected %s, got %s", currentVersion, updateVersion)
+			}
+		}
+
+		// 6. 更新字段值
 		for field, val := range *fields {
 			// 排除主键字段
 			if pk.MatchFields(field) {
@@ -270,28 +293,21 @@ func (tx *TableTransaction) Update(fields *map[string]any) error {
 			}
 		}
 
-		// 6. 更新版本号
-		// 检查是否存在版本号字段
-		_, exists := (*fieldsBytes)["v"]
-		if !exists {
-			// 如果不存在，设置默认版本号
-			defaultVersion := generateEnhancedVersion()
-			(*fieldsBytes)["v"] = util.AnyToBytes(defaultVersion)
-		}
+		// 7. 更新版本号
 		// 使用增强版版本号
 		enhancedVersion := generateEnhancedVersion()
 		(*fields)["v"] = enhancedVersion
 		(*fieldsBytes)["v"] = util.AnyToBytes(enhancedVersion)
 
-		// 7. 格式化记录
+		// 8. 格式化记录
 		updatedRecord := tx.table.FormatRecord(fieldsBytes)
 
-		// 8. 执行更新操作（添加新记录）
+		// 9. 执行更新操作（添加新记录）
 		batchContainer.SetValue(0, updatedRecord)                               // 添加主键value=record
 		batchContainer.SetValue(1, tx.table.GetPrimaryKey().GetID(fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
 		batchContainer.Operation(fieldsBytes, updateFields...)
 
-		// 9. 更新缓存
+		// 10. 更新缓存
 		tx.cache[cacheKey] = updatedRecord
 	} else {
 		// 缓存中没有记录，直接执行更新操作
@@ -423,8 +439,8 @@ func (tx *TableTransaction) Commit() error {
 	// 只有根事务才真正提交batch
 	if tx.parent == nil {
 		// 1. 提交批量操作
-		// 使用原始存储执行写操作
-		err := tx.originalStore.WriteBatch(tx.batch)
+		// 使用原始存储执行写操作，支持重试
+		err := tx.executeWithRetry()
 		if err != nil {
 			// 提交失败，释放快照资源
 			if tx.snapshot != nil {
@@ -445,6 +461,74 @@ func (tx *TableTransaction) Commit() error {
 	tx.lockKeyCache = nil
 
 	return nil
+}
+
+// executeWithRetry 执行批量操作，支持重试
+func (tx *TableTransaction) executeWithRetry() error {
+	maxRetries := tx.options.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+
+	initialDelay := tx.options.InitialRetryDelay
+	if initialDelay <= 0 {
+		initialDelay = 10 * time.Millisecond
+	}
+
+	backoffFactor := tx.options.RetryBackoffFactor
+	if backoffFactor < 1.0 {
+		backoffFactor = 2.0
+	}
+
+	// 尝试执行，最多重试maxRetries次
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// 执行批量操作
+		err := tx.originalStore.WriteBatch(tx.batch)
+		if err == nil {
+			// 执行成功
+			return nil
+		}
+
+		// 检查是否是可重试的错误
+		if !tx.isRetryableError(err) {
+			// 不可重试的错误，直接返回
+			return err
+		}
+
+		// 检查是否达到最大重试次数
+		if attempt >= maxRetries {
+			// 达到最大重试次数，返回最后一次错误
+			return fmt.Errorf("failed after %d retries: %w", maxRetries, err)
+		}
+
+		// 计算重试延迟（指数退避）
+		delay := initialDelay
+		for i := 0; i < attempt; i++ {
+			delay = time.Duration(float64(delay) * backoffFactor)
+		}
+
+		// 等待后重试
+		time.Sleep(delay)
+	}
+
+	return nil
+}
+
+// isRetryableError 判断错误是否可重试
+func (tx *TableTransaction) isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// 这里可以根据具体的错误类型判断是否可重试
+	// 例如：锁冲突、临时网络问题等
+	// 对于LevelDB，常见的可重试错误包括：
+	// - 锁冲突
+	// - 临时的I/O错误
+
+	// 暂时默认所有错误都可重试，实际应用中需要根据具体错误类型判断
+	// 后续可以根据storage包中的错误类型进行更精确的判断
+	return true
 }
 
 // Rollback 回滚事务
