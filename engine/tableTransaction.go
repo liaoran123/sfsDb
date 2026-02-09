@@ -32,7 +32,7 @@ type TransactionOptions struct {
 	MaxRetries int `json:"maxRetries"`
 	// 初始重试延迟
 	InitialRetryDelay time.Duration `json:"initialRetryDelay"`
-	// 重试退避因子
+	// 重试退避因子（sleep时间乘法因子）
 	RetryBackoffFactor float64 `json:"retryBackoffFactor"`
 }
 
@@ -283,8 +283,10 @@ func (tx *TableTransaction) updateFromCache(fields *map[string]any, cacheKey str
 	}
 
 	// 4. 执行更新操作（删除旧记录）
-	batchContainer := NewBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
-	batchContainer.Operation(fieldsBytes, updateFields...)
+	// 从对象池中获取一个 batchContainer
+	batchContainer1 := GetBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
+	defer PutBatchContainer(batchContainer1)
+	batchContainer1.Operation(fieldsBytes, updateFields...)
 
 	// 5. 检查并更新版本号
 	_, err = tx.table.checkAndUpdateVersion(fields, fieldsBytes)
@@ -299,11 +301,12 @@ func (tx *TableTransaction) updateFromCache(fields *map[string]any, cacheKey str
 	updatedRecord := tx.table.FormatRecord(fieldsBytes)
 
 	// 8. 执行更新操作（添加新记录）
-	// 创建新的BatchContainer来避免状态冲突
-	newBatchContainer := NewBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
-	newBatchContainer.SetValue(0, updatedRecord)                               // 添加主键value=record
-	newBatchContainer.SetValue(1, tx.table.GetPrimaryKey().GetID(fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
-	newBatchContainer.Operation(fieldsBytes, updateFields...)
+	// 从对象池中获取一个 batchContainer
+	batchContainer2 := GetBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
+	defer PutBatchContainer(batchContainer2)
+	batchContainer2.SetValue(0, updatedRecord)                               // 添加主键value=record
+	batchContainer2.SetValue(1, tx.table.GetPrimaryKey().GetID(fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
+	batchContainer2.Operation(fieldsBytes, updateFields...)
 
 	// 9. 更新缓存
 	tx.cache[cacheKey] = updatedRecord

@@ -2,6 +2,8 @@ package engine
 
 import (
 	"sync"
+
+	"github.com/liaoran123/sfsDb/storage"
 )
 
 var (
@@ -48,36 +50,6 @@ func PutMap(m map[any]bool) {
 	mapPool.Put(m)
 }
 
-/*
-// GetFieldsBytesMap 从对象池获取一个 map[string][]byte 对象
-func GetFieldsBytesMap() map[string][]byte {
-	m := fieldsBytesPool.Get().(map[string][]byte)
-	// 清空 map 中的所有键值对，确保返回的数据干净
-	for k := range m {
-		delete(m, k)
-	}
-	return m
-}
-
-// PutFieldsBytesMap 将 map[string][]byte 对象归还到对象池
-func PutFieldsBytesMap(m map[string][]byte) {
-	// 清空 map 中的所有键值对，确保归还的对象干净
-	for k := range m {
-		delete(m, k)
-	}
-	fieldsBytesPool.Put(m)
-}
-
-// ResetFieldsBytesPool 重置 fieldsBytesPool 对象池
-func ResetFieldsBytesPool() {
-	// 由于 sync.Pool 没有直接的重置方法，我们可以通过替换来实现
-	fieldsBytesPool = sync.Pool{
-		New: func() any {
-			return make(map[string][]byte)
-		},
-	}
-}
-*/
 // GetStringSlice 从对象池获取一个 []string 切片
 func GetStringSlice() []string {
 	s := stringSlicePool.Get().([]string)
@@ -101,4 +73,49 @@ func ResetStringSlicePool() {
 			return make([]string, 0, 10)
 		},
 	}
+}
+
+// batchContainerPool 是 batchContainer 的对象池
+var batchContainerPool = &sync.Pool{
+	New: func() any {
+		return &batchContainer{
+			values: make(map[uint8][]byte, 3),
+		}
+	},
+}
+
+// GetBatchContainer 从对象池中获取一个 batchContainer
+func GetBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore storage.Store) *batchContainer {
+	// 从对象池中获取一个 batchContainer
+	c := batchContainerPool.Get().(*batchContainer)
+	// 设置 batchContainer 的状态
+	c.indexs = indexs
+	c.batch = batch
+	c.tbid = tbid
+	c.kvStore = kvStore
+	c.maxBatchSize = -1
+	c.values[0] = nil
+	c.values[1] = nil
+	c.values[2] = nil
+	return c
+}
+
+// PutBatchContainer 将 batchContainer 归还到对象池
+func PutBatchContainer(c *batchContainer) {
+	// 重置 batchContainer 的状态
+	c.indexs = nil
+	c.batch = nil
+	c.tbid = 0
+	c.kvStore = nil
+	c.maxBatchSize = -1
+	// 清空 values 映射
+	for k := range c.values {
+		delete(c.values, k)
+	}
+	// 重新初始化 values 映射
+	c.values[0] = nil
+	c.values[1] = nil
+	c.values[2] = nil
+	// 归还到对象池
+	batchContainerPool.Put(c)
 }

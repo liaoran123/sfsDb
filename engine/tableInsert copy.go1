@@ -72,9 +72,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	}
 	//格式化记录
 	record := t.FormatRecord(fieldsBytes)
-	// 从对象池中获取一个 batchContainer
-	BatchContainer := GetBatchContainer(batch, t.indexs, t.id, t.kvStore)
-	defer PutBatchContainer(BatchContainer)
+	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
 	BatchContainer.SetValue(0, record)                               //添加主键value=record
 	BatchContainer.SetValue(1, t.GetPrimaryKey().GetID(fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
 	//添加全文索引key=joinValue,value=nil
@@ -168,9 +166,7 @@ func (t *Table) BatchInsert(records []*map[string]any, batchs ...storage.Batch) 
 
 	// 处理记录并批量插入
 	autoIncIdx := 0
-	// 从对象池中获取一个 batchContainer
-	BatchContainer := GetBatchContainer(batch, t.indexs, t.id, t.kvStore)
-	defer PutBatchContainer(BatchContainer)
+	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore) // 重用BatchContainer
 
 	for i, fields := range records {
 		// 检查字段类型

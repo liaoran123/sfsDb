@@ -79,7 +79,9 @@ func (t *Table) Delete(fields *map[string]any, params ...any) error {
 		//释放batch资源
 		return err
 	}
-	BatchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
+	// 从对象池中获取一个 batchContainer
+	BatchContainer := GetBatchContainer(batch, t.indexs, t.id, t.kvStore)
+	defer PutBatchContainer(BatchContainer)
 	BatchContainer.Operation(fieldsBytes)
 	if !useBatch { //用户未手动控制事务，自动提交
 		t.kvStore.WriteBatch(batch)

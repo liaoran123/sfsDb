@@ -70,8 +70,9 @@ func (t *Table) updateFieldsValue(fields *map[string]any, fieldsBytes *map[strin
 
 // 执行更新操作
 func (t *Table) executeUpdateOperation(batch storage.Batch, fields *map[string]any, fieldsBytes *map[string][]byte, updateFields []string) error {
-	// 创建批处理容器
-	batchContainer := NewBatchContainer(batch, t.indexs, t.id, t.kvStore)
+	// 从对象池中获取一个 batchContainer
+	batchContainer := GetBatchContainer(batch, t.indexs, t.id, t.kvStore)
+	defer PutBatchContainer(batchContainer)
 
 	// 删除旧记录
 	batchContainer.Operation(fieldsBytes, updateFields...)

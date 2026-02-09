@@ -108,37 +108,6 @@ func (c *batchContainer) Operation(fieldsBytes *map[string][]byte, existFields .
 	}
 }
 
-/*
-	func (c *batchContainer) Operation(fieldsBytes *map[string][]byte, existFields ...string) {
-		// batch并发安全，防止多个goroutine同时操作
-		pkValue := c.indexs.getPrimaryKey().JoinValue(fieldsBytes, c.tbid)
-		c.Add(pkValue, 0) //添加主键记录key=pkValue,value=record
-
-		//添加/删除普通索引key=indexValues,value=pkValue
-		for _, Normal := range c.indexs.GetNormalIndexs() {
-			indexValue := Normal.JoinValue(fieldsBytes, c.tbid, existFields...)
-			if indexValue == nil {
-				continue
-			}
-			c.Add(append([]byte{}, indexValue...), 1) //添加普通索引key=indexValues,value=pkValue
-		}
-
-		for _, FullText := range c.indexs.GetFullTextIndexs() {
-			joinValues := FullText.JoinFullValues(fieldsBytes, c.tbid, existFields...)
-			defer util.PutBytesArray(joinValues)
-			for _, joinValue := range joinValues {
-				if joinValue == nil {
-					continue
-				}
-				c.Add(append([]byte{}, joinValue...), 2) //添加全文索引key=joinValue,value=t.primaryKey.ID()
-			}
-		}
-		// 检查是否超过最大批量操作数量
-		if c.maxBatchSize > 0 && c.batch.Len() >= c.maxBatchSize {
-			c.kvStore.WriteBatch(c.batch, false) //写入批量操作，重置batch，false，但是不put，继续使用原来的batch
-		}
-	}
-*/
 func (c *batchContainer) SetMaxBatchSize(size int) {
 	c.maxBatchSize = size
 }
