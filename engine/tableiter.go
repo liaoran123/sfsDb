@@ -548,6 +548,9 @@ func (t *TableIter) Map(fields ...string) (data map[any]bool) {
 	t.RecordIndexTime(startTime, "Map")
 	return
 }
+func (t *TableIter) ReleaseMap(data map[any]bool) {
+	PutMap(data)
+}
 
 // 获取搜索时使用的索引的名称
 func (t *TableIter) GetIndexName() string {
@@ -623,21 +626,9 @@ func (t *TableIter) Count() int {
 	return i
 }
 
-/*
-//由于TableIter本身使用对象池，put的时候同时释放iter器和跳跃区间，所以这里不需要
 func (t *TableIter) Release() {
 	if t == nil {
 		return
 	}
-	if t.iter != nil {
-		t.iter.Release()
-	}
-	if t.jumpRanges != nil {
-		for _, jumpRange := range t.jumpRanges {
-			if jumpRange != nil {
-				jumpRange.Release()
-			}
-		}
-	}
+	GlobalTableIterPool.Put(t)
 }
-*/

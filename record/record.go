@@ -7,6 +7,33 @@ import (
 
 type Record map[string]any
 
+// Select selects fields from a record
+// Returns a new record with the selected fields
+func (r Record) Select(keys ...string) Record {
+	if r == nil {
+		return nil
+	}
+	if len(keys) == 0 {
+		return r
+	}
+	result := GetRecord()
+
+	// 直接添加选中的字段，避免不必要的遍历删除
+	for _, key := range keys {
+		if val, exists := r[key]; exists {
+			result[key] = val
+		} else {
+			// 处理不存在的字段，设为 nil
+			result[key] = nil
+		}
+	}
+	return result
+}
+func (r Record) Release() {
+	PutRecord(r)
+}
+
+// -----------------------------------------
 // BatchSelect 批量选择多个记录的字段
 // 减少多次调用 Select 方法的开销
 func BatchSelect(records Records, fields ...string) Records {
@@ -111,29 +138,6 @@ func BatchOperationVertical(records Records, op ...VerticalOperation) Records {
 		}
 	}
 
-	return result
-}
-
-// Select selects fields from a record
-// Returns a new record with the selected fields
-func (r Record) Select(keys ...string) Record {
-	if r == nil {
-		return nil
-	}
-	if len(keys) == 0 {
-		return r
-	}
-	result := GetRecord()
-
-	// 直接添加选中的字段，避免不必要的遍历删除
-	for _, key := range keys {
-		if val, exists := r[key]; exists {
-			result[key] = val
-		} else {
-			// 处理不存在的字段，设为 nil
-			result[key] = nil
-		}
-	}
 	return result
 }
 
@@ -434,4 +438,8 @@ func (rs Records) Difference(other ...Records) Records {
 	}
 
 	return result
+}
+
+func (rs Records) Release() {
+	PutRecords(rs)
 }

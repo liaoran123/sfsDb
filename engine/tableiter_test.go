@@ -214,7 +214,13 @@ func TestTestSelectForJoin(t *testing.T) {
 	fmt.Println("-----------------------------------------------")
 	// 获取table2的ID映射
 	map2 := iter2.Map()
-	defer PutMap(map2)
+	defer iter2.ReleaseMap(map2)
+	//defer PutMap(map2)
+	/*
+		如果map2的生命周期小于iter2，则使用iter2.ReleaseMap(map2)
+		否则，使用PutMap(map2)
+	*/
+
 	// 创建一个匹配器，匹配table1的ID是否在table2中
 	mach := match.NewAND([]string{"id"}, map2)
 	fmt.Println("-----------------------------------------------")
@@ -250,7 +256,8 @@ func TestTestSelectForJoin(t *testing.T) {
 	fmt.Println("-----------------------------------------------")
 
 	map3 := iter3.Map()
-	defer PutMap(map3)
+	defer iter3.ReleaseMap(map3)
+	//defer PutMap(map3)
 	mach2 := match.NewAND([]string{"id"}, map3)
 	iter1.SetMatch(mach, mach2)
 	rd4 := iter1.GetRecords(true)
@@ -266,7 +273,8 @@ func TestTestSelectForJoin(t *testing.T) {
 	fmt.Println("select table1.* from table1,table2,table3 where table1.id=table2.id and table1.id!=table3.id")
 	fmt.Println("-----------------------------------------------")
 	map3 = iter3.Map()
-	defer PutMap(map3)
+	defer iter3.ReleaseMap(map3)
+	//defer PutMap(map3)
 	mach2 = match.NewAND([]string{"id"}, map3, false)
 	iter1.SetMatch(mach, mach2)
 	rd5 := iter1.GetRecords(true)

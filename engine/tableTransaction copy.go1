@@ -519,6 +519,7 @@ func (tx *TableTransaction) isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	// 这里可以根据具体的错误类型判断是否可重试
 	// 例如：锁冲突、临时网络问题等
 	// 对于LevelDB，常见的可重试错误包括：

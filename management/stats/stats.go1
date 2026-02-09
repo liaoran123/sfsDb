@@ -1,5 +1,6 @@
 package stats
 
+//-----------已经弃用--------------------
 import (
 	"time"
 
@@ -8,7 +9,7 @@ import (
 
 // QueryStats 查询性能统计
 type QueryStats struct {
-	Count    int64         // 查询次数
+	Count     int64         // 查询次数
 	TotalTime time.Duration // 总耗时
 	AvgTime   time.Duration // 平均耗时
 	MaxTime   time.Duration // 最大耗时
@@ -23,13 +24,13 @@ type HotspotInfo struct {
 
 // StatsManager 性能统计管理器
 type StatsManager struct {
-	store           storage.Store
-	queryStats      QueryStats          // 整体查询统计
-	queryStatsByType map[string]QueryStats // 按查询类型分类的统计
-	hotspots        map[string]int64    // 热点数据统计
-	profilingEnabled bool              // 是否启用性能分析
-	profilingStartTime time.Time        // 性能分析开始时间
-	profilingData   map[string]interface{} // 性能分析数据
+	store              storage.Store
+	queryStats         QueryStats             // 整体查询统计
+	queryStatsByType   map[string]QueryStats  // 按查询类型分类的统计
+	hotspots           map[string]int64       // 热点数据统计
+	profilingEnabled   bool                   // 是否启用性能分析
+	profilingStartTime time.Time              // 性能分析开始时间
+	profilingData      map[string]interface{} // 性能分析数据
 }
 
 // NewStatsManager 创建性能统计管理器
@@ -40,12 +41,12 @@ type StatsManager struct {
 
 func NewStatsManager(store storage.Store) *StatsManager {
 	return &StatsManager{
-		store:           store,
-		queryStats:      QueryStats{},
+		store:            store,
+		queryStats:       QueryStats{},
 		queryStatsByType: make(map[string]QueryStats),
-		hotspots:        make(map[string]int64),
+		hotspots:         make(map[string]int64),
 		profilingEnabled: false,
-		profilingData:   make(map[string]interface{}),
+		profilingData:    make(map[string]interface{}),
 	}
 }
 
@@ -59,7 +60,7 @@ func (sm *StatsManager) GetQueryStats() (QueryStats, error) {
 	// 首先尝试从存储中读取统计数据
 	// 这里简化处理，直接返回内存中的统计数据
 	// 实际实现时，应该从存储中读取持久化的统计数据
-	
+
 	return sm.queryStats, nil
 }
 
@@ -81,7 +82,7 @@ func (sm *StatsManager) RecordQuery(duration time.Duration, queryType string) {
 	// 更新整体查询统计
 	sm.queryStats.Count++
 	sm.queryStats.TotalTime += duration
-	
+
 	// 更新最大和最小查询时间
 	if sm.queryStats.Count == 1 {
 		sm.queryStats.MaxTime = duration
@@ -94,19 +95,19 @@ func (sm *StatsManager) RecordQuery(duration time.Duration, queryType string) {
 			sm.queryStats.MinTime = duration
 		}
 	}
-	
+
 	// 更新平均查询时间
 	sm.queryStats.AvgTime = sm.queryStats.TotalTime / time.Duration(sm.queryStats.Count)
-	
+
 	// 更新按查询类型分类的统计
 	if _, ok := sm.queryStatsByType[queryType]; !ok {
 		sm.queryStatsByType[queryType] = QueryStats{}
 	}
-	
+
 	typeStats := sm.queryStatsByType[queryType]
 	typeStats.Count++
 	typeStats.TotalTime += duration
-	
+
 	if typeStats.Count == 1 {
 		typeStats.MaxTime = duration
 		typeStats.MinTime = duration
@@ -118,10 +119,10 @@ func (sm *StatsManager) RecordQuery(duration time.Duration, queryType string) {
 			typeStats.MinTime = duration
 		}
 	}
-	
+
 	typeStats.AvgTime = typeStats.TotalTime / time.Duration(typeStats.Count)
 	sm.queryStatsByType[queryType] = typeStats
-	
+
 	// 如果启用了性能分析，记录更多数据
 	if sm.profilingEnabled {
 		if _, ok := sm.profilingData["queries"]; !ok {
@@ -144,7 +145,7 @@ func (sm *StatsManager) RecordQuery(duration time.Duration, queryType string) {
 func (sm *StatsManager) RecordAccess(key string) {
 	// 更新热点数据统计
 	sm.hotspots[key]++
-	
+
 	// 如果启用了性能分析，记录更多数据
 	if sm.profilingEnabled {
 		if _, ok := sm.profilingData["accesses"]; !ok {
@@ -176,7 +177,7 @@ func (sm *StatsManager) GetHotspots(limit int) ([]HotspotInfo, error) {
 			Count: count,
 		})
 	}
-	
+
 	// 按访问次数排序
 	// 这里使用简单的冒泡排序，实际实现时应该使用更高效的排序算法
 	for i := 0; i < len(hotspotInfos)-1; i++ {
@@ -186,12 +187,12 @@ func (sm *StatsManager) GetHotspots(limit int) ([]HotspotInfo, error) {
 			}
 		}
 	}
-	
+
 	// 限制返回数量
 	if limit > 0 && len(hotspotInfos) > limit {
 		hotspotInfos = hotspotInfos[:limit]
 	}
-	
+
 	return hotspotInfos, nil
 }
 
@@ -204,12 +205,12 @@ func (sm *StatsManager) StartProfiling() error {
 	sm.profilingEnabled = true
 	sm.profilingStartTime = time.Now()
 	sm.profilingData = make(map[string]interface{})
-	
+
 	// 初始化性能分析数据
 	sm.profilingData["startTime"] = sm.profilingStartTime
 	sm.profilingData["queries"] = make([]map[string]interface{}, 0)
 	sm.profilingData["accesses"] = make([]map[string]interface{}, 0)
-	
+
 	return nil
 }
 
@@ -223,21 +224,21 @@ func (sm *StatsManager) StopProfiling() (map[string]interface{}, error) {
 	if !sm.profilingEnabled {
 		return nil, nil
 	}
-	
+
 	// 停止性能分析
 	sm.profilingEnabled = false
 	profilingDuration := time.Since(sm.profilingStartTime)
-	
+
 	// 更新性能分析数据
 	sm.profilingData["endTime"] = time.Now()
 	sm.profilingData["duration"] = profilingDuration
 	sm.profilingData["queryStats"] = sm.queryStats
 	sm.profilingData["queryStatsByType"] = sm.queryStatsByType
-	
+
 	// 获取热点数据
 	hotspots, _ := sm.GetHotspots(10)
 	sm.profilingData["hotspots"] = hotspots
-	
+
 	// 返回性能分析结果
 	return sm.profilingData, nil
 }

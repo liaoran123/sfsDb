@@ -171,31 +171,35 @@ func (s *LevelDBStore) Snapshot() (Snapshot, error) {
 	}
 
 	// 创建LevelDB快照
-	snapshot, err := db.GetSnapshot()
+	levelDBSnapshot, err := db.GetSnapshot()
 	if err != nil {
 		return nil, err
 	}
-	if snapshot == nil {
+	if levelDBSnapshot == nil {
 		return nil, NewError("failed to create snapshot")
 	}
-	// 返回一个新的LevelDBStore实例，其中ldb字段为快照，并保存原始数据库实例
-	return &LevelDBStore{
-		ldb:        snapshot,
-		originalDB: db,
-		isSnapshot: true,
-		opts:       s.opts,
-	}, nil
+
+	// 从对象池中获取快照实例
+	snapshotStore := LdbSnapshotPool.Get()
+	// 设置快照状态
+	snapshotStore.ldb = levelDBSnapshot
+	snapshotStore.originalDB = db
+	snapshotStore.isSnapshot = true
+	snapshotStore.opts = s.opts
+
+	return snapshotStore, nil
 }
 
 // Close 关闭存储
 func (s *LevelDBStore) Close() error {
 
-	// 如果是快照，释放快照资源
+	// 如果是快照，释放快照资源并将实例放回对象池
 	if s.isSnapshot {
 		if snapshot, ok := s.ldb.(*leveldb.Snapshot); ok {
 			snapshot.Release()
-			s.ldb = nil
 		}
+		// 将实例放回对象池
+		LdbSnapshotPool.Put(s)
 		return nil
 	}
 

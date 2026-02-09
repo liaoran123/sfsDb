@@ -9,7 +9,7 @@ import (
 	"github.com/liaoran123/sfsDb/management/backup"
 	"github.com/liaoran123/sfsDb/management/config"
 	"github.com/liaoran123/sfsDb/management/monitor"
-
+	"github.com/liaoran123/sfsDb/management/stats"
 	"github.com/liaoran123/sfsDb/management/status"
 	"github.com/liaoran123/sfsDb/management/system"
 	"github.com/liaoran123/sfsDb/storage"
@@ -19,9 +19,9 @@ import (
 // 作为管理工具库的入口点，提供对各个管理模块的访问
 
 type Manager struct {
-	store storage.Store
-	table *engine.Table // 可选的表实例，用于深度集成
-	//statsManager *stats.StatsManager
+	store        storage.Store
+	table        *engine.Table // 可选的表实例，用于深度集成
+	statsManager *stats.StatsManager
 }
 
 // NewManager 创建数据库管理器
@@ -32,9 +32,9 @@ type Manager struct {
 
 func NewManager(store storage.Store) *Manager {
 	return &Manager{
-		store: store,
-		table: nil,
-		//statsManager: stats.NewStatsManager(store),
+		store:        store,
+		table:        nil,
+		statsManager: stats.NewStatsManager(store),
 	}
 }
 
@@ -47,9 +47,9 @@ func NewManager(store storage.Store) *Manager {
 
 func NewManagerWithTable(store storage.Store, table *engine.Table) *Manager {
 	return &Manager{
-		store: store,
-		table: table,
-		//statsManager: stats.NewStatsManager(store),
+		store:        store,
+		table:        table,
+		statsManager: stats.NewStatsManager(store),
 	}
 }
 
@@ -66,6 +66,10 @@ func (m *Manager) GetStatus() (status.StatusInfo, error) {
 // StatsManager 获取性能统计管理器
 // 返回:
 //   *stats.StatsManager: 性能统计管理器实例
+
+func (m *Manager) StatsManager() *stats.StatsManager {
+	return m.statsManager
+}
 
 // BackupManager 获取备份管理器
 // 返回:
@@ -200,6 +204,15 @@ func (m *HTTPClientManager) GetStatus() (status.StatusInfo, error) {
 	}
 
 	return statusInfo, nil
+}
+
+// StatsManager 获取性能统计管理器
+// 返回:
+//
+//	*stats.StatsManager: 性能统计管理器实例
+
+func (m *HTTPClientManager) StatsManager() *stats.StatsManager {
+	return stats.NewStatsManager(nil)
 }
 
 // BackupManager 获取备份管理器

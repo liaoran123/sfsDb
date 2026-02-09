@@ -137,3 +137,89 @@ func SetMaxBatchSize(size int) {
 func GetMaxBatchSize() int {
 	return MaxBatchSize
 }
+
+// 快照对象池配置
+var (
+	// MaxSnapshotPoolSize 最大快照对象缓存数量
+	MaxSnapshotPoolSize = 1000
+)
+
+// snapshotPool 包装sync.Pool，添加大小限制和统计功能
+// 用于管理LevelDBStore类型的快照实例
+type snapshotPool struct {
+	pool        sync.Pool
+	currentSize uint64 // 当前池中对象数量，使用原子操作管理
+}
+
+// Get 从池中获取快照对象
+func (p *snapshotPool) Get() *LevelDBStore {
+	snapshot := p.pool.Get().(*LevelDBStore)
+	if snapshot == nil {
+		// 安全保障：如果从池中获取到 nil，创建一个新的快照对象
+		return new(LevelDBStore)
+	}
+	return snapshot
+}
+
+// Put 将快照对象放回池中
+func (p *snapshotPool) Put(snapshot *LevelDBStore) {
+	// 检查快照对象是否为 nil
+	if snapshot == nil {
+		// 快照对象为 nil，直接返回
+		return
+	}
+
+	// 检查池大小（使用原子操作）
+	if atomic.LoadUint64(&p.currentSize) >= uint64(MaxSnapshotPoolSize) {
+		// 池大小超过限制，直接返回，让垃圾回收器处理这个对象
+		return
+	}
+
+	// 原子递增计数器
+	if atomic.AddUint64(&p.currentSize, 1) > uint64(MaxSnapshotPoolSize) {
+		// 如果递增后超过限制，立即递减
+		atomic.AddUint64(&p.currentSize, ^uint64(0))
+		return
+	}
+
+	// 重置快照对象状态
+	snapshot.ldb = nil
+	snapshot.originalDB = nil
+	snapshot.isSnapshot = false
+	snapshot.opts = nil
+
+	// 将对象放回池中
+	p.pool.Put(snapshot)
+}
+
+// GetPoolSize 获取当前快照对象池的大小
+func (p *snapshotPool) GetPoolSize() uint64 {
+	return atomic.LoadUint64(&p.currentSize)
+}
+
+// 快照对象池
+var LdbSnapshotPool = &snapshotPool{
+	pool: sync.Pool{
+		New: func() any {
+			return new(LevelDBStore)
+		},
+	},
+}
+
+// GetLdbSnapshotPoolSize 获取全局快照对象池的大小
+func GetLdbSnapshotPoolSize() uint64 {
+	return LdbSnapshotPool.GetPoolSize()
+}
+
+// SetMaxSnapshotPoolSize 设置最大快照对象缓存数量
+// size: 最大快照对象缓存数量
+func SetMaxSnapshotPoolSize(size int) {
+	if size > 0 {
+		MaxSnapshotPoolSize = size
+	}
+}
+
+// GetMaxSnapshotPoolSize 获取最大快照对象缓存数量
+func GetMaxSnapshotPoolSize() int {
+	return MaxSnapshotPoolSize
+}
