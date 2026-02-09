@@ -240,10 +240,77 @@ func (tx *TableTransaction) Update(fields *map[string]any) error {
 
 	// 检查缓存中是否有要更新的记录
 	if record, exists := tx.cache[cacheKey]; exists {
-		// 缓存中有记录，使用提取的方法处理
-		if err := tx.updateFromCache(fields, cacheKey, record); err != nil {
+		// 缓存中有记录，模拟 Table.Update 的行为
+		// 1. 解析记录
+		pk := tx.table.GetPrimaryKey()
+		fieldsBytes, err := pk.Parse(tx.table.fieldsid, record)
+		if err != nil {
 			return err
 		}
+
+		// 2. 准备更新字段列表
+		updateFields := GetStringSlice()   //GetStringSliceWithStrategy()
+		defer PutStringSlice(updateFields) //defer PutStringSliceWithStrategy(updateFields)
+		for field := range *fields {
+			// 排除主键字段
+			if pk.MatchFields(field) {
+				continue
+			}
+			updateFields = append(updateFields, field)
+		}
+
+		// 3. 检查更新字段个数是否为0
+		if len(updateFields) == 0 {
+			return nil
+		}
+
+		// 4. 执行更新操作（删除旧记录）
+		batchContainer := NewBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
+		batchContainer.Operation(fieldsBytes, updateFields...)
+
+		// 5. 检查版本号是否匹配
+		currentVersionBytes, exists := (*fieldsBytes)["v"]
+		if !exists {
+			currentVersionBytes = []byte{1} // 默认版本号
+		}
+		currentVersion := string(currentVersionBytes)
+
+		// 检查版本号是否匹配
+		if updateVersion, hasVersion := (*fields)["v"].(string); hasVersion {
+			if updateVersion != currentVersion {
+				return fmt.Errorf("optimistic lock conflict: version mismatch, expected %s, got %s", currentVersion, updateVersion)
+			}
+		}
+
+		// 6. 更新字段值
+		for field, val := range *fields {
+			// 排除主键字段
+			if pk.MatchFields(field) {
+				continue
+			}
+			if _, ok := tx.table.fields[field]; ok {
+				(*fieldsBytes)[field] = util.AnyToBytes(val)
+			}
+		}
+
+		// 7. 更新版本号
+		// 使用增强版版本号
+		enhancedVersion := generateEnhancedVersion()
+		(*fields)["v"] = enhancedVersion
+		(*fieldsBytes)["v"] = util.AnyToBytes(enhancedVersion)
+
+		// 8. 格式化记录
+		updatedRecord := tx.table.FormatRecord(fieldsBytes)
+
+		// 9. 执行更新操作（添加新记录）
+		// 创建新的BatchContainer来避免状态冲突
+		newBatchContainer := NewBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
+		newBatchContainer.SetValue(0, updatedRecord)                               // 添加主键value=record
+		newBatchContainer.SetValue(1, tx.table.GetPrimaryKey().GetID(fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
+		newBatchContainer.Operation(fieldsBytes, updateFields...)
+
+		// 10. 更新缓存
+		tx.cache[cacheKey] = updatedRecord
 	} else {
 		// 缓存中没有记录，直接执行更新操作
 		err := tx.table.Update(fields, tx.batch)
@@ -257,56 +324,6 @@ func (tx *TableTransaction) Update(fields *map[string]any) error {
 
 	// 缓存锁键
 	tx.lockKeyCache[cacheKey] = tx.table.generateLockKey(fields)
-
-	return nil
-}
-
-// updateFromCache 从缓存中更新记录
-func (tx *TableTransaction) updateFromCache(fields *map[string]any, cacheKey string, record []byte) error {
-	// 1. 解析记录
-	pk := tx.table.GetPrimaryKey()
-	fieldsBytes, err := pk.Parse(tx.table.fieldsid, record)
-	if err != nil {
-		return err
-	}
-
-	// 2. 准备更新字段列表
-	updateFields, err := tx.table.prepareUpdateFields(fields)
-	if err != nil {
-		return err
-	}
-	defer PutStringSlice(updateFields)
-
-	// 3. 检查更新字段个数是否为0
-	if len(updateFields) == 0 {
-		return nil
-	}
-
-	// 4. 执行更新操作（删除旧记录）
-	batchContainer := NewBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
-	batchContainer.Operation(fieldsBytes, updateFields...)
-
-	// 5. 检查并更新版本号
-	_, err = tx.table.checkAndUpdateVersion(fields, fieldsBytes)
-	if err != nil {
-		return err
-	}
-
-	// 6. 更新字段值
-	tx.table.updateFieldsValue(fields, fieldsBytes)
-
-	// 7. 格式化记录
-	updatedRecord := tx.table.FormatRecord(fieldsBytes)
-
-	// 8. 执行更新操作（添加新记录）
-	// 创建新的BatchContainer来避免状态冲突
-	newBatchContainer := NewBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
-	newBatchContainer.SetValue(0, updatedRecord)                               // 添加主键value=record
-	newBatchContainer.SetValue(1, tx.table.GetPrimaryKey().GetID(fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
-	newBatchContainer.Operation(fieldsBytes, updateFields...)
-
-	// 9. 更新缓存
-	tx.cache[cacheKey] = updatedRecord
 
 	return nil
 }
