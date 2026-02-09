@@ -390,6 +390,9 @@ func (t *Table) Update(fields *map[string]any, params ...any) error {
 		}
 	}
 
+	//是否用户手动控制事务
+	userProvidedBatch := batch != nil
+
 	// 如果没有提供batch，使用默认batch
 	if batch == nil {
 		batch = t.kvStore.GetBatch()
@@ -424,11 +427,6 @@ func (t *Table) Update(fields *map[string]any, params ...any) error {
 	// 检查字段类型是否匹配
 	if err := t.CheckType(fields); err != nil {
 		return err
-	}
-	//是否用户手动控制事务
-	useBatch := batch != nil
-	if !useBatch { //用户未手动控制事务，创建新batch
-		batch = t.kvStore.GetBatch()
 	}
 	//读取记录 - 直接使用 ReadByBytes 避免死锁
 	fieldsBytes := t.FieldsToBytes(fields)
@@ -490,19 +488,39 @@ func (t *Table) Update(fields *map[string]any, params ...any) error {
 			(*fieldsBytes)[field] = util.AnyToBytes(val)
 		}
 	}
+
+	// 手动更新版本号，因为 "v" 是默认字段，不在 t.fields 中定义
+	if enhancedVersion, ok := (*fields)["v"].(string); ok {
+		(*fieldsBytes)["v"] = []byte(enhancedVersion)
+	}
+
+	// 检查版本号是否真的被更新了
+	if val, ok := (*fieldsBytes)["v"]; ok {
+		fmt.Printf("版本号已更新: %s\n", string(val))
+	} else {
+		fmt.Printf("版本号未更新，fieldsBytes 中没有 v 字段\n")
+	}
 	//设置新值添加
 	record = t.FormatRecord(fieldsBytes)
 	BatchContainer.SetValue(0, record)                               //添加主键value=record
 	BatchContainer.SetValue(1, t.GetPrimaryKey().GetID(fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
 	//添加全文索引key=joinValue,value=nil
 	BatchContainer.Operation(fieldsBytes, updateFields...)
-	//提交事务
-	if !useBatch { //用户未手动控制事务，自动提交
+	// 提交事务
+	if !userProvidedBatch { //用户未手动控制事务，自动提交
 		if err := t.kvStore.WriteBatch(batch); err != nil {
 			return err
 		}
 	}
-	//fmt.Printf("Update BatchContainer.Len(): %v\n", BatchContainer.Len())
+	/*
+		// 检查事务是否真的被提交了
+		if !userProvidedBatch {
+			fmt.Printf("事务已自动提交\n")
+		} else {
+			fmt.Printf("事务由用户手动控制\n")
+		}
+		//fmt.Printf("Update BatchContainer.Len(): %v\n", BatchContainer.Len())
+	*/
 	return nil
 
 	/*

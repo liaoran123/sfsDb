@@ -6,6 +6,18 @@ import (
 	"time"
 )
 
+/*
+
+### 要使用事务锁跟踪和死锁检测功能，应用程序需要：
+
+1. 在开始事务时调用 `table.BeginTransaction(txID)`
+2. 在获取锁时调用 `table.RecordHeldLock(txID, pkValue)`
+3. 在等待锁时调用 `table.RecordWaitingLock(txID, pkValue)`
+4. 在结束事务时调用 `table.EndTransaction(txID)`
+
+这种设计提供了灵活性，允许应用程序根据需要选择是否启用高级的死锁检测功能。
+测试文件：row_lock_test.go
+*/
 // 版本号计数器，使用无锁实现
 var versionCounter AutoInt
 
@@ -192,6 +204,7 @@ func (t *Table) acquireRowReadLock(pkValue any, txID uint64, timeout ...time.Dur
 // 获取行级排他锁（写锁）
 func (t *Table) acquireRowWriteLock(pkValue any, txID uint64, timeout ...time.Duration) error {
 	lockKey := fmt.Sprintf("%v", pkValue)
+	//LoadOrStore 如果锁不存在，创建一个新的锁实例
 	rowLock, _ := t.rowLocks.LoadOrStore(lockKey, &RowLock{
 		lockedAt:  time.Now(),
 		timeout:   30 * time.Second, // 默认超时时间
@@ -205,7 +218,6 @@ func (t *Table) acquireRowWriteLock(pkValue any, txID uint64, timeout ...time.Du
 	if len(timeout) > 0 {
 		rl.timeout = timeout[0]
 	}
-
 	// 检查锁是否已过期
 	if rl.isExpired || time.Since(rl.lockedAt) > rl.timeout {
 		rl.isExpired = true
@@ -219,15 +231,34 @@ func (t *Table) acquireRowWriteLock(pkValue any, txID uint64, timeout ...time.Du
 			rl.readCount = 0
 			return nil
 		}
+		//如果失败，说明锁已被其他事务持有（即使过期），返回错误
 		return fmt.Errorf("锁已过期且无法获取")
 	}
-
-	rl.rwLock.Lock()
+	rl.rwLock.Lock() //如果锁已被其他事务持有，此调用会阻塞 ， 阻塞时，事务会进入等待状态，触发死锁检测
 	rl.lockedAt = time.Now()
 	rl.lockType = LockTypeWrite
 	rl.lockHolder = txID
 	rl.readCount = 0
 	return nil
+	/*
+		   ### 锁状态判断机制
+		   - 基于 sync.RWMutex ：
+
+		     - TryLock() 方法：尝试获取写锁，成功返回 true，失败返回 false
+		     - Lock() 方法：获取写锁，若锁被占用则阻塞
+		     - 当这两个方法返回失败或阻塞时，说明锁已被其他事务持有
+		   - 锁状态字段 ：
+
+		     - rl.lockHolder ：记录锁持有者的事务 ID
+		     - rl.lockType ：记录锁类型（无锁、读锁、写锁）
+		     - rl.readCount ：记录读锁数量
+
+			 ### 技术实现特点
+			 - 过期锁处理 ：通过时间戳和超时设置，自动识别和处理过期锁
+			 - 无锁检测 ：使用 TryLock() 实现非阻塞的锁状态检测
+			 - 阻塞等待 ：使用 Lock() 实现阻塞式的锁获取
+			 - 自动死锁检测 ：在锁等待时自动触发死锁检测
+	*/
 }
 
 // 释放行级锁
@@ -465,7 +496,7 @@ func (t *Table) EndTransaction(txID uint64) {
 }
 
 // 记录事务持有锁
-func (t *Table) RecordHeldLock(txID uint64, pkValue interface{}) {
+func (t *Table) RecordHeldLock(txID uint64, pkValue any) {
 	lockInfo := t.GetLockInfo(pkValue)
 	if lockInfo != nil {
 		if tli, ok := t.transactionLocks.Load(txID); ok {
@@ -477,7 +508,7 @@ func (t *Table) RecordHeldLock(txID uint64, pkValue interface{}) {
 }
 
 // 记录事务等待锁
-func (t *Table) RecordWaitingLock(txID uint64, pkValue interface{}) {
+func (t *Table) RecordWaitingLock(txID uint64, pkValue any) {
 	lockInfo := t.GetLockInfo(pkValue)
 	if tli, ok := t.transactionLocks.Load(txID); ok {
 		transactionLockInfo := tli.(*TransactionLockInfo)

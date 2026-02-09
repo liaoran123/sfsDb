@@ -764,6 +764,126 @@ table.RecordWaitingLock(txID, "another_primary_key_value")
 table.EndTransaction(txID)
 ```
 
+#### 11.2.3 事务锁跟踪的完整使用方式
+
+要在实际事务中启用死锁检测，需要按照以下步骤使用事务锁跟踪功能：
+
+```go
+// 1. 生成事务ID
+txID := uint64(time.Now().UnixNano())
+
+// 2. 开始事务锁跟踪
+table.BeginTransaction(txID)
+
+// 3. 开始事务
+tx, err := table.Begin()
+if err != nil {
+    table.EndTransaction(txID) // 结束锁跟踪
+    return err
+}
+
+// 4. 执行更新操作（可能触发锁竞争）
+updateFields := map[string]any{"id": 1, "name": "Updated Name"}
+
+// 在执行更新前，记录可能需要等待的锁
+primaryKey := "1"
+table.RecordWaitingLock(txID, primaryKey)
+
+// 执行更新操作
+if err := tx.Update(&updateFields); err != nil {
+    tx.Rollback()
+    table.EndTransaction(txID) // 结束锁跟踪
+    return err
+}
+
+// 5. 记录已持有的锁
+table.RecordHeldLock(txID, primaryKey)
+
+// 6. 提交事务
+if err := tx.Commit(); err != nil {
+    table.EndTransaction(txID) // 结束锁跟踪
+    return err
+}
+
+// 7. 结束事务锁跟踪
+table.EndTransaction(txID)
+```
+
+#### 11.2.4 批量操作中的死锁检测
+
+在批量操作中使用死锁检测：
+
+```go
+// 1. 生成事务ID
+txID := uint64(time.Now().UnixNano())
+
+// 2. 开始事务锁跟踪
+table.BeginTransaction(txID)
+
+// 3. 获取批处理对象
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    table.EndTransaction(txID) // 结束锁跟踪
+    return fmt.Errorf("无法获取批处理对象")
+}
+
+// 4. 执行批量操作
+for _, record := range records {
+    primaryKey := fmt.Sprintf("%v", (*record)["id"])
+    
+    // 记录等待锁
+    table.RecordWaitingLock(txID, primaryKey)
+    
+    // 执行更新操作
+    if err := table.Update(record, batch); err != nil {
+        table.EndTransaction(txID) // 结束锁跟踪
+        return err
+    }
+    
+    // 记录已持有的锁
+    table.RecordHeldLock(txID, primaryKey)
+}
+
+// 5. 提交批处理
+if err := storage.KVDb.WriteBatch(batch); err != nil {
+    table.EndTransaction(txID) // 结束锁跟踪
+    return err
+}
+
+// 6. 结束事务锁跟踪
+table.EndTransaction(txID)
+```
+
+#### 11.2.5 死锁处理策略
+
+当检测到死锁时，推荐的处理策略：
+
+```go
+// 检测死锁
+deadlockedTxs := table.DetectDeadlock()
+if len(deadlockedTxs) > 0 {
+    fmt.Printf("检测到死锁的事务: %v\n", deadlockedTxs)
+    
+    // 处理策略1：回滚当前事务
+    // tx.Rollback()
+    
+    // 处理策略2：等待一段时间后重试
+    // time.Sleep(100 * time.Millisecond)
+    // 重新执行操作
+    
+    // 处理策略3：根据事务优先级选择回滚
+    // if isLowPriorityTransaction(txID) {
+    //     tx.Rollback()
+    // }
+}
+```
+
+**使用建议**：
+- 对于简单的应用场景，可能不需要启用事务锁跟踪
+- 对于复杂的并发场景，特别是涉及多个表的操作，建议启用死锁检测
+- 合理设置锁超时时间，避免事务无限期等待
+- 结合事务重试机制，提高系统的可靠性
+
 ### 11.3 锁升级/降级
 
 sfsDb 支持锁升级（从读到写）和降级（从写到读）操作。
@@ -1021,13 +1141,356 @@ sfsDb 的事务处理考虑了并发场景：
 - **选择合适的隔离级别**：根据业务需求选择适当的隔离级别
 - **监控系统性能**：定期监控系统性能，及时调整优化策略
 
-## 15. 内置事务重试机制
+## 15. 使用方式
 
-### 15.1 概述
+### 15.1 基本使用方式
+
+#### 15.1.1 自动事务
+
+对于单个操作，sfsDb 默认使用自动事务，每个操作单独作为一个事务执行：
+
+```go
+// 自动事务：每个操作单独作为一个事务
+_, err := table.Insert(&user) // 自动事务
+if err != nil {
+    panic(err)
+}
+
+_, err = table.Delete(&deleteUser) // 自动事务
+if err != nil {
+    panic(err)
+}
+```
+
+#### 15.1.2 手动事务（批量操作）
+
+对于需要原子性执行的多个操作，使用手动事务机制：
+
+```go
+// 1. 获取批量操作对象
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    panic("无法获取批量操作对象")
+}
+
+// 2. 添加多个操作到批处理
+_, err := table.Insert(&user1, batch)
+if err != nil {
+    panic(err)
+}
+
+_, err = table.Insert(&user2, batch)
+if err != nil {
+    panic(err)
+}
+
+// 3. 手动提交批处理（所有操作一次性执行）
+err = storage.KVDb.WriteBatch(batch)
+if err != nil {
+    panic(fmt.Sprintf("批量提交失败: %v", err))
+}
+```
+
+### 15.2 高级使用方式
+
+#### 15.2.1 事务管理器（多表操作）
+
+使用事务管理器处理跨多个表的事务：
+
+```go
+// 1. 获取批处理对象
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    panic("无法获取批量操作对象")
+}
+
+// 2. 创建事务管理器
+tm := engine.NewTransactionManager(batch)
+
+// 3. 添加表到事务管理器
+tx1, err := tm.AddTable(table1)
+if err != nil {
+    panic(err)
+}
+
+tx2, err := tm.AddTable(table2)
+if err != nil {
+    panic(err)
+}
+
+// 4. 在事务中执行操作
+// 在 table1 上执行操作
+user := map[string]any{"name": "张三", "age": 30}
+_, err = tx1.Insert(&user)
+if err != nil {
+    tm.Rollback()
+    panic(err)
+}
+
+// 在 table2 上执行操作
+order := map[string]any{"user_id": 1, "product": "商品A"}
+_, err = tx2.Insert(&order)
+if err != nil {
+    tm.Rollback()
+    panic(err)
+}
+
+// 5. 提交事务
+if err := tm.Commit(); err != nil {
+    panic(err)
+}
+```
+
+#### 15.2.2 WithTransaction 辅助函数
+
+使用 `WithTransaction` 函数执行多表事务：
+
+```go
+// 执行多表事务
+batch := storage.KVDb.GetBatch()
+tables := []*engine.Table{table1, table2}
+
+err := engine.WithTransaction(batch, tables, func(transactions map[*engine.Table]engine.Transaction) error {
+    // 获取每个表的事务
+    tx1 := transactions[table1]
+    tx2 := transactions[table2]
+    
+    // 在 table1 上执行操作
+    user := map[string]any{"name": "张三", "age": 30}
+    _, err := tx1.Insert(&user)
+    if err != nil {
+        return err
+    }
+    
+    // 在 table2 上执行操作
+    order := map[string]any{"user_id": 1, "product": "商品A"}
+    _, err = tx2.Insert(&order)
+    if err != nil {
+        return err
+    }
+    
+    return nil
+})
+
+if err != nil {
+    panic(err)
+}
+```
+
+#### 15.2.3 带选项的事务
+
+创建带自定义选项的事务：
+
+```go
+// 创建带指定选项的事务
+options := &engine.TransactionOptions{
+    IsolationLevel: engine.RepeatableRead, // 使用可重复读隔离级别
+    AllowNested:    true,                  // 允许嵌套事务
+    Timeout:        30 * time.Second,      // 设置30秒超时
+}
+
+tx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+
+// 执行事务操作
+// ...
+
+// 提交事务
+if err := tx.Commit(); err != nil {
+    panic(err)
+}
+```
+
+#### 15.2.4 嵌套事务
+
+使用嵌套事务处理复杂的业务逻辑：
+
+```go
+// 创建允许嵌套事务的事务
+options := &engine.TransactionOptions{
+    IsolationLevel: engine.RepeatableRead,
+    AllowNested:    true, // 启用嵌套事务
+}
+
+parentTx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+
+// 在父事务中执行操作
+parentData := map[string]any{"name": "Parent", "value": 100}
+parentID, err := parentTx.Insert(&parentData)
+if err != nil {
+    panic(err)
+}
+
+// 创建嵌套事务
+nestedTx, err := parentTx.BeginNested()
+if err != nil {
+    panic(err)
+}
+
+// 在嵌套事务中执行操作
+nestedData := map[string]any{"name": "Nested", "value": 200}
+nestedID, err := nestedTx.Insert(&nestedData)
+if err != nil {
+    panic(err)
+}
+
+// 提交嵌套事务
+if err := nestedTx.Commit(); err != nil {
+    panic(err)
+}
+
+// 提交父事务
+if err := parentTx.Commit(); err != nil {
+    panic(err)
+}
+```
+
+### 15.3 事务锁跟踪使用方式
+
+在复杂的并发场景中启用事务锁跟踪和死锁检测：
+
+```go
+// 1. 生成事务ID
+txID := uint64(time.Now().UnixNano())
+
+// 2. 开始事务锁跟踪
+table.BeginTransaction(txID)
+
+// 3. 开始事务
+tx, err := table.Begin()
+if err != nil {
+    table.EndTransaction(txID) // 结束锁跟踪
+    return err
+}
+
+// 4. 执行更新操作（可能触发锁竞争）
+updateFields := map[string]any{"id": 1, "name": "Updated Name"}
+
+// 在执行更新前，记录可能需要等待的锁
+primaryKey := "1"
+table.RecordWaitingLock(txID, primaryKey)
+
+// 执行更新操作
+if err := tx.Update(&updateFields); err != nil {
+    tx.Rollback()
+    table.EndTransaction(txID) // 结束锁跟踪
+    return err
+}
+
+// 5. 记录已持有的锁
+table.RecordHeldLock(txID, primaryKey)
+
+// 6. 提交事务
+if err := tx.Commit(); err != nil {
+    table.EndTransaction(txID) // 结束锁跟踪
+    return err
+}
+
+// 7. 结束事务锁跟踪
+table.EndTransaction(txID)
+```
+
+### 15.4 批量操作中的死锁检测
+
+在批量操作中使用死锁检测：
+
+```go
+// 1. 生成事务ID
+txID := uint64(time.Now().UnixNano())
+
+// 2. 开始事务锁跟踪
+table.BeginTransaction(txID)
+
+// 3. 获取批处理对象
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    table.EndTransaction(txID) // 结束锁跟踪
+    return fmt.Errorf("无法获取批处理对象")
+}
+
+// 4. 执行批量操作
+for _, record := range records {
+    primaryKey := fmt.Sprintf("%v", (*record)["id"])
+    
+    // 记录等待锁
+    table.RecordWaitingLock(txID, primaryKey)
+    
+    // 执行更新操作
+    if err := table.Update(record, batch); err != nil {
+        table.EndTransaction(txID) // 结束锁跟踪
+        return err
+    }
+    
+    // 记录已持有的锁
+    table.RecordHeldLock(txID, primaryKey)
+}
+
+// 5. 提交批处理
+if err := storage.KVDb.WriteBatch(batch); err != nil {
+    table.EndTransaction(txID) // 结束锁跟踪
+    return err
+}
+
+// 6. 结束事务锁跟踪
+table.EndTransaction(txID)
+```
+
+### 15.5 事务重试机制
+
+使用内置的事务重试机制：
+
+```go
+// 使用默认重试配置
+tx, err := table.Begin()
+if err != nil {
+    panic(err)
+}
+
+// 执行事务操作
+// ...
+
+// 提交事务（会自动重试失败的操作）
+err = tx.Commit()
+if err != nil {
+    panic(err)
+}
+```
+
+自定义重试配置：
+
+```go
+// 自定义重试配置
+options := engine.DefaultTransactionOptions()
+options.MaxRetries = 5
+options.InitialRetryDelay = 5 * time.Millisecond
+options.RetryBackoffFactor = 1.5
+
+tx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+
+// 执行事务操作
+// ...
+
+// 提交事务
+if err := tx.Commit(); err != nil {
+    panic(err)
+}
+```
+
+## 16. 内置事务重试机制
+
+### 16.1 概述
 
 sfsDb 实现了内置的事务重试机制，支持自动重试失败的事务，提高系统的可靠性和稳定性，特别是在高并发场景下。
 
-### 15.2 核心特性
+### 16.2 核心特性
 
 - **自动重试**：当事务失败时，自动尝试重试操作
 - **指数退避**：使用指数退避算法避免重试风暴

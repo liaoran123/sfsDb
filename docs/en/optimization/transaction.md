@@ -1101,6 +1101,349 @@ if err != nil {
 - **Negative Impact**: Increases maximum transaction execution time (when retries are needed)
 - **Balance**: Achieve balance between reliability and performance through reasonable retry parameter configuration
 
+## 15. Usage
+
+### 15.1 Basic Usage
+
+#### 15.1.1 Automatic Transactions
+
+For single operations, sfsDb uses automatic transactions by default, where each operation is executed as a separate transaction:
+
+```go
+// Automatic transactions: each operation is a separate transaction
+_, err := table.Insert(&user) // Automatic transaction
+if err != nil {
+    panic(err)
+}
+
+_, err = table.Delete(&deleteUser) // Automatic transaction
+if err != nil {
+    panic(err)
+}
+```
+
+#### 15.1.2 Manual Transactions (Batch Operations)
+
+For multiple operations that need to be executed atomically, use the manual transaction mechanism:
+
+```go
+// 1. Get batch operation object
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    panic("Failed to get batch operation object")
+}
+
+// 2. Add multiple operations to batch
+_, err := table.Insert(&user1, batch)
+if err != nil {
+    panic(err)
+}
+
+_, err = table.Insert(&user2, batch)
+if err != nil {
+    panic(err)
+}
+
+// 3. Manually commit batch (all operations executed at once)
+err = storage.KVDb.WriteBatch(batch)
+if err != nil {
+    panic(fmt.Sprintf("Batch commit failed: %v", err))
+}
+```
+
+### 15.2 Advanced Usage
+
+#### 15.2.1 Transaction Manager (Multi-table Operations)
+
+Use the transaction manager to handle transactions across multiple tables:
+
+```go
+// 1. Get batch operation object
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    panic("Failed to get batch operation object")
+}
+
+// 2. Create transaction manager
+tm := engine.NewTransactionManager(batch)
+
+// 3. Add tables to transaction manager
+tx1, err := tm.AddTable(table1)
+if err != nil {
+    panic(err)
+}
+
+tx2, err := tm.AddTable(table2)
+if err != nil {
+    panic(err)
+}
+
+// 4. Execute operations in transaction
+// Execute operation on table1
+user := map[string]any{"name": "Zhang San", "age": 30}
+_, err = tx1.Insert(&user)
+if err != nil {
+    tm.Rollback()
+    panic(err)
+}
+
+// Execute operation on table2
+order := map[string]any{"user_id": 1, "product": "Product A"}
+_, err = tx2.Insert(&order)
+if err != nil {
+    tm.Rollback()
+    panic(err)
+}
+
+// 5. Commit transaction
+if err := tm.Commit(); err != nil {
+    panic(err)
+}
+```
+
+#### 15.2.2 WithTransaction Helper Function
+
+Use the `WithTransaction` function to execute multi-table transactions:
+
+```go
+// Execute multi-table transaction
+batch := storage.KVDb.GetBatch()
+tables := []*engine.Table{table1, table2}
+
+err := engine.WithTransaction(batch, tables, func(transactions map[*engine.Table]engine.Transaction) error {
+    // Get transactions for each table
+    tx1 := transactions[table1]
+    tx2 := transactions[table2]
+    
+    // Execute operation on table1
+    user := map[string]any{"name": "Zhang San", "age": 30}
+    _, err := tx1.Insert(&user)
+    if err != nil {
+        return err
+    }
+    
+    // Execute operation on table2
+    order := map[string]any{"user_id": 1, "product": "Product A"}
+    _, err = tx2.Insert(&order)
+    if err != nil {
+        return err
+    }
+    
+    return nil
+})
+
+if err != nil {
+    panic(err)
+}
+```
+
+#### 15.2.3 Transactions with Options
+
+Create transactions with custom options:
+
+```go
+// Create transaction with specified options
+options := &engine.TransactionOptions{
+    IsolationLevel: engine.RepeatableRead, // Use repeatable read isolation level
+    AllowNested:    true,                  // Allow nested transactions
+    Timeout:        30 * time.Second,      // Set 30-second timeout
+}
+
+tx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+
+// Execute transaction operations
+// ...
+
+// Commit transaction
+if err := tx.Commit(); err != nil {
+    panic(err)
+}
+```
+
+#### 15.2.4 Nested Transactions
+
+Use nested transactions to handle complex business logic:
+
+```go
+// Create transaction that allows nested transactions
+options := &engine.TransactionOptions{
+    IsolationLevel: engine.RepeatableRead,
+    AllowNested:    true, // Enable nested transactions
+}
+
+parentTx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+
+// Execute operations in parent transaction
+parentData := map[string]any{"name": "Parent", "value": 100}
+parentID, err := parentTx.Insert(&parentData)
+if err != nil {
+    panic(err)
+}
+
+// Create nested transaction
+nestedTx, err := parentTx.BeginNested()
+if err != nil {
+    panic(err)
+}
+
+// Execute operations in nested transaction
+nestedData := map[string]any{"name": "Nested", "value": 200}
+nestedID, err := nestedTx.Insert(&nestedData)
+if err != nil {
+    panic(err)
+}
+
+// Commit nested transaction
+if err := nestedTx.Commit(); err != nil {
+    panic(err)
+}
+
+// Commit parent transaction
+if err := parentTx.Commit(); err != nil {
+    panic(err)
+}
+```
+
+### 15.3 Transaction Lock Tracking Usage
+
+Enable transaction lock tracking and deadlock detection in complex concurrent scenarios:
+
+```go
+// 1. Generate transaction ID
+txID := uint64(time.Now().UnixNano())
+
+// 2. Start transaction lock tracking
+table.BeginTransaction(txID)
+
+// 3. Start transaction
+tx, err := table.Begin()
+if err != nil {
+    table.EndTransaction(txID) // End lock tracking
+    return err
+}
+
+// 4. Execute update operation (may trigger lock competition)
+updateFields := map[string]any{"id": 1, "name": "Updated Name"}
+
+// Before executing update, record lock that may need to wait
+primaryKey := "1"
+table.RecordWaitingLock(txID, primaryKey)
+
+// Execute update operation
+if err := tx.Update(&updateFields); err != nil {
+    tx.Rollback()
+    table.EndTransaction(txID) // End lock tracking
+    return err
+}
+
+// 5. Record held lock
+table.RecordHeldLock(txID, primaryKey)
+
+// 6. Commit transaction
+if err := tx.Commit(); err != nil {
+    table.EndTransaction(txID) // End lock tracking
+    return err
+}
+
+// 7. End transaction lock tracking
+table.EndTransaction(txID)
+```
+
+### 15.4 Deadlock Detection in Batch Operations
+
+Use deadlock detection in batch operations:
+
+```go
+// 1. Generate transaction ID
+txID := uint64(time.Now().UnixNano())
+
+// 2. Start transaction lock tracking
+table.BeginTransaction(txID)
+
+// 3. Get batch operation object
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    table.EndTransaction(txID) // End lock tracking
+    return fmt.Errorf("Failed to get batch operation object")
+}
+
+// 4. Execute batch operations
+for _, record := range records {
+    primaryKey := fmt.Sprintf("%v", (*record)["id"])
+    
+    // Record waiting lock
+    table.RecordWaitingLock(txID, primaryKey)
+    
+    // Execute update operation
+    if err := table.Update(record, batch); err != nil {
+        table.EndTransaction(txID) // End lock tracking
+        return err
+    }
+    
+    // Record held lock
+    table.RecordHeldLock(txID, primaryKey)
+}
+
+// 5. Commit batch
+if err := storage.KVDb.WriteBatch(batch); err != nil {
+    table.EndTransaction(txID) // End lock tracking
+    return err
+}
+
+// 6. End transaction lock tracking
+table.EndTransaction(txID)
+```
+
+### 15.5 Transaction Retry Mechanism
+
+Use the built-in transaction retry mechanism:
+
+```go
+// Use default retry configuration
+tx, err := table.Begin()
+if err != nil {
+    panic(err)
+}
+
+// Execute transaction operations
+// ...
+
+// Commit transaction (will automatically retry failed operations)
+err = tx.Commit()
+if err != nil {
+    panic(err)
+}
+```
+
+Custom retry configuration:
+
+```go
+// Custom retry configuration
+options := engine.DefaultTransactionOptions()
+options.MaxRetries = 5
+options.InitialRetryDelay = 5 * time.Millisecond
+options.RetryBackoffFactor = 1.5
+
+tx, err := table.BeginWithOptions(options)
+if err != nil {
+    panic(err)
+}
+
+// Execute transaction operations
+// ...
+
+// Commit transaction
+if err := tx.Commit(); err != nil {
+    panic(err)
+}
+```
+
 ## 16. Transaction Test Resources
 
 ### 16.1 Test File Overview

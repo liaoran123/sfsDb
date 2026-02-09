@@ -303,9 +303,11 @@ func (tx *TableTransaction) Update(fields *map[string]any) error {
 		updatedRecord := tx.table.FormatRecord(fieldsBytes)
 
 		// 9. 执行更新操作（添加新记录）
-		batchContainer.SetValue(0, updatedRecord)                               // 添加主键value=record
-		batchContainer.SetValue(1, tx.table.GetPrimaryKey().GetID(fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
-		batchContainer.Operation(fieldsBytes, updateFields...)
+		// 创建新的BatchContainer来避免状态冲突
+		newBatchContainer := NewBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
+		newBatchContainer.SetValue(0, updatedRecord)                               // 添加主键value=record
+		newBatchContainer.SetValue(1, tx.table.GetPrimaryKey().GetID(fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
+		newBatchContainer.Operation(fieldsBytes, updateFields...)
 
 		// 10. 更新缓存
 		tx.cache[cacheKey] = updatedRecord
