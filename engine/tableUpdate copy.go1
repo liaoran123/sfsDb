@@ -97,120 +97,53 @@ func (t *Table) executeUpdateOperation(batch storage.Batch, fields *map[string]a
 	return nil
 }
 
-// parseUpdateParams 解析更新操作的参数
-func (t *Table) parseUpdateParams(params ...any) (storage.Batch, time.Duration) {
-	return t.parseParams(params...)
-}
-
-// prepareUpdateBatch 准备更新操作的batch
-func (t *Table) prepareUpdateBatch(batch storage.Batch) (storage.Batch, bool, error) {
-	return t.prepareBatch(batch)
-}
-
-// validateUpdateFields 验证更新操作的字段
-func (t *Table) validateUpdateFields(fields *map[string]any) (string, any, error) {
-	// 检查是否提供了所有主键字段
-	if err := t.checkPrimaryFields(fields); err != nil {
-		return "", nil, err
-	}
-
-	// 检查字段类型是否匹配
-	if err := t.CheckType(fields); err != nil {
-		return "", nil, err
-	}
-
-	// 获取主键值用于行级锁
-	pkField := t.GetPrimaryFields()[0]
-	pkValue := (*fields)[pkField]
-
-	return pkField, pkValue, nil
-}
-
-// readRecordForUpdate 读取要更新的记录
-func (t *Table) readRecordForUpdate(fields *map[string]any) ([]byte, error) {
-	// 读取记录 - 直接使用 ReadByBytes 避免死锁
-	fieldsBytes := GlobalFieldsBytesPool.Get()
-	defer func() {
-		if fieldsBytes != nil {
-			GlobalFieldsBytesPool.Put(fieldsBytes)
-		}
-	}()
-	// 只使用主键字段来构建键值
-	for _, field := range t.GetPrimaryFields() {
-		if val, ok := (*fields)[field]; ok {
-			fieldsBytes[field] = util.AnyToBytes(val)
-		}
-	}
-	key := t.GetPrimaryKey().JoinValue(&fieldsBytes, t.id)
-	record := t.ReadByBytes(key)
-	if record == nil {
-		return nil, fmt.Errorf("主键值 '%v' 的记录不存在", fields)
-	}
-
-	return key, nil
-}
-
-// prepareUpdateFieldsList 准备更新字段列表
-func (t *Table) prepareUpdateFieldsList(fields *map[string]any) ([]string, error) {
-	// 准备更新字段列表
-	updateFields, err := t.prepareUpdateFields(fields)
-	if err != nil {
-		return nil, err
-	}
-
-	// 检查更新字段个数是否为0
-	if len(updateFields) == 0 {
-		return nil, nil
-	}
-
-	return updateFields, nil
-}
-
-// deserializeRecord 反序列化记录
-func (t *Table) deserializeRecord(record []byte) (*map[string][]byte, error) {
-	// 反序列化记录
-	pk := t.GetPrimaryKey()
-	fieldsBytes, err := pk.Parse(t.fieldsid, record)
-	if err != nil {
-		return nil, err
-	}
-
-	return fieldsBytes, nil
-}
-
-// commitUpdateTransaction 提交更新事务
-func (t *Table) commitUpdateTransaction(batch storage.Batch, userProvidedBatch bool) error {
-	return t.commitTransaction(batch, userProvidedBatch)
-}
-
 // 更新记录，不支持修改主键字段
 // fields *map[string]any 主键值，可能是组合主键
 // 乐观锁并发控制，允许多个事务同时读取记录，但只有一个事务能成功更新记录，避免了并发更新冲突。
 // 之前Update的缺省参数为batchs ...storage.Batch ，支持乐观锁需要增加一个参数，故而为兼容之前的函数，
 // 使用使用 params ...any 。batch和timeout合并为一个参数组数
 func (t *Table) Update(fields *map[string]any, params ...any) error {
-	// 解析参数
-	batch, timeout := t.parseUpdateParams(params...)
+	// 解析参数，支持超时参数和batch参数
+	var batch storage.Batch
+	var timeout time.Duration
 
-	// 准备batch
-	batch, userProvidedBatch, err := t.prepareUpdateBatch(batch)
-	if err != nil {
+	// 处理可变参数
+	for _, param := range params {
+		switch v := param.(type) {
+		case storage.Batch:
+			batch = v
+		case time.Duration:
+			timeout = v
+		}
+	}
+
+	//是否用户手动控制事务
+	userProvidedBatch := batch != nil
+
+	// 如果没有提供batch，使用默认batch
+	if batch == nil {
+		batch = t.kvStore.GetBatch()
+		if batch == nil {
+			return fmt.Errorf("failed to get batch")
+		}
+	}
+
+	// 检查是否提供了所有主键字段
+	if err := t.checkPrimaryFields(fields); err != nil {
 		return err
 	}
 
-	// 验证字段
-	_, pkValue, err := t.validateUpdateFields(fields)
-	if err != nil {
-		return err
-	}
+	// 获取主键值用于行级锁
+	pkField := t.GetPrimaryFields()[0]
+	pkValue := (*fields)[pkField]
 
-	// 获取行级排他锁
-	lockKey := fmt.Sprintf("%v", pkValue)
+	// 获取行级排他锁（使用默认事务ID）
 	if err := t.acquireRowWriteLock(pkValue, 0, timeout); err != nil {
 		return err
 	}
 
-	// 释放行级锁
+	// 直接使用 Unlock 释放写锁
+	lockKey := fmt.Sprintf("%v", pkValue)
 	defer func() {
 		if rowLock, ok := t.rowLocks.Load(lockKey); ok {
 			rl := rowLock.(*RowLock)
@@ -218,30 +151,34 @@ func (t *Table) Update(fields *map[string]any, params ...any) error {
 		}
 	}()
 
-	// 读取记录
-	key, err := t.readRecordForUpdate(fields)
-	if err != nil {
+	// 检查字段类型是否匹配
+	if err := t.CheckType(fields); err != nil {
 		return err
 	}
 
-	// 读取原始记录
+	// 读取记录 - 直接使用 ReadByBytes 避免死锁
+	fieldsBytes := t.FieldsToBytes(fields)
+	key := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
 	record := t.ReadByBytes(key)
 	if record == nil {
 		return fmt.Errorf("主键值 '%v' 的记录不存在", fields)
 	}
 
 	// 准备更新字段列表
-	updateFields, err := t.prepareUpdateFieldsList(fields)
+	updateFields, err := t.prepareUpdateFields(fields)
 	if err != nil {
 		return err
 	}
-	if updateFields == nil {
-		return nil
-	}
 	defer PutStringSlice(updateFields)
 
+	// 检查更新字段个数是否为0
+	if len(updateFields) == 0 {
+		return nil
+	}
+
 	// 反序列化记录
-	fieldsBytes, err := t.deserializeRecord(record)
+	pk := t.GetPrimaryKey()
+	fieldsBytes, err = pk.Parse(t.fieldsid, record)
 	if err != nil {
 		return err
 	}
@@ -252,8 +189,10 @@ func (t *Table) Update(fields *map[string]any, params ...any) error {
 	}
 
 	// 提交事务
-	if err := t.commitUpdateTransaction(batch, userProvidedBatch); err != nil {
-		return err
+	if !userProvidedBatch {
+		if err := t.kvStore.WriteBatch(batch); err != nil {
+			return err
+		}
 	}
 
 	return nil

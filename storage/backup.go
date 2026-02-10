@@ -3,7 +3,7 @@ package storage
 // 备份数据库
 func BackupDb(Path string) error {
 	//保存当前的源数据库引用
-	sourceDb := KVDb
+	sourceDb := dbManager.GetDB()
 	if sourceDb == nil {
 		return NewError("源数据库未打开")
 	}

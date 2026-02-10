@@ -53,9 +53,10 @@ func TableNew(name string) (*Table, error) {
 		}
 	}
 	tb := &Table{
-		name:    name,
-		fields:  make(map[string]any),
-		kvStore: storage.KVDb,
+		name:     name,
+		fields:   make(map[string]any),
+		fieldsid: make(map[uint8]string),
+		kvStore:  storage.KVDb,
 	}
 	tb.indexs = NewIndexs(&tb.fields)
 	tb.deadlockDetector = NewDeadlockDetector(tb)
@@ -93,27 +94,22 @@ func (t *Table) ResetPrimaryFields() {
 // 必须先为表预设字段和类型
 // 由于进行乐观锁的设计，版本号字段默认是v，占据一个字段，故而只支持254个字段。默认版本号值为0，每次更新时自动增加1
 func (t *Table) SetFields(fields map[string]any) error {
-	//用户不能自定义版本号名称v
-	if t.fields["v"] != nil {
-		//检测v是id是否是系统定义的255，不是255则是用户自定义了v字段
-		if t.fieldsid[uint8(255)] != "v" {
-			return fmt.Errorf("字段名称 'v' 是默认字段，作为版本号，不能自定义。")
-		}
-	}
-
-	// 确保v字段的类型是string
+	// 检查用户是否自定义了版本号名称v
 	if _, ok := fields["v"]; ok {
-		// 如果用户提供了v字段，确保其类型是string
-		if _, ok := fields["v"].(string); !ok {
-			// 如果不是string类型，将其设置为string类型
-			fields["v"] = ""
-		}
-	} else {
-		// 如果用户没有提供v字段，默认设置为string类型
-		fields["v"] = ""
+		return fmt.Errorf("字段名称 'v' 是默认字段，作为版本号，不能自定义。")
 	}
 
-	t.fields = fields
+	// 创建字段的副本，避免修改原始映射
+	fieldsCopy := make(map[string]any, len(fields)+1)
+	for k, v := range fields {
+		fieldsCopy[k] = v
+	}
+
+	// 添加版本号字段
+	fieldsCopy["v"] = "" // 使用空字符串作为版本号初始值
+
+	// 更新表字段
+	t.fields = fieldsCopy
 	t.fieldsid = make(map[uint8]string, len(t.fields))
 	if t.fieldIDManager == nil {
 		t.fieldIDManager = NewIDManager(t.kvStore)
@@ -127,9 +123,16 @@ func (t *Table) SetFields(fields map[string]any) error {
 		}
 		t.fieldsid[id] = field
 	}
-	//添加版本号字段，并设置id为255
-	//t.fields["v"] = 0
-	t.fields["v"] = "" //generateEnhancedVersion() // 使用增强版版本号 为字符串类型
+
+	// 确保版本号字段v的ID为255
+	// 先删除版本号可能存在的其他ID映射
+	for id, name := range t.fieldsid {
+		if name == "v" && id != uint8(255) {
+			delete(t.fieldsid, id)
+			break
+		}
+	}
+	// 设置v字段的ID为255
 	t.fieldsid[uint8(255)] = "v"
 
 	// 更新时间字段映射
@@ -140,6 +143,14 @@ func (t *Table) SetFields(fields map[string]any) error {
 
 // 修改字段名称
 func (t *Table) UpdateFieldName(oldfield string, newfield string) error {
+	// 阻止修改版本号字段"v"
+	if oldfield == "v" {
+		return fmt.Errorf("字段 '%s' 是默认版本号字段，不能修改", oldfield)
+	}
+	// 阻止将其他字段重命名为"v"
+	if newfield == "v" {
+		return fmt.Errorf("字段名称 '%s' 是默认版本号字段，不能使用", newfield)
+	}
 	if _, ok := t.fields[oldfield]; !ok {
 		return fmt.Errorf("字段 '%s' 不存在于表中", oldfield)
 	}
@@ -149,7 +160,19 @@ func (t *Table) UpdateFieldName(oldfield string, newfield string) error {
 	//1，修改IDManager中的字段名
 	fkey := t.fieldIDManager.GenerateFieldKey(t.id, oldfield)
 	t.fieldIDManager.UpdateKey(fkey, newfield)
-	//2，修改索引中的字段名
+	//2，修改fields映射中的字段名
+	if value, exists := t.fields[oldfield]; exists {
+		delete(t.fields, oldfield)
+		t.fields[newfield] = value
+	}
+	//3，修改fieldsid映射中的字段名
+	for id, name := range t.fieldsid {
+		if name == oldfield {
+			t.fieldsid[id] = newfield
+			break
+		}
+	}
+	//4，修改索引中的字段名
 	t.indexs.UpdateFields(oldfield, newfield)
 	t.ResetPrimaryFields()
 	return nil

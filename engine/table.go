@@ -46,8 +46,11 @@ type Table struct {
 
 // 创建或获取一个表
 func TableNew(name string) (*Table, error) {
-	if storage.KVDb == nil {
-		_, err := storage.OpenDefaultDb("./kvdb")
+	// 获取 DBManager 实例
+	dbMgr := storage.GetDBManager()
+	// 检查数据库是否已初始化
+	if dbMgr.GetDB() == nil {
+		_, err := dbMgr.OpenDB("./kvdb")
 		if err != nil {
 			return nil, err
 		}
@@ -56,7 +59,7 @@ func TableNew(name string) (*Table, error) {
 		name:     name,
 		fields:   make(map[string]any),
 		fieldsid: make(map[uint8]string),
-		kvStore:  storage.KVDb,
+		kvStore:  dbMgr.GetDB(),
 	}
 	tb.indexs = NewIndexs(&tb.fields)
 	tb.deadlockDetector = NewDeadlockDetector(tb)
@@ -271,7 +274,7 @@ func (t *Table) CheckType(fields *map[string]any) error {
 //
 //go:inline
 func (t *Table) FieldsToBytes(fields *map[string]any) *map[string][]byte {
-	result := make(map[string][]byte, len(*fields))
+	result := GlobalFieldsBytesPool.Get()
 	for k, v := range *fields {
 		//value为nil时，使用默认值
 		//如果是时间类型，则使用当前时间
@@ -395,4 +398,49 @@ func (t *Table) BatchRecordByteToAny(records []*map[string][]byte) []*map[string
 // 获取所有索引的名称和id映射
 func (t *Table) GetAllIndexNameIdMap() map[string]uint8 {
 	return t.indexs.GetAllIndexNameIdMap()
+}
+
+// parseParams 解析操作的参数
+func (t *Table) parseParams(params ...any) (storage.Batch, time.Duration) {
+	var batch storage.Batch
+	var timeout time.Duration
+
+	// 处理可变参数
+	for _, param := range params {
+		switch v := param.(type) {
+		case storage.Batch:
+			batch = v
+		case time.Duration:
+			timeout = v
+		}
+	}
+
+	return batch, timeout
+}
+
+// prepareBatch 准备批量操作的batch
+func (t *Table) prepareBatch(batch storage.Batch) (storage.Batch, bool, error) {
+	userProvidedBatch := batch != nil
+
+	// 如果没有提供batch，使用默认batch
+	if batch == nil {
+		batch = t.kvStore.GetBatch()
+		if batch == nil {
+			return nil, false, fmt.Errorf("failed to get batch")
+		}
+	}
+
+	return batch, userProvidedBatch, nil
+}
+
+// commitTransaction 提交事务
+func (t *Table) commitTransaction(batch storage.Batch, userProvidedBatch bool) error {
+	//提交事务
+	if !userProvidedBatch {
+		if err := t.kvStore.WriteBatch(batch); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

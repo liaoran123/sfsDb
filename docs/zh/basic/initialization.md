@@ -152,11 +152,142 @@ func main() {
 - 确保在不再使用时正确关闭存储实例
 - 外部存储实现必须完整实现`Store`接口的所有方法
 
-## 1.5 使用管理工具库
+## 1.5 使用DBManager管理数据库
+
+sfsDb 提供了 `DBManager` 结构体，用于更结构化、模块化地管理数据库实例。`DBManager` 保持了与原有 `KVDb` 方式的兼容性，同时提供了更清晰的 API 接口。
+
+### 1.5.1 基本使用
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // 获取 DBManager 实例
+    dbMgr := storage.GetDBManager()
+
+    // 打开数据库
+    dbPath := "./my_custom_db"
+    db, err := dbMgr.OpenDB(dbPath)
+    if err != nil {
+        panic(err)
+    }
+    defer dbMgr.CloseDB()
+    
+    fmt.Println("数据库初始化成功")
+}
+```
+
+### 1.5.2 使用外部存储实例
+
+通过 `DBManager` 也可以设置和使用外部存储实例：
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+// 自定义存储实现
+type CustomStore struct {
+    // 实现存储逻辑
+}
+
+// 实现 Store 接口的方法
+func (s *CustomStore) Get(key []byte) ([]byte, error) {
+    // 实现获取逻辑
+    return nil, nil
+}
+
+func (s *CustomStore) Put(key []byte, value []byte) error {
+    // 实现存储逻辑
+    return nil
+}
+
+func (s *CustomStore) Delete(key []byte) error {
+    // 实现删除逻辑
+    return nil
+}
+
+func (s *CustomStore) Batch() storage.Batch {
+    // 实现批量操作逻辑
+    return nil
+}
+
+func (s *CustomStore) Iterator(para ...[]byte) storage.Iterator {
+    // 实现迭代器逻辑
+    return nil
+}
+
+func (s *CustomStore) Snapshot() (storage.Snapshot, error) {
+    // 实现快照逻辑
+    return nil, nil
+}
+
+func (s *CustomStore) Close() error {
+    // 实现关闭逻辑
+    return nil
+}
+
+func main() {
+    // 创建自定义存储实例
+    customStore := &CustomStore{}
+    
+    // 获取 DBManager 实例
+    dbMgr := storage.GetDBManager()
+    
+    // 设置外部存储实例
+    dbMgr.SetDB(customStore)
+    
+    fmt.Println("外部存储实例设置成功")
+    
+    // 获取并使用外部存储实例
+    externalStore := dbMgr.GetDB()
+    // 现在可以使用 externalStore 进行操作
+}
+```
+
+### 1.5.3 与原有KVDb方式的兼容性
+
+`DBManager` 保持了与原有 `KVDb` 方式的完全兼容性，您可以在两种方式之间自由切换：
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // 方式1：使用 DBManager
+    dbMgr := storage.GetDBManager()
+    db, err := dbMgr.OpenDB("./data")
+    if err != nil {
+        panic(err)
+    }
+    defer dbMgr.CloseDB()
+
+    // 方式2：使用 DBManager 设置
+    // 使用 DBManager 管理存储实例
+    dbMgr := storage.GetDBManager()
+    dbMgr.SetDB(db)
+
+    fmt.Println("两种方式都可以正常使用")
+}
+```
+
+### 1.5.4 使用管理工具库
 
 sfsDb 提供了管理工具库，用于监控和管理数据库。通过这个库，您可以获取数据库状态、管理索引、分析性能和执行备份操作。
 
-### 1.5.1 基本使用
+#### 1.5.4.1 基本使用
 
 ```go
 package main
@@ -168,14 +299,17 @@ import (
 )
 
 func main() {
+    // 获取 DBManager 实例
+    dbMgr := storage.GetDBManager()
+    
     // 打开数据库
-    store, err := storage.OpenDefaultDb("./kvdb")
+    store, err := dbMgr.OpenDB("./kvdb")
     if err != nil {
         panic(err)
     }
-    defer storage.CloseDb()
+    defer dbMgr.CloseDB()
 
-    // 创建管理��
+    // 创建管理器
     manager := management.NewManager(store)
 
     // 获取数据库状态
@@ -193,11 +327,11 @@ func main() {
 }
 ```
 
-### 1.5.2 功能模块
+#### 1.5.4.2 功能模块
 
 管理工具库包含以下功能模块：
 
-#### 1. 状态管理
+##### 1. 状态管理
 - **功能**：查询内存使用、GC 次数、存储类型等信息
 - **使用示例**：
   ```go
@@ -207,7 +341,7 @@ func main() {
   }
   ```
 
-#### 2. 索引管理
+##### 2. 索引管理
 - **功能**：列出索引、分析索引使用情况、提供优化建议
 - **使用示例**：
   ```go
@@ -218,7 +352,7 @@ func main() {
   }
   ```
 
-#### 3. 性能统计
+##### 3. 性能统计
 - **功能**：查询性能统计、识别热点数据、性能分析
 - **使用示例**：
   ```go
@@ -229,7 +363,7 @@ func main() {
   }
   ```
 
-#### 4. 备份恢复
+##### 4. 备份恢复
 - **功能**：数据库备份、带选项的备份、备份验证
 - **使用示例**：
   ```go
@@ -242,7 +376,7 @@ func main() {
   }
   ```
 
-#### 5. 配置管理
+##### 5. 配置管理
 - **功能**：获取配置、设置配置、获取优化建议
 - **使用示例**：
   ```go
@@ -271,7 +405,7 @@ func main() {
   }
   ```
 
-#### 6. 监控告警
+##### 6. 监控告警
 - **功能**：实时监控、阈值告警、自定义通知器
 - **使用示例**：
   ```go
@@ -300,7 +434,7 @@ func main() {
   monitor.Stop()
   ```
 
-#### 7. 深度集成
+##### 7. 深度集成
 - **功能**：使用表实例获取更详细的表和索引信息
 - **使用示例**：
   ```go
@@ -343,9 +477,9 @@ func main() {
   }
   ```
 
-### 1.5.3 注意事项
+#### 1.5.4.3 注意事项
 
 - **导入路径**：管理工具库位于 `github.com/liaoran123/sfsDb/management` 包
 - **依赖关系**：需要先打开数据库，获取存储实例，才能创建管理器
-- **资源管理**：使用完毕后，需要调用 `storage.CloseDb()` 关闭数据库
+- **资源管理**：使用完毕后，需要调用 `dbMgr.CloseDB()` 关闭数据库
 - **性能影响**：部分管理操作可能会影响数据库性能，建议在适当的时机执行

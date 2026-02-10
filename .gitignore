@@ -31,3 +31,4 @@ engine/test*
 *_db*
 /事务与锁/
 /test*/
+/*_test/

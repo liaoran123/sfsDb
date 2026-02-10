@@ -212,7 +212,7 @@ func (bi *BaseIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]ui
 	}
 	pflen -= 1 //最后一个分隔符不需要计算
 	val := value[len(value)-pflen:]
-	fieldsBytes := make(map[string][]byte, pklen)
+	fieldsBytes := GlobalFieldsBytesPool.Get()
 	if pklen == 1 { // 单主键时，直接返回值。 这段代码是必须的，在单主键情况下，不需要进行复杂的解析。而且单主键支持非固定长度类型，也可以正常解析。
 		fieldsBytes[primaryFields[0]] = val
 		return &fieldsBytes, nil
@@ -309,7 +309,7 @@ func (dpk *DefaultPrimaryKey) Parse(fieldsid map[uint8]string, value []byte) (*m
 		return nil, errors.New("DefaultPrimaryKey Parse error: fieldsid is nil")
 	}
 	vals := util.Bytes(value).Split()
-	fieldsBytes := make(map[string][]byte, len(vals))
+	fieldsBytes := GlobalFieldsBytesPool.Get()
 	var key string
 	for _, val := range vals {
 		key = fieldsid[val[0]]
@@ -414,7 +414,7 @@ func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *m
 	} else { //如果primaryFields在全文索引的后面，与基类方法一样。
 		val = value[len(value)-pflen:]
 	}
-	fieldsBytes := make(map[string][]byte, pklen)
+	fieldsBytes := GlobalFieldsBytesPool.Get()
 	if pklen == 1 { // 单主键时，直接返回值。 这段代码是必须的，在单主键情况下，不需要进行复杂的解析。而且单主键支持非固定长度类型，也可以正常解析。
 		fieldsBytes[primaryFields[0]] = val
 		return &fieldsBytes, nil

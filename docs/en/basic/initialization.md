@@ -152,11 +152,142 @@ func main() {
 - Ensure to properly close the storage instance when it's no longer needed
 - The external storage implementation must fully implement all methods of the `Store` interface
 
-## 1.5 Using Management Tool Library
+## 1.5 Using DBManager to Manage Database
+
+sfsDb provides a `DBManager` struct for more structured and modular management of database instances. `DBManager` maintains compatibility with the original `KVDb` approach while providing a clearer API interface.
+
+### 1.5.1 Basic Usage
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // Get DBManager instance
+    dbMgr := storage.GetDBManager()
+
+    // Open database
+    dbPath := "./my_custom_db"
+    db, err := dbMgr.OpenDB(dbPath)
+    if err != nil {
+        panic(err)
+    }
+    defer dbMgr.CloseDB()
+    
+    fmt.Println("Database initialization successful")
+}
+```
+
+### 1.5.2 Using External Storage Instances
+
+You can also set and use external storage instances through `DBManager`:
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+// Custom storage implementation
+type CustomStore struct {
+    // Implement storage logic
+}
+
+// Implement Store interface methods
+func (s *CustomStore) Get(key []byte) ([]byte, error) {
+    // Implement get logic
+    return nil, nil
+}
+
+func (s *CustomStore) Put(key []byte, value []byte) error {
+    // Implement put logic
+    return nil
+}
+
+func (s *CustomStore) Delete(key []byte) error {
+    // Implement delete logic
+    return nil
+}
+
+func (s *CustomStore) Batch() storage.Batch {
+    // Implement batch operation logic
+    return nil
+}
+
+func (s *CustomStore) Iterator(para ...[]byte) storage.Iterator {
+    // Implement iterator logic
+    return nil
+}
+
+func (s *CustomStore) Snapshot() (storage.Snapshot, error) {
+    // Implement snapshot logic
+    return nil, nil
+}
+
+func (s *CustomStore) Close() error {
+    // Implement close logic
+    return nil
+}
+
+func main() {
+    // Create custom storage instance
+    customStore := &CustomStore{}
+    
+    // Get DBManager instance
+    dbMgr := storage.GetDBManager()
+    
+    // Set external storage instance
+    dbMgr.SetDB(customStore)
+    
+    fmt.Println("External storage instance set successfully")
+    
+    // Get and use external storage instance
+    externalStore := dbMgr.GetDB()
+    // Now you can use externalStore for operations
+}
+```
+
+### 1.5.3 Compatibility with Original KVDb Approach
+
+`DBManager` maintains full compatibility with the original `KVDb` approach, so you can freely switch between the two methods:
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // Method 1: Using DBManager
+    dbMgr := storage.GetDBManager()
+    db, err := dbMgr.OpenDB("./data")
+    if err != nil {
+        panic(err)
+    }
+    defer dbMgr.CloseDB()
+
+    // Method 2: Using DBManager
+    // Use DBManager to manage storage instance
+    dbMgr := storage.GetDBManager()
+    dbMgr.SetDB(db)
+
+    fmt.Println("Both methods can be used normally")
+}
+```
+
+### 1.5.4 Using Management Tool Library
 
 sfsDb provides a management tool library for monitoring and managing the database. Through this library, you can get database status, manage indexes, analyze performance, and perform backup operations.
 
-### 1.5.1 Basic Usage
+#### 1.5.4.1 Basic Usage
 
 ```go
 package main
@@ -168,12 +299,15 @@ import (
 )
 
 func main() {
+    // Get DBManager instance
+    dbMgr := storage.GetDBManager()
+    
     // Open database
-    store, err := storage.OpenDefaultDb("./kvdb")
+    store, err := dbMgr.OpenDB("./kvdb")
     if err != nil {
         panic(err)
     }
-    defer storage.CloseDb()
+    defer dbMgr.CloseDB()
 
     // Create manager
     manager := management.NewManager(store)
@@ -193,11 +327,11 @@ func main() {
 }
 ```
 
-### 1.5.2 Functional Modules
+#### 1.5.4.2 Functional Modules
 
 The management tool library includes the following functional modules:
 
-#### 1. Status Management
+##### 1. Status Management
 - **Function**: Query memory usage, GC count, storage type, etc.
 - **Usage example**:
   ```go
@@ -207,7 +341,7 @@ The management tool library includes the following functional modules:
   }
   ```
 
-#### 2. Index Management
+##### 2. Index Management
 - **Function**: List indexes, analyze index usage, provide optimization suggestions
 - **Usage example**:
   ```go
@@ -218,7 +352,7 @@ The management tool library includes the following functional modules:
   }
   ```
 
-#### 3. Performance Statistics
+##### 3. Performance Statistics
 - **Function**: Query performance statistics, identify hotspots, analyze performance
 - **Usage example**:
   ```go
@@ -229,7 +363,7 @@ The management tool library includes the following functional modules:
   }
   ```
 
-#### 4. Backup and Restore
+##### 4. Backup and Restore
 - **Function**: Database backup, backup with options, backup validation
 - **Usage example**:
   ```go
@@ -242,7 +376,7 @@ The management tool library includes the following functional modules:
   }
   ```
 
-#### 5. Configuration Management
+##### 5. Configuration Management
 - **Function**: Get configuration, set configuration, get optimization suggestions
 - **Usage example**:
   ```go
@@ -271,7 +405,7 @@ The management tool library includes the following functional modules:
   }
   ```
 
-#### 6. Monitoring and Alerting
+##### 6. Monitoring and Alerting
 - **Function**: Real-time monitoring, threshold alerts, custom notifiers
 - **Usage example**:
   ```go
@@ -300,7 +434,7 @@ The management tool library includes the following functional modules:
   monitor.Stop()
   ```
 
-#### 7. Deep Integration
+##### 7. Deep Integration
 - **Function**: Use table instance to get more detailed table and index information
 - **Usage example**:
   ```go
@@ -343,9 +477,9 @@ The management tool library includes the following functional modules:
   }
   ```
 
-### 1.5.3 Notes
+#### 1.5.4.2 Notes
 
 - **Import path**: The management tool library is located in the `github.com/liaoran123/sfsDb/management` package
 - **Dependency**: You need to open the database and get the storage instance before creating the manager
-- **Resource management**: After use, you need to call `storage.CloseDb()` to close the database
+- **Resource management**: After use, you need to call `dbMgr.CloseDB()` to close the database
 - **Performance impact**: Some management operations may affect database performance, so it's recommended to execute them at appropriate times

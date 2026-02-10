@@ -7,36 +7,22 @@ import (
 	"github.com/liaoran123/sfsDb/storage"
 )
 
-// 删除记录
-// fields *map[string]any 主键值，可能是组合主键
-// 之前Delete的缺省参数为batchs ...storage.Batch ，支持乐观锁需要增加一个参数，故而为兼容之前的函数，
-// 使用使用 params ...any 。batch和timeout合并为一个参数组数
-func (t *Table) Delete(fields *map[string]any, params ...any) error {
-	// 解析参数，支持超时参数和batch参数
-	var batch storage.Batch
-	var timeout time.Duration
+// parseDeleteParams 解析删除操作的参数
+func (t *Table) parseDeleteParams(params ...any) (storage.Batch, time.Duration) {
+	return t.parseParams(params...)
+}
 
-	// 处理可变参数
-	for _, param := range params {
-		switch v := param.(type) {
-		case storage.Batch:
-			batch = v
-		case time.Duration:
-			timeout = v
-		}
-	}
+// prepareDeleteBatch 准备删除操作的batch
+func (t *Table) prepareDeleteBatch(batch storage.Batch) (storage.Batch, bool, error) {
+	return t.prepareBatch(batch)
+}
 
-	// 如果没有提供batch，使用默认batch
-	if batch == nil {
-		batch = t.kvStore.GetBatch()
-		if batch == nil {
-			return fmt.Errorf("failed to get batch")
-		}
-	}
-	//检查是否提供了所有主键字段
+// validateDeleteFields 验证删除操作的字段
+func (t *Table) validateDeleteFields(fields *map[string]any) (any, error) {
+	// 检查是否提供了所有主键字段
 	for _, field := range t.GetPrimaryFields() {
 		if _, ok := (*fields)[field]; !ok {
-			return fmt.Errorf("必须提供主键字段 '%s'", field)
+			return nil, fmt.Errorf("必须提供主键字段 '%s'", field)
 		}
 	}
 
@@ -44,12 +30,53 @@ func (t *Table) Delete(fields *map[string]any, params ...any) error {
 	pkField := t.GetPrimaryFields()[0]
 	pkValue := (*fields)[pkField]
 
-	// 获取行级排他锁（使用默认事务ID）
+	return pkValue, nil
+}
+
+// readRecordForDelete 读取要删除的记录
+func (t *Table) readRecordForDelete(fields *map[string]any) ([]byte, error) {
+	//读取记录 - 直接使用 ReadByBytes 避免死锁
+	fieldsBytes := t.FieldsToBytes(fields)
+	defer func() {
+		if fieldsBytes != nil && *fieldsBytes != nil {
+			GlobalFieldsBytesPool.Put(*fieldsBytes)
+		}
+	}()
+	key := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
+	record := t.ReadByBytes(key)
+	if record == nil {
+		return nil, fmt.Errorf("主键值 '%v' 的记录不存在", fields)
+	}
+
+	return key, nil
+}
+
+// commitDeleteTransaction 提交删除事务
+func (t *Table) commitDeleteTransaction(batch storage.Batch, userProvidedBatch bool) error {
+	return t.commitTransaction(batch, userProvidedBatch)
+}
+
+// 删除记录
+// fields *map[string]any 主键值，可能是组合主键
+// 之前Delete的缺省参数为batchs ...storage.Batch ，支持乐观锁需要增加一个参数，故而为兼容之前的函数，
+// 使用使用 params ...any 。batch和timeout合并为一个参数组数
+func (t *Table) Delete(fields *map[string]any, params ...any) error {
+	// 解析参数
+	batch, timeout := t.parseDeleteParams(params...)
+
+	// 验证字段
+	pkValue, err := t.validateDeleteFields(fields)
+	if err != nil {
+		return err
+	}
+
+	// 获取行级排他锁
+	lockKey := fmt.Sprintf("%v", pkValue)
 	if err := t.acquireRowWriteLock(pkValue, 0, timeout); err != nil {
 		return err
 	}
-	// 直接使用 Unlock 释放写锁
-	lockKey := fmt.Sprintf("%v", pkValue)
+
+	// 释放行级锁
 	defer func() {
 		if rowLock, ok := t.rowLocks.Load(lockKey); ok {
 			rl := rowLock.(*RowLock)
@@ -57,36 +84,44 @@ func (t *Table) Delete(fields *map[string]any, params ...any) error {
 		}
 	}()
 
-	//读取记录 - 直接使用 ReadByBytes 避免死锁
-	fieldsBytes := t.FieldsToBytes(fields)
-	key := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
+	// 读取记录
+	key, err := t.readRecordForDelete(fields)
+	if err != nil {
+		return err
+	}
+
+	// 读取原始记录
 	record := t.ReadByBytes(key)
 	if record == nil {
 		return fmt.Errorf("主键值 '%v' 的记录不存在", fields)
 	}
 
-	//是否用户手动控制事务
-	useBatch := batch != nil
-	if !useBatch { //用户未手动控制事务，创建新batch
-		batch = t.kvStore.GetBatch()
+	// 准备batch
+	batch, userProvidedBatch, err := t.prepareDeleteBatch(batch)
+	if err != nil {
+		return err
 	}
 
-	//反序列化记录，并且将字段值转换为对应的类型
-	//fieldsBytes := t.ParseRecord(record)
+	// 反序列化记录
 	pk := t.GetPrimaryKey()
 	fieldsBytes, err := pk.Parse(t.fieldsid, record)
 	if err != nil {
-		//释放batch资源
 		return err
 	}
+
 	// 从对象池中获取一个 batchContainer
 	BatchContainer := GetBatchContainer(batch, t.indexs, t.id, t.kvStore)
 	defer PutBatchContainer(BatchContainer)
+
+	// 对于删除操作，需要将values[0]设置为nil，这样Add方法才会执行删除操作
+	BatchContainer.SetValue(0, nil)
 	BatchContainer.Operation(fieldsBytes)
-	if !useBatch { //用户未手动控制事务，自动提交
-		t.kvStore.WriteBatch(batch)
+
+	// 提交事务
+	if err := t.commitDeleteTransaction(batch, userProvidedBatch); err != nil {
+		return err
 	}
-	//fmt.Printf("Delete BatchContainer.Len(): %v\n", BatchContainer.Len())
+
 	return nil
 }
 

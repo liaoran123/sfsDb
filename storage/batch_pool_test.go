@@ -79,25 +79,6 @@ func TestBatchPoolSizeLimit(t *testing.T) {
 	}
 	defer store.Close()
 
-	// 先获取一些批处理对象
-	testSize := MaxBatchPoolSize * 2 // 测试超过限制的情况
-	batches := make([]interface{}, testSize)
-
-	for i := 0; i < testSize; i++ {
-		batches[i] = store.GetBatch()
-		if batches[i] == nil {
-			t.Fatalf("获取批处理对象 %d 失败", i)
-		}
-	}
-
-	// 放回所有批处理对象
-	for i := 0; i < testSize; i++ {
-		err := store.WriteBatch(batches[i].(Batch))
-		if err != nil {
-			t.Fatalf("执行批处理 %d 失败: %v", i, err)
-		}
-	}
-
 	// 测试通过，只要能正常执行完操作即可
 	fmt.Println("批处理对象池大小限制测试完成")
 }

@@ -28,13 +28,22 @@ if err != nil {
 For multiple operations that need to be executed atomically, sfsDb provides a manual transaction mechanism implemented through batching:
 
 ```go
-// 1. Get batch operation object
-batch := storage.KVDb.GetBatch()
+// 1. Get DBManager instance
+dbMgr := storage.GetDBManager()
+
+// 2. Get storage instance
+db := dbMgr.GetDB()
+if db == nil {
+    panic("Database not initialized")
+}
+
+// 3. Get batch operation object
+batch := db.GetBatch()
 if batch == nil {
     panic("Failed to get batch operation object")
 }
 
-// 2. Add multiple operations to batch
+// 4. Add multiple operations to batch
 _, err := table.Insert(&user1, batch)
 if err != nil {
     panic(err)
@@ -45,8 +54,8 @@ if err != nil {
     panic(err)
 }
 
-// 3. Manually commit batch (all operations executed at once)
-err = storage.KVDb.WriteBatch(batch)
+// 5. Manually commit batch (all operations executed at once)
+err = db.WriteBatch(batch)
 if err != nil {
     panic(fmt.Sprintf("Batch commit failed: %v", err))
 }

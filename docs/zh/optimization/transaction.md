@@ -28,13 +28,22 @@ if err != nil {
 对于需要原子性执行的多个操作，sfsDb 提供了手动事务机制，通过批处理（batch）实现：
 
 ```go
-// 1. 获取批量操作对象
-batch := storage.KVDb.GetBatch()
+// 1. 获取 DBManager 实例
+dbMgr := storage.GetDBManager()
+
+// 2. 获取存储实例
+db := dbMgr.GetDB()
+if db == nil {
+    panic("数据库未初始化")
+}
+
+// 3. 获取批量操作对象
+batch := db.GetBatch()
 if batch == nil {
     panic("无法获取批量操作对象")
 }
 
-// 2. 添加多个操作到批处理
+// 4. 添加多个操作到批处理
 _, err := table.Insert(&user1, batch)
 if err != nil {
     panic(err)
@@ -45,8 +54,8 @@ if err != nil {
     panic(err)
 }
 
-// 3. 手动提交批处理（所有操作一次性执行）
-err = storage.KVDb.WriteBatch(batch)
+// 5. 手动提交批处理（所有操作一次性执行）
+err = db.WriteBatch(batch)
 if err != nil {
     panic(fmt.Sprintf("批量提交失败: %v", err))
 }

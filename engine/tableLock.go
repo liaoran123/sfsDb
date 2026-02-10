@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 )
@@ -81,6 +82,13 @@ func NewDeadlockDetector(table *Table) *DeadlockDetector {
 }
 
 // 检测死锁
+/*
+### 1. 锁超时与死锁检测的区别
+- 锁超时 ：解决的是 单个锁长时间占用 的问题，通过设置超时时间，确保锁在一定时间后被标记为过期，允许其他事务尝试获取锁。
+   但对于 循环等待 的死锁场景（如事务A等待事务B的锁，事务B等待事务A的锁），锁超时需要等待到其中一个锁超时才能打破循环，可能需要较长时间，影响系统性能。
+- 死锁检测 ：专门解决 循环等待 的死锁问题，通过主动检测事务之间的依赖关系，识别出循环等待链，并选择其中一个事务进行回滚，快速打破死锁。
+   死锁检测可以在死锁发生后立即响应，无需等待锁超时，提高系统的响应速度和稳定性。
+*/
 func (dd *DeadlockDetector) DetectDeadlock() []uint64 {
 	dd.mutex.Lock()
 	defer dd.mutex.Unlock()
@@ -90,7 +98,7 @@ func (dd *DeadlockDetector) DetectDeadlock() []uint64 {
 	transactionLocks := make(map[uint64]*TransactionLockInfo)
 
 	// 收集所有事务锁信息
-	dd.table.transactionLocks.Range(func(key, value interface{}) bool {
+	dd.table.transactionLocks.Range(func(key, value any) bool {
 		txID := key.(uint64)
 		tli := value.(*TransactionLockInfo)
 		transactionLocks[txID] = tli
@@ -119,10 +127,10 @@ func (dd *DeadlockDetector) DetectDeadlock() []uint64 {
 					return true
 				} else if recStack[neighbor] {
 					// 找到循环，收集死锁的事务
-					if !contains(deadlockedTxs, txID) {
+					if !slices.Contains(deadlockedTxs, txID) {
 						deadlockedTxs = append(deadlockedTxs, txID)
 					}
-					if !contains(deadlockedTxs, neighbor) {
+					if !slices.Contains(deadlockedTxs, neighbor) {
 						deadlockedTxs = append(deadlockedTxs, neighbor)
 					}
 					return true
@@ -143,26 +151,23 @@ func (dd *DeadlockDetector) DetectDeadlock() []uint64 {
 	return deadlockedTxs
 }
 
-// 辅助函数：检查切片是否包含元素
-func contains(slice []uint64, item uint64) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
-
 // 生成锁键
 func (t *Table) generateLockKey(fields *map[string]any) string {
 	fieldsBytes := t.FieldsToBytes(fields)
+	defer func() {
+		if fieldsBytes != nil && *fieldsBytes != nil {
+			GlobalFieldsBytesPool.Put(*fieldsBytes)
+		}
+	}()
 	pkKey := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
 	return string(pkKey)
 }
 
 // 获取行级共享锁（读锁）
+// 用于保护数据在读取过程中不被其他事务修改。这是数据库并发控制的重要组成部分，确保了数据的一致性和隔离性。
 func (t *Table) acquireRowReadLock(pkValue any, txID uint64, timeout ...time.Duration) error {
 	lockKey := fmt.Sprintf("%v", pkValue)
+	//如果 lockKey 存在，说明锁已存在，直接使用现有锁；如果不存在，创建并存储新锁
 	rowLock, _ := t.rowLocks.LoadOrStore(lockKey, &RowLock{
 		lockedAt:  time.Now(),
 		timeout:   30 * time.Second, // 默认超时时间
@@ -178,10 +183,11 @@ func (t *Table) acquireRowReadLock(pkValue any, txID uint64, timeout ...time.Dur
 	}
 
 	// 检查锁是否已过期
+	// 只有旧锁 才可能条件成立。
 	if rl.isExpired || time.Since(rl.lockedAt) > rl.timeout {
-		rl.isExpired = true
+		rl.isExpired = true //当锁超时时，标记锁为过期
 		// 尝试释放过期锁
-		if rl.rwLock.TryRLock() {
+		if rl.rwLock.TryRLock() { //尝试获取读锁
 			// 成功获取锁，更新锁状态
 			rl.lockedAt = time.Now()
 			rl.isExpired = false
@@ -190,6 +196,13 @@ func (t *Table) acquireRowReadLock(pkValue any, txID uint64, timeout ...time.Dur
 			rl.readCount = 1
 			return nil
 		}
+		//无法获得锁，返回错误 //如果失败，说明锁已被其他事务持有（即使过期），返回错误
+		/*
+			在实际业务代码中，当遇到锁超时错误时，通常的处理流程是：
+			1. 捕获锁超时错误 ：上层代码捕获 acquireRowReadLock 或 acquireRowWriteLock 返回的超时错误。
+			2. 手动回滚事务 ：如果事务正在执行中，调用 tx.Rollback() 撤销所有未提交的修改。
+			3. 重试或失败处理 ：根据业务逻辑决定是否重试获取锁，或返回错误给用户。
+		*/
 		return fmt.Errorf("锁已过期且无法获取")
 	}
 
@@ -204,7 +217,7 @@ func (t *Table) acquireRowReadLock(pkValue any, txID uint64, timeout ...time.Dur
 // 获取行级排他锁（写锁）
 func (t *Table) acquireRowWriteLock(pkValue any, txID uint64, timeout ...time.Duration) error {
 	lockKey := fmt.Sprintf("%v", pkValue)
-	//LoadOrStore 如果锁不存在，创建一个新的锁实例
+	//如果 lockKey 存在，说明锁已存在，直接使用现有锁；如果不存在，创建并存储新锁
 	rowLock, _ := t.rowLocks.LoadOrStore(lockKey, &RowLock{
 		lockedAt:  time.Now(),
 		timeout:   30 * time.Second, // 默认超时时间
@@ -220,9 +233,9 @@ func (t *Table) acquireRowWriteLock(pkValue any, txID uint64, timeout ...time.Du
 	}
 	// 检查锁是否已过期
 	if rl.isExpired || time.Since(rl.lockedAt) > rl.timeout {
-		rl.isExpired = true
+		rl.isExpired = true //当锁超时时，标记锁为过期
 		// 尝试释放过期锁
-		if rl.rwLock.TryLock() {
+		if rl.rwLock.TryLock() { //尝试获取写锁
 			// 成功获取锁，更新锁状态
 			rl.lockedAt = time.Now()
 			rl.isExpired = false
@@ -232,9 +245,15 @@ func (t *Table) acquireRowWriteLock(pkValue any, txID uint64, timeout ...time.Du
 			return nil
 		}
 		//如果失败，说明锁已被其他事务持有（即使过期），返回错误
+		/*
+			在实际业务代码中，当遇到锁超时错误时，通常的处理流程是：
+			1. 捕获锁超时错误 ：上层代码捕获 acquireRowReadLock 或 acquireRowWriteLock 返回的超时错误。
+			2. 手动回滚事务 ：如果事务正在执行中，调用 tx.Rollback() 撤销所有未提交的修改。
+			3. 重试或失败处理 ：根据业务逻辑决定是否重试获取锁，或返回错误给用户。
+		*/
 		return fmt.Errorf("锁已过期且无法获取")
 	}
-	rl.rwLock.Lock() //如果锁已被其他事务持有，此调用会阻塞 ， 阻塞时，事务会进入等待状态，触发死锁检测
+	rl.rwLock.Lock() //如果锁已被其他事务持有，此调用会阻塞 ， 阻塞时，事务会进入等待状态
 	rl.lockedAt = time.Now()
 	rl.lockType = LockTypeWrite
 	rl.lockHolder = txID
@@ -519,6 +538,14 @@ func (t *Table) RecordWaitingLock(txID uint64, pkValue any) {
 }
 
 // 检测死锁
+/*
+### 1. 锁超时与死锁检测的区别
+- 锁超时 ：解决的是 单个锁长时间占用 的问题，通过设置超时时间，确保锁在一定时间后被标记为过期，允许其他事务尝试获取锁。
+   但对于 循环等待 的死锁场景（如事务A等待事务B的锁，事务B等待事务A的锁），锁超时需要等待到其中一个锁超时才能打破循环，可能需要较长时间，影响系统性能。
+- 死锁检测 ：专门解决 循环等待 的死锁问题，通过主动检测事务之间的依赖关系，识别出循环等待链，并选择其中一个事务进行回滚，快速打破死锁。
+   死锁检测可以在死锁发生后立即响应，无需等待锁超时，提高系统的响应速度和稳定性。
+*/
+
 func (t *Table) DetectDeadlock() []uint64 {
 	deadlockedTxs := t.deadlockDetector.DetectDeadlock()
 	// 标记死锁的事务
