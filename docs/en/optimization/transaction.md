@@ -614,17 +614,19 @@ Proper management of iterator resources is crucial for system performance:
 **Usage Example**:
 ```go
 // Get iterator
-iter, err := table.Search(&searchFields)
+iter, err := table.Search(&searchFields)   
+defer iter.Release() // Ensure return after use
 if err != nil {
     return err
 }
 
 // Use iterator
 records := iter.GetRecords(true)
+defer records.Release() // Ensure return after use
 // Process records...
 
 // Return iterator (important)
-engine.GlobalTableIterPool.Put(iter)
+iter.Release()
 ```
 
 **Performance Impact**:

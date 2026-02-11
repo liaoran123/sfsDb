@@ -351,12 +351,12 @@ sfsDb **不支持使用布尔类型（bool）作为索引字段**，原因如下
 searchData := map[string]any{"id": nil}
 iter, _ := table.Search(&searchData)
 if iter != nil {
-    defer GlobalTableIterPool.Put( iter)
+    defer iter.Release()
 }
 
 // 2. 获取所有记录并过滤
 allResults := iter.GetRecords(true)
-defer record.PutRecords(allResults)
+defer allResults.Release()
 var activeRecords []map[string]any
 for _, record := range allResults {
     if active, ok := record["active"].(bool); ok && active {

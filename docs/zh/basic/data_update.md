@@ -69,7 +69,7 @@ iter, err := table.Search(&searchFields)
 if err != nil {
     panic(err)
 }
-defer engine.GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 // 准备更新数据
 updateData := map[string]any{
@@ -266,10 +266,10 @@ iter, err := table.Search(&searchData)
 if err != nil {
     panic(err)
 }
-defer engine.GlobalTableIterPool.Put(iter)
+defer iter.Release()
     
     records := iter.GetRecords(true)
-    defer record.PutRecords(records)
+    defer records.Release()
     
     for _, r := range records {
         fmt.Printf("修改后的记录: %v\n", r)

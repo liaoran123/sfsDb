@@ -87,10 +87,10 @@ func main() {
     // Query data
     searchFields := map[string]any{"id": id}
     iter := table.Search(&searchFields)
-    defer GlobalTableIterPool.Put(iter)
+    defer iter.Release()
     
     records := iter.GetRecords(true)
-    defer record.PutRecords(records)
+    defer records.Release()
     
     for _, record := range records {
         fmt.Printf("Found user: %v\n", record)

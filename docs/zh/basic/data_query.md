@@ -11,11 +11,11 @@ iter, err := table.Search(&searchFields)
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 // 获取所有匹配记录
 records := iter.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 for _, record := range records {
     fmt.Printf("找到记录: %v\n", record)
 }
@@ -53,9 +53,9 @@ iterGt30, err := table.Search(&ageGt30, util.GreaterThan) // 传递比较操作�
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iterGt30)
+defer iterGt30.Release()
 recordsGt30 := iterGt30.GetRecords(true)
-defer record.PutRecords(recordsGt30)   
+defer recordsGt30.Release()   
 for _, record := range recordsGt30 {
     fmt.Printf("   - %s: %d岁\n", record["name"], record["age"])
 }
@@ -69,9 +69,9 @@ iterPrefix, err := table.Search(&emailPrefix) // 默认使用util.Like操作符�
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iterPrefix)
+defer iterPrefix.Release()
 recordsPrefix := iterPrefix.GetRecords(true)
-defer record.PutRecords(recordsPrefix)      
+defer recordsPrefix.Release()      
 for _, record := range recordsPrefix {
     fmt.Printf("   - %s: %s\n", record["name"], record["email"])
 }
@@ -85,9 +85,9 @@ iterName, err := table.Search(&namePrefix, util.Like) // 显式指定util.Like�
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iterName)
+defer iterName.Release()
 recordsName := iterName.GetRecords(true)
-defer record.PutRecords(recordsName)      
+defer recordsName.Release()      
 for _, record := range recordsName {
     fmt.Printf("   - %s: %s\n", record["name"], record["email"])
 }
@@ -101,9 +101,9 @@ iterExact, err := table.Search(&exactSearch, util.Equal) // 显式指定util.Equ
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iterExact)
+defer iterExact.Release()
 recordsExact := iterExact.GetRecords(true)
-defer record.PutRecords(recordsExact)   
+defer recordsExact.Release()   
 for _, record := range recordsExact {
     fmt.Printf("   - %s: %s\n", record["name"], record["email"])
 }
@@ -117,6 +117,7 @@ iterNotEqual, err := table.Search(&notEqualSearch, util.NotEqual) // 使用util.
 if err != nil {
     panic(err)
 }
+defer iterNotEqual.Release()
 defer GlobalTableIterPool.Put(iterNotEqual)
 recordsNotEqual := iterNotEqual.GetRecords(true)
 defer record.PutRecords(recordsNotEqual)   
@@ -213,11 +214,11 @@ iter, err := table.Search(&map[string]any{"id": nil})
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 iter.SetMatch(andMatcher)
 records := iter.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 
 // 结果：返回 ID 为 1、3、5 的用户
 ```
@@ -238,11 +239,11 @@ iter, err := table.Search(&map[string]any{"id": nil})
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 iter.SetMatch(andMatcher)
 records := iter.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 
 // 结果：返回 ID 不为 1、3、5 的用户
 ```
@@ -263,11 +264,16 @@ iter2, err := table2.Search(&map[string]any{"id": nil})
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iter2)
+defer iter2.Release()
 
 // 2. 获取 table2 的 ID 映射
 // Map() 方法生成 map[any]bool，键为指定字段的值
 idMap := iter2.Map()
+defer iter2.ReleaseMap(map2)
+	/*
+		// 如果map2生命周期大于iter2，则使用
+		// defer PutMap(map2)
+	*/
 defer PutMap(map2)
 
 // 3. 创建 AND 匹配器
@@ -277,7 +283,7 @@ andMatcher := match.NewAND([]string{"id"}, idMap)
 // 4. 设置匹配器并获取结果
 iter1.SetMatch(andMatcher)
 records := iter1.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 
 // 结果：返回 table1 中 ID 与 table2 中 ID 匹配的记录
 ```
@@ -292,17 +298,22 @@ iter1, err := table1.Search(&map[string]any{"id": nil})
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iter1)
+defer iter1.Release()
 
 iter2, err := table2.Search(&map[string]any{"id": nil})
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iter2)
+defer iter2.Release()
 
 // 2. 获取 table2 的 ID 映射
 idMap := iter2.Map()
-defer PutMap(map2)
+defer iter2.ReleaseMap(map2)
+	/*
+		// 如果map2生命周期大于iter2，则使用
+		// defer PutMap(map2)
+	*/
+//defer PutMap(map2)
 
 // 3. 创建 AND 匹配器，设置 rule=false 表示 NOT IN
 andMatcher := match.NewAND([]string{"id"}, idMap, false)
@@ -310,7 +321,7 @@ andMatcher := match.NewAND([]string{"id"}, idMap, false)
 // 4. 设置匹配器并获取结果
 iter1.SetMatch(andMatcher)
 records := iter1.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 
 // 结果：返回 table1 中 ID 与 table2 中 ID 不匹配的记录
 ```
@@ -374,12 +385,12 @@ iter1, err := table.Search(&map[string]any{"id": nil})
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iter1)
+defer iter1.Release()
 
 // 设置多个匹配器，它们之间是 AND 关系
 iter1.SetMatch(idMatcher, ageMatcher)
 records := iter1.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 
 // 结果：返回 ID 为 1、3、5 且年龄大于 25 的用户
 ```
@@ -464,7 +475,7 @@ iter, err := table.Search(&map[string]any{"id": nil})
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 // 创建 FieldComparison 匹配器
 matcher := match.NewFieldComparison("age", match.GreaterThan, 25)
@@ -474,7 +485,7 @@ iter.SetMatch(matcher)
 
 // 获取过滤后的记录
 records := iter.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
     fmt.Printf("年龄大于25的记录 (%d 条):\n", len(records))
     for _, record := range records {
         fmt.Printf("   - %v\n", record)
@@ -485,14 +496,14 @@ defer record.PutRecords(records)
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iter2)
+defer iter2.Release()
 
 // 使用 GreaterThanMatch 便捷函数
 highScoreMatcher := match.NewGreaterThanMatch("score", 90.0)
 iter2.SetMatch(highScoreMatcher)
 
 highScoreRecords := iter2.GetRecords(true)
-defer record.PutRecords(highScoreRecords)   
+defer records.Release()   
     fmt.Printf("\n分数大于90的记录 (%d 条):\n", len(highScoreRecords))
     for _, record := range highScoreRecords {
         fmt.Printf("   - %v\n", record)
@@ -503,13 +514,13 @@ defer record.PutRecords(highScoreRecords)
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put(iter3)
+defer iter3.Release()
 
 inactiveMatcher := match.NewEqualMatch("active", false)
 iter3.SetMatch(inactiveMatcher)
 
 inactiveRecords := iter3.GetRecords(true)
-defer record.PutRecords(inactiveRecords)   
+defer records.Release()   
     fmt.Printf("\n非活跃用户 (%d 条):\n", len(inactiveRecords))
     for _, record := range inactiveRecords {
         fmt.Printf("   - %v\n", record)

@@ -47,9 +47,9 @@ fmt.Println("=== 全文搜索示例 ===")
 fmt.Println("\n1. 搜索 '笔记本':")
 search1 := map[string]any{"description": "笔记本"}
 iter1,_ := table.Search(&search1)
-defer GlobalTableIterPool.Put(iter1)
+defer iter1.Release()
 records1 := iter1.GetRecords(true)
-defer record.PutRecords(records1)   
+defer records1.Release()   
 for _, record := range records1 {
     fmt.Printf("   - %s: %s\n", record["name"], record["description"])
 }
@@ -58,9 +58,9 @@ for _, record := range records1 {
 fmt.Println("\n2. 搜索 '智能':")
 search2 := map[string]any{"description": "智能"}
 iter2,_ := table.Search(&search2)
-defer GlobalTableIterPool.Put(iter2)
+defer iter2.Release()
 records2 := iter2.GetRecords(true)
-defer record.PutRecords(records2)   
+defer records2.Release()   
 for _, record := range records2 {
     fmt.Printf("   - %s: %s\n", record["name"], record["description"])
 }
@@ -69,13 +69,13 @@ for _, record := range records2 {
 fmt.Println("\n3. 搜索结果字段选择:")
 search3 := map[string]any{"description": "智能"}
 iter3,_ := table.Search(&search3)
-defer GlobalTableIterPool.Put(iter3)
+defer iter3.Release()
 records3 := iter3.GetRecords(true)
-defer record.PutRecords(records3)   
+defer records3.Release()   
 // 使用 Select 方法只选择 name 字段
 selectedNames := records3.Select("name")
 fmt.Println("只显示匹配记录的名称:")
 for _, record := range selectedNames {
-    fmt.Printf("   - %s\n", record["name"])
+    fmt.Printf("   - %s\n", record)
 }
 ```

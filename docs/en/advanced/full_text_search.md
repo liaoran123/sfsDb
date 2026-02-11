@@ -46,10 +46,10 @@ fmt.Println("=== Full-Text Search Example ===")
 // Search for records containing "laptop"
 fmt.Println("\n1. Search for 'laptop':")
 search1 := map[string]any{"description": "laptop"}
-iter1, _ := table.Search(&search1)
-defer engine.GlobalTableIterPool.Put(iter1)
+iter1, _ := table.Search(&search1)   
+defer iter1.Release()
 records1 := iter1.GetRecords(true)
-defer record.PutRecords(records1)   
+defer records1.Release()   
 for _, record := range records1 {
     fmt.Printf("   - %s: %s\n", record["name"], record["description"])
 }
@@ -57,10 +57,10 @@ for _, record := range records1 {
 // Search for records containing "smart"
 fmt.Println("\n2. Search for 'smart':")
 search2 := map[string]any{"description": "smart"}
-iter2, _ := table.Search(&search2)
-defer engine.GlobalTableIterPool.Put(iter2)
+iter2, _ := table.Search(&search2)   
+defer iter2.Release()
 records2 := iter2.GetRecords(true)
-defer record.PutRecords(records2)   
+defer records2.Release()   
 for _, record := range records2 {
     fmt.Printf("   - %s: %s\n", record["name"], record["description"])
 }
@@ -68,14 +68,14 @@ for _, record := range records2 {
 // 3. Search result field selection example
 fmt.Println("\n3. Search result field selection:")
 search3 := map[string]any{"description": "smart"}
-iter3, _ := table.Search(&search3)
-defer engine.GlobalTableIterPool.Put(iter3)
+iter3, _ := table.Search(&search3)   
+defer iter3.Release()
 records3 := iter3.GetRecords(true)
-defer record.PutRecords(records3)   
+defer records3.Release()   
 // Use Select method to only select name field
 selectedNames := records3.Select("name")
 fmt.Println("Only display names of matching records:")
 for _, record := range selectedNames {
-    fmt.Printf("   - %s\n", record["name"])
+    fmt.Printf("   - %s\n", record)
 }
 ```

@@ -72,12 +72,12 @@ func main() {
     searchData := map[string]any{"name": "Alice"}
     iter := table.Search(&searchData)   
     if iter != nil {
-        defer engine.GlobalTableIterPool.Put(iter)
+        defer iter.Release()
     }
     
     records := iter.GetRecords(true)
     if records != nil {
-        defer record.PutRecords(records)
+        defer records.Release()
     }
     
     for _, record := range records {

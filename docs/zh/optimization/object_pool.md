@@ -13,7 +13,7 @@ sfsDb 实现了对象池机制，用于优化内存使用和提高性能。对�
 ```go
 // 获取迭代器
 iter, _ := table.Search(&searchFields)
-defer engine.GlobalTableIterPool.Put(iter) // 使用完毕后归还到池
+defer iter.Release() // 使用完毕后归还到池
 ```
 
 ### 2.2 记录池
@@ -23,7 +23,7 @@ defer engine.GlobalTableIterPool.Put(iter) // 使用完毕后归还到池
 ```go
 // 获取记录
 records := iter.GetRecords(true)
-defer record.PutRecords(records) // 使用完毕后归还到池
+defer records.Release() // 使用完毕后归还到池
 ```
 
 ### 2.3 字节数组池
@@ -33,7 +33,7 @@ defer record.PutRecords(records) // 使用完毕后归还到池
 ```go
 // 获取字节数组
 joinValues := index.JoinFullValues(fieldsBytes, t.id)
-defer util.PutBytesArray(joinValues) // 使用完毕后归还到池
+defer joinValues.Release() // 使用完毕后归还到池
 ```
 
 ## 3. 对象池使用最佳实践
@@ -45,11 +45,11 @@ defer util.PutBytesArray(joinValues) // 使用完毕后归还到池
 ```go
 // 获取迭代器
 iter, _ := table.Search(&searchFields)
-defer engine.GlobalTableIterPool.Put(iter) // 确保使用完毕后归还
+defer iter.Release() // 确保使用完毕后归还
 
 // 获取记录
 records := iter.GetRecords(true)
-defer record.PutRecords(records) // 确保使用完毕后归还
+defer records.Release() // 确保使用完毕后归还
 
 // 使用迭代器和记录...
 ```
@@ -59,7 +59,10 @@ defer record.PutRecords(records) // 确保使用完毕后归还
 ```go
 // 错误：没有归还迭代器和记录
 iter, _ := table.Search(&searchFields)
+defer iter.Release() // 确保使用完毕后归还
+
 records := iter.GetRecords(true)
+defer records.Release() // 确保使用完毕后归还
 // 使用后没有归还，导致内存泄漏
 ```
 
@@ -72,15 +75,15 @@ records := iter.GetRecords(true)
 for i := 0; i < 1000; i++ {
     // 获取迭代器
     iter, _ := table.Search(&searchFields)
+    defer iter.Release() // 确保使用完毕后归还
     
     // 获取记录
     records := iter.GetRecords(true)
+    defer records.Release() // 硡�保使用完毕后归还
     
     // 使用记录...
     
-    // 立即归还对象，不要等到函数结束
-    record.PutRecords(records)
-    engine.GlobalTableIterPool.Put(iter)
+    
 }
 ```
 
@@ -165,11 +168,11 @@ func main() {
             "age": 25 + i,
         }
         iter, _ := table.Search(&searchFields)
-        defer engine.GlobalTableIterPool.Put(iter) // 确保归还
+        defer iter.Release() // 确保归还
         
         // 获取记录
         records := iter.GetRecords(true)
-        defer record.PutRecords(records) // 确保归还
+        defer records.Release() // 确保归还
         
         // 使用记录
         fmt.Printf("年龄为 %d 的用户有 %d 个\n", 25+i, len(records))

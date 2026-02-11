@@ -13,7 +13,7 @@ The table iterator pool (`GlobalTableIterPool`) is used to manage the reuse of `
 ```go
 // Get iterator
 iter, _ := table.Search(&searchFields)   
-defer engine.GlobalTableIterPool.Put(iter) // Return to pool after use
+defer iter.Release() // Return to pool after use
 ```
 
 ### 2.2 Record Pool
@@ -23,7 +23,7 @@ The record pool (`PutRecords`) is used to manage the reuse of query result recor
 ```go
 // Get records
 records := iter.GetRecords(true)
-defer record.PutRecords(records) // Return to pool after use
+defer records.Release() // Return to pool after use
 ```
 
 ### 2.3 Byte Array Pool
@@ -33,7 +33,7 @@ The byte array pool (`util.PutBytesArray`) is used to manage the reuse of byte a
 ```go
 // Get byte array
 joinValues := index.JoinFullValues(fieldsBytes, t.id)
-defer util.PutBytesArray(joinValues) // Return to pool after use
+defer joinValues.Release() // Return to pool after use
 ```
 
 ## 3. Object Pool Best Practices
@@ -45,11 +45,11 @@ defer util.PutBytesArray(joinValues) // Return to pool after use
 ```go
 // Get iterator
 iter, _ := table.Search(&searchFields)   
-defer engine.GlobalTableIterPool.Put(iter) // Ensure return after use
+defer iter.Release() // Ensure return after use
 
 // Get records
 records := iter.GetRecords(true)
-defer record.PutRecords(records) // Ensure return after use
+defer records.Release() // Ensure return after use
 
 // Use iterator and records...
 ```
@@ -59,10 +59,22 @@ defer record.PutRecords(records) // Ensure return after use
 ```go
 // Error: Not returning iterator and records
 iter, _ := table.Search(&searchFields)   
-defer engine.GlobalTableIterPool.Put(iter) // Ensure return after use
+defer iter.Release() // Ensure return after use
 
 records := iter.GetRecords(true)
-// No return after use, leading to memory leaks
+defer records.Release() // Ensure return after use
+
+// Use records...
+```
+
+**Avoid Practice**:
+
+```go
+// Error: Not returning records
+records := iter.GetRecords(true)
+defer records.Release() // Ensure return after use
+
+// Use records...
 ```
 
 ### 3.2 Object Pool Usage in Batch Operations
@@ -74,15 +86,17 @@ In batch operations, correct use of object pools is particularly important:
 for i := 0; i < 1000; i++ {
     // Get iterator
     iter, _ := table.Search(&searchFields)   
-    
+    defer iter.Release() // Ensure return after use
+
     // Get records
     records := iter.GetRecords(true)
+    defer records.Release() // Ensure return after use
     
     // Use records...
     
     // Return objects immediately, not waiting for function end
-    record.PutRecords(records)
-    engine.GlobalTableIterPool.Put(iter)
+    records.Release()
+    iter.Release()
 }
 ```
 
@@ -167,11 +181,11 @@ func main() {
             "age": 25 + i,
         }
         iter, _ := table.Search(&searchFields)   
-        defer engine.GlobalTableIterPool.Put(iter) // Ensure return
+        defer iter.Release() // Ensure return after use
         
         // Get records
         records := iter.GetRecords(true)
-        defer record.PutRecords(records) // Ensure return
+        defer records.Release() // Ensure return after use
         
         // Use records
         fmt.Printf("There are %d users with age %d\n", 25+i, len(records))

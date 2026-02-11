@@ -621,10 +621,12 @@ if err != nil {
 
 // 使用迭代器
 records := iter.GetRecords(true)
+defer records.Release() // 确保使用完毕后归还
+
 // 处理记录...
 
 // 归还迭代器（重要）
-engine.GlobalTableIterPool.Put(iter)
+iter.Release()
 ```
 
 **性能影响**：

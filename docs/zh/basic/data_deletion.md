@@ -27,7 +27,7 @@ iter, err := table.Search(&searchCriteria)
 if err != nil {
     panic(err)
 }
-defer GlobalTableIterPool.Put( iter)
+defer iter.Release()
 
 // 使用迭代器的 Delete 方法批量删除符合条件的记录
 // 直接删除所有符合条件的记录（无限制）

@@ -351,12 +351,12 @@ sfsDb **does not support using boolean types (bool) as index fields** for the fo
 searchData := map[string]any{"id": nil}
 iter, _ := table.Search(&searchData)
 if iter != nil {
-    defer engine.GlobalTableIterPool.Put(iter)
+    defer iter.Release()
 }
 
 // 2. Get all records and filter
 allResults := iter.GetRecords(true)
-defer record.PutRecords(allResults)
+defer allResults.Release() // Ensure return after use
 var activeRecords []map[string]any
 for _, record := range allResults {
     if active, ok := record["active"].(bool); ok && active {

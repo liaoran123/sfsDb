@@ -191,10 +191,10 @@ func main() {
     // Query modified data
     searchFields := map[string]any{"id": 1}
     iter, _ := table.Search(&searchFields)   
-    defer engine.GlobalTableIterPool.Put(iter)
+    defer iter.Release()
     
     records := iter.GetRecords(true)
-    defer record.PutRecords(records)
+    defer records.Release()
     
     for _, record := range records {
         fmt.Printf("Modified record: %v\n", record)

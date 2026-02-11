@@ -27,7 +27,7 @@ iter, err := table.Search(&searchCriteria)
 if err != nil {
     panic(err)
 }
-defer engine.GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 // Use iterator's Delete method to batch delete matching records
 // Directly delete all matching records (unlimited)
@@ -46,7 +46,7 @@ sfsDb provides a `DeleteAll()` method for deleting all data in a table. This met
 func (t *Table) DeleteAll() error {
 	// Get iterator for all kv key-value pairs in the table
 	iter := t.For()
-	defer GlobalTableIterPool.Put(iter)
+	defer iter.Release()
 	
 	// Create batch operation
 	batch := t.kvStore.GetBatch()

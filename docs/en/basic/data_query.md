@@ -8,11 +8,11 @@ searchFields := map[string]any{
     "name": "Zhang San",
 }
 iter, _ := table.Search(&searchFields)
-defer engine.GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 // Get all matching records
 records := iter.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 for _, record := range records {
     fmt.Printf("Found record: %v\n", record)
 }
@@ -47,9 +47,9 @@ ageGt30 := map[string]any{
     "age": 30,
 }
 iterGt30, _ := table.Search(&ageGt30, util.GreaterThan) // Pass comparison operator as second parameter
-defer engine.GlobalTableIterPool.Put(iterGt30)
+defer iterGt30.Release()
 recordsGt30 := iterGt30.GetRecords(true)
-defer record.PutRecords(recordsGt30)   
+defer recordsGt30.Release()   
 for _, record := range recordsGt30 {
     fmt.Printf("   - %s: %d years old\n", record["name"], record["age"])
 }
@@ -60,9 +60,9 @@ emailPrefix := map[string]any{
     "email": "user",
 }
 iterPrefix, _ := table.Search(&emailPrefix) // Default uses util.Like operator, here like is actually prefix match
-defer engine.GlobalTableIterPool.Put(iterPrefix)
+defer iterPrefix.Release()
 recordsPrefix := iterPrefix.GetRecords(true)
-defer record.PutRecords(recordsPrefix)      
+defer recordsPrefix.Release()
 for _, record := range recordsPrefix {
     fmt.Printf("   - %s: %s\n", record["name"], record["email"])
 }
@@ -73,9 +73,9 @@ namePrefix := map[string]any{
     "name": "Zhang",
 }
 iterName, _ := table.Search(&namePrefix, util.Like) // Explicitly specify util.Like operator
-defer engine.GlobalTableIterPool.Put(iterName)
+defer iterName.Release()
 recordsName := iterName.GetRecords(true)
-defer record.PutRecords(recordsName)      
+defer recordsName.Release()
 for _, record := range recordsName {
     fmt.Printf("   - %s: %s\n", record["name"], record["email"])
 }
@@ -86,9 +86,9 @@ exactSearch := map[string]any{
     "name": "Zhang San",
 }
 iterExact, _ := table.Search(&exactSearch, util.Equal) // Explicitly specify util.Equal operator
-defer engine.GlobalTableIterPool.Put(iterExact)
+defer iterExact.Release()
 recordsExact := iterExact.GetRecords(true)
-defer record.PutRecords(recordsExact)   
+defer recordsExact.Release()   
 for _, record := range recordsExact {
     fmt.Printf("   - %s: %s\n", record["name"], record["email"])
 }
@@ -99,9 +99,9 @@ notEqualSearch := map[string]any{
     "id": 1,
 }
 iterNotEqual, _ := table.Search(&notEqualSearch, util.NotEqual) // Use util.NotEqual operator
-defer engine.GlobalTableIterPool.Put(iterNotEqual)
-defer record.PutRecords(recordsNotEqual)   
+defer iterNotEqual.Release()
 recordsNotEqual := iterNotEqual.GetRecords(true)
+defer recordsNotEqual.Release()   
 for _, record := range recordsNotEqual {
     fmt.Printf("   - %s: ID=%d\n", record["name"], record["id"])
 }
@@ -192,11 +192,11 @@ andMatcher := match.NewAND([]string{"id"}, idMap)
 
 // 3. Use matcher
 iter, _ := table.Search(&map[string]any{"id": nil})
-defer engine.GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 iter.SetMatch(andMatcher)
 records := iter.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 
 // Result: Returns users with ID 1, 3, 5
 ```
@@ -214,11 +214,11 @@ andMatcher := match.NewAND([]string{"id"}, idMap, false)
 
 // 3. Use matcher
 iter, _ := table.Search(&map[string]any{"id": nil})
-defer engine.GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 iter.SetMatch(andMatcher)
 records := iter.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 
 // Result: Returns users with ID not 1, 3, 5
 ```
@@ -230,15 +230,19 @@ defer record.PutRecords(records)
 
 // 1. Get iterators for both tables
 iter1, _ := table1.Search(&map[string]any{"id": nil})
-defer engine.GlobalTableIterPool.Put(iter1)
+defer iter1.Release()   
 
 iter2, _ := table2.Search(&map[string]any{"id": nil})
-defer engine.GlobalTableIterPool.Put(iter2) 
+defer iter2.Release()   
 
 // 2. Get ID mapping from table2
 // Map() method generates map[any]bool, keys are values of specified fields
 idMap := iter2.Map()
-defer PutMap(map2)
+defer iter2.ReleaseMap(idMap)
+	/*
+		// 如果idMap生命周期大于iter2，则使用
+		// defer PutMap(idMap)
+	*/
 
 // 3. Create AND matcher
 // Match if table1's id field is in table2's id set
@@ -247,7 +251,7 @@ andMatcher := match.NewAND([]string{"id"}, idMap)
 // 4. Set matcher and get results
 iter1.SetMatch(andMatcher)
 records := iter1.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 
 // Result: Returns records from table1 where ID matches ID in table2
 ```
@@ -258,15 +262,19 @@ defer record.PutRecords(records)
 // Implement SQL-like join query: SELECT table1.* FROM table1, table2 WHERE table1.id != table2.id
 
 // 1. Get iterators for both tables
-iter1, _ := table1.Search(&map[string]any{"id": nil}) 
-defer engine.GlobalTableIterPool.Put(iter1)
+iter1, _ := table1.Search(&map[string]any{"id": nil})
+defer iter1.Release()   
 
 iter2, _ := table2.Search(&map[string]any{"id": nil})
-defer engine.GlobalTableIterPool.Put(iter2) 
+defer iter2.Release()   
 
 // 2. Get ID mapping from table2
 idMap := iter2.Map()
-defer PutMap(map2)
+defer iter2.ReleaseMap(idMap)
+	/*
+		// 如果idMap生命周期大于iter2，则使用
+		// defer PutMap(idMap)
+	*/
 
 // 3. Create AND matcher, set rule=false for NOT IN
 andMatcher := match.NewAND([]string{"id"}, idMap, false)
@@ -274,7 +282,7 @@ andMatcher := match.NewAND([]string{"id"}, idMap, false)
 // 4. Set matcher and get results
 iter1.SetMatch(andMatcher)
 records := iter1.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 
 // Result: Returns records from table1 where ID does not match ID in table2
 ```
@@ -335,12 +343,12 @@ ageMatcher := &AgeGreaterThanMatcher{MinAge: 25}
 
 // 3. Use combination matcher
 iter, _ := table.Search(&map[string]any{"id": nil})
-defer engine.GlobalTableIterPool.Put(iter)
+defer iter.Release()   
 
 // Set multiple matchers, they have an AND relationship
 iter.SetMatch(idMatcher, ageMatcher)
 records := iter.GetRecords(true)
-defer record.PutRecords(records)   
+defer records.Release()   
 
 // Result: Returns users with ID 1, 3, 5 and age greater than 25
 ```
@@ -422,7 +430,7 @@ func main() {
     // 1. Using FieldComparison for comparison
     // Get iterator
     iter, _ := table.Search(&map[string]any{"id": nil})
-    defer engine.GlobalTableIterPool.Put(iter)
+    defer iter.Release()   
 
     // Create FieldComparison matcher
     matcher := match.NewFieldComparison("age", match.GreaterThan, 25)
@@ -432,7 +440,7 @@ func main() {
 
     // Get filtered records
     records := iter.GetRecords(true)
-    defer record.PutRecords(records)   
+    defer records.Release()   
     fmt.Printf("Records with age greater than 25 (%d records):\n", len(records))
     for _, record := range records {
         fmt.Printf("   - %v\n", record)
@@ -440,14 +448,14 @@ func main() {
 
     // 2. Using convenience functions to create matchers
     iter2, _ := table.Search(&map[string]any{"id": nil})   
-    defer engine.GlobalTableIterPool.Put(iter2)
+    defer iter2.Release()   
 
     // Using GreaterThanMatch convenience function
     highScoreMatcher := match.NewGreaterThanMatch("score", 90.0)
     iter2.SetMatch(highScoreMatcher)
 
     highScoreRecords := iter2.GetRecords(true)
-    defer record.PutRecords(highScoreRecords)   
+    defer highScoreRecords.Release()   
     fmt.Printf("\nRecords with score greater than 90 (%d records):\n", len(highScoreRecords))
     for _, record := range highScoreRecords {
         fmt.Printf("   - %v\n", record)
@@ -455,13 +463,13 @@ func main() {
 
     // 3. Using EqualMatch convenience function
     iter3, _ := table.Search(&map[string]any{"id": nil})   
-    defer engine.GlobalTableIterPool.Put(iter3)
+    defer iter3.Release()   
 
     inactiveMatcher := match.NewEqualMatch("active", false)
     iter3.SetMatch(inactiveMatcher)
 
     inactiveRecords := iter3.GetRecords(true)
-    defer record.PutRecords(inactiveRecords)   
+    defer inactiveRecords.Release()   
     fmt.Printf("\nInactive users (%d records):\n", len(inactiveRecords))
     for _, record := range inactiveRecords {
         fmt.Printf("   - %v\n", record)

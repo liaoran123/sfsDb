@@ -303,6 +303,8 @@ func TestTestSelectForJoin(t *testing.T) {
 	// fieldValue := iter1.GetFieldValue(iter1.Key(), iter1.Value(), "name")
 	// fmt.Println(fieldValue)
 }
+
+// 测试多表组合查询功能
 func TestTestSelectForJoin1(t *testing.T) {
 	// Create test table
 	table1, err := TableNew("test_search_comprehensive1")
@@ -467,7 +469,10 @@ func TestTestSelectForJoin1(t *testing.T) {
 	fmt.Println("---------------------------------------------")
 	map2 := iter2.Map()
 	defer iter2.ReleaseMap(map2)
-	//defer PutMap(map2)
+	/*
+		// 如果map2生命周期大于iter2，则使用
+		// defer PutMap(map2)
+	*/
 	mach := match.NewAND([]string{"id"}, map2)
 	iter1.SetMatch(mach)
 	rd4 := iter1.GetRecords(true)

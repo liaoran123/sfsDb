@@ -69,7 +69,7 @@ iter, err := table.Search(&searchFields)
 if err != nil {
     panic(err)
 }
-defer engine.GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 // Prepare update data
 updateData := map[string]any{
@@ -266,10 +266,10 @@ iter, err := table.Search(&searchData)
 if err != nil {
     panic(err)
 }
-defer engine.GlobalTableIterPool.Put(iter)
+defer iter.Release()
     
     records := iter.GetRecords(true)
-    defer record.PutRecords(records)
+    defer records.Release()
     
     for _, r := range records {
         fmt.Printf("Updated record: %v\n", r)

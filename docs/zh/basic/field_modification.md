@@ -191,10 +191,10 @@ func main() {
     // 查询修改后的数据
     searchFields := map[string]any{"id": 1}
     iter, _ := table.Search(&searchFields)
-    defer engine.GlobalTableIterPool.Put(iter)
+    defer iter.Release()
     
     records := iter.GetRecords(true)
-    defer record.PutRecords(records)
+    defer records.Release()
     
     for _, record := range records {
         fmt.Printf("修改后的记录: %v\n", record)
