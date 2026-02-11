@@ -161,11 +161,13 @@ func (s *Server) handleMonitor(c *gin.Context) {
 		monitorMgr := s.manager.MonitorManager()
 		keyChangeStats := monitorMgr.GetKeyChangeStats()
 		indexStats := monitorMgr.GetIndexStats()
+		transactionStats := monitorMgr.GetTransactionStats()
 
 		response := gin.H{
-			"keyChangeStats": keyChangeStats,
-			"indexStats":     indexStats,
-			"monitorRunning": monitor != nil && s.isMonitorRunning(),
+			"keyChangeStats":    keyChangeStats,
+			"indexStats":        indexStats,
+			"transactionStats":  transactionStats,
+			"monitorRunning":    monitor != nil && s.isMonitorRunning(),
 		}
 
 		c.JSON(http.StatusOK, response)

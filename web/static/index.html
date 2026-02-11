@@ -120,6 +120,15 @@
                             索引统计
                         </div>
                     </li>
+                    <li class="nav-item mb-2">
+                        <div 
+                            class="nav-link menu-item rounded" 
+                            :class="{ active: activePage === 'transactionStats' }"
+                            @click="setActivePage('transactionStats')"
+                        >
+                            事务统计
+                        </div>
+                    </li>
                     <!-- 表操作菜单已屏蔽 -->
                     <!-- <li class="nav-item mb-2">
                         <div 
@@ -574,6 +583,67 @@
                         </div>
                     </div>
                     
+                    <!-- 事务统计 -->
+                    <div v-if="activePage === 'transactionStats'" class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h5 class="card-title mb-0">事务统计</h5>
+                                <button class="btn btn-primary" @click="refreshData" :disabled="loading">
+                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    <span v-if="loading"> 刷新中...</span>
+                                    <span v-else>刷新数据</span>
+                                </button>
+                            </div>
+                            <div v-if="loading" class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                            </div>
+                            <div v-else-if="error" class="alert alert-danger">
+                                {{ error }}
+                            </div>
+                            <div v-else>
+                                <!-- 事务统计信息 -->
+                                <div class="mb-6">
+                                    <h6 class="mb-3">事务使用统计</h6>
+                                    <div v-if="monitorData.transactionStats" class="table-responsive">
+                                        <table class="table table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>事务ID</th>
+                                                    <th>表名</th>
+                                                    <th>隔离级别</th>
+                                                    <th>是否提交</th>
+                                                    <th>事务次数</th>
+                                                    <th>平均耗时 (ms)</th>
+                                                    <th>总耗时 (ms)</th>
+                                                    <th>最大耗时 (ms)</th>
+                                                    <th>最小耗时 (ms)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="(stats, key) in monitorData.transactionStats" :key="key">
+                                                    <td>{{ stats.txID }}</td>
+                                                    <td>{{ stats.tableName }}</td>
+                                                    <td>{{ stats.isolationLevel }}</td>
+                                                    <td>{{ stats.isCommitted ? '是' : '否' }}</td>
+                                                    <td>{{ stats.totalCount }}</td>
+                                                    <td>{{ (stats.avgDuration / 1000000).toFixed(2) }}</td>
+                                                    <td>{{ (stats.duration / 1000000).toFixed(2) }}</td>
+                                                    <td>{{ (stats.maxDuration / 1000000).toFixed(2) }}</td>
+                                                    <td>{{ (stats.minDuration / 1000000).toFixed(2) }}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div v-else class="alert alert-info">
+                                        事务统计数据未获取
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- 表操作内容已屏蔽 -->
                     <!-- <div v-if="activePage === 'crud'" class="card">
                         <div class="card-body">
@@ -673,6 +743,7 @@
                         memory: '内存监控',
                         key: '键值监控',
                         indexStats: '索引统计',
+                        transactionStats: '事务统计',
                         crud: '表操作'
                     };
                     return titles[this.activePage] || 'sfsDb管理界面';
@@ -696,9 +767,9 @@
                     this.error = null;
                     
                     try {
-                        // 对于内存监控和键值监控，使用monitor API
+                        // 对于内存监控、键值监控、索引统计和事务统计，使用monitor API
                         let apiEndpoint = this.activePage;
-                        if (this.activePage === 'memory' || this.activePage === 'key' || this.activePage === 'indexStats') {
+                        if (this.activePage === 'memory' || this.activePage === 'key' || this.activePage === 'indexStats' || this.activePage === 'transactionStats') {
                             apiEndpoint = 'monitor';
                         }
                         
@@ -722,6 +793,7 @@
                                 case 'memory':
                                 case 'key':
                                 case 'indexStats':
+                                case 'transactionStats':
                                     this.monitorData = data;
                                     // 对于内存监控，刷新监控状态
                                     if (this.activePage === 'memory') {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/liaoran123/sfsDb/monitor"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
@@ -405,6 +406,10 @@ func (tx *TableTransaction) Commit() error {
 		return err
 	}
 
+	endTime := time.Now()                 // 记录事务结束时间
+	duration := endTime.Sub(tx.startTime) // 计算事务用时
+	monitor.GTransactionStatsMap.SetTimeAsync(tx.txID, duration, tx.table.name, tx.options.IsolationLevel, true)
+
 	// 提交所有子事务
 	for _, child := range tx.children {
 		if !child.committed {
@@ -515,6 +520,10 @@ func (tx *TableTransaction) Rollback() error {
 	if err := tx.checkCommitted(); err != nil {
 		return err
 	}
+
+	endTime := time.Now()                 // 记录事务结束时间
+	duration := endTime.Sub(tx.startTime) // 计算事务用时
+	monitor.GTransactionStatsMap.SetTimeAsync(tx.txID, duration, tx.table.name, tx.options.IsolationLevel, false)
 
 	// 回滚所有子事务
 	for _, child := range tx.children {

@@ -36,3 +36,11 @@ func (mm *MonitorManager) GetKeyChangeStats() map[int]*monitor.Keys {
 func (mm *MonitorManager) GetIndexStats() map[int]*monitor.IndexStats {
 	return monitor.GIndexStatsMap.GetAll()
 }
+
+// GetTransactionStats 获取事务统计信息
+// 返回:
+//
+//	map[uint64]*monitor.TransactionStats: 事务统计信息映射
+func (mm *MonitorManager) GetTransactionStats() map[uint64]*monitor.TransactionStats {
+	return monitor.GTransactionStatsMap.GetAll()
+}

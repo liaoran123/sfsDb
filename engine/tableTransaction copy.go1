@@ -271,44 +271,24 @@ func (tx *TableTransaction) updateFromCache(fields *map[string]any, cacheKey str
 	}
 
 	// 2. 准备更新字段列表
-	updateFields, err := tx.table.prepareUpdateFields(fields)
+	updateFields, err := tx.table.prepareUpdateFieldsList(fields)
 	if err != nil {
 		return err
+	}
+	if updateFields == nil {
+		return nil
 	}
 	defer PutStringSlice(updateFields)
 
-	// 3. 检查更新字段个数是否为0
-	if len(updateFields) == 0 {
-		return nil
-	}
-
-	// 4. 执行更新操作（删除旧记录）
-	// 从对象池中获取一个 batchContainer
-	batchContainer1 := GetBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
-	defer PutBatchContainer(batchContainer1)
-	batchContainer1.Operation(fieldsBytes, updateFields...)
-
-	// 5. 检查并更新版本号
-	_, err = tx.table.checkAndUpdateVersion(fields, fieldsBytes)
-	if err != nil {
+	// 3. 执行更新操作
+	if err := tx.table.executeUpdateOperation(tx.batch, fields, fieldsBytes, updateFields); err != nil {
 		return err
 	}
 
-	// 6. 更新字段值
-	tx.table.updateFieldsValue(fields, fieldsBytes)
-
-	// 7. 格式化记录
+	// 4. 格式化记录
 	updatedRecord := tx.table.FormatRecord(fieldsBytes)
 
-	// 8. 执行更新操作（添加新记录）
-	// 从对象池中获取一个 batchContainer
-	batchContainer2 := GetBatchContainer(tx.batch, tx.table.indexs, tx.table.id, tx.table.kvStore)
-	defer PutBatchContainer(batchContainer2)
-	batchContainer2.SetValue(0, updatedRecord)                               // 添加主键value=record
-	batchContainer2.SetValue(1, tx.table.GetPrimaryKey().GetID(fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
-	batchContainer2.Operation(fieldsBytes, updateFields...)
-
-	// 9. 更新缓存
+	// 5. 更新缓存
 	tx.cache[cacheKey] = updatedRecord
 
 	return nil
@@ -342,6 +322,11 @@ func (tx *TableTransaction) Delete(fields *map[string]any) error {
 func (tx *TableTransaction) getCacheKey(fields *map[string]any) string {
 	// 将fields转换为fieldsBytes，用于生成主键
 	fieldsBytes := tx.table.FieldsToBytes(fields)
+	defer func() {
+		if fieldsBytes != nil && *fieldsBytes != nil {
+			GlobalFieldsBytesPool.Put(*fieldsBytes)
+		}
+	}()
 	// 生成主键键值，用于缓存
 	pkKey := tx.table.GetPrimaryKey().JoinValue(fieldsBytes, tx.table.id)
 	return string(pkKey)
@@ -364,6 +349,11 @@ func (tx *TableTransaction) Read(fields *map[string]any) ([]byte, error) {
 	// 2. 缓存中没有，使用事务自己的快照或原始存储读取
 	// 生成主键键值
 	fieldsBytes := tx.table.FieldsToBytes(fields)
+	defer func() {
+		if fieldsBytes != nil && *fieldsBytes != nil {
+			GlobalFieldsBytesPool.Put(*fieldsBytes)
+		}
+	}()
 	pkKey := tx.table.GetPrimaryKey().JoinValue(fieldsBytes, tx.table.id)
 
 	// 如果有快照，使用快照读取；否则使用原始存储
