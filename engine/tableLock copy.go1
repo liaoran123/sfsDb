@@ -151,67 +151,6 @@ func (dd *DeadlockDetector) DetectDeadlock() []uint64 {
 	return deadlockedTxs
 }
 
-// 局部死锁检测：只检测与指定事务相关的路径
-func (dd *DeadlockDetector) DetectLocalDeadlock(targetTxID uint64) []uint64 {
-	dd.mutex.Lock()
-	defer dd.mutex.Unlock()
-
-	// 构建等待图
-	waitForGraph := make(map[uint64][]uint64)
-	transactionLocks := make(map[uint64]*TransactionLockInfo)
-
-	// 收集所有事务锁信息
-	dd.table.transactionLocks.Range(func(key, value any) bool {
-		txID := key.(uint64)
-		tli := value.(*TransactionLockInfo)
-		transactionLocks[txID] = tli
-
-		// 如果事务正在等待锁
-		if tli.WaitingFor != nil && tli.WaitingFor.LockHolder != 0 {
-			waitForGraph[txID] = append(waitForGraph[txID], tli.WaitingFor.LockHolder)
-		}
-
-		return true
-	})
-
-	// 局部检测循环等待：只从目标事务开始检测
-	var deadlockedTxs []uint64
-	visited := make(map[uint64]bool)
-	recStack := make(map[uint64]bool)
-
-	var hasCycle func(txID uint64) bool
-	hasCycle = func(txID uint64) bool {
-		if !visited[txID] {
-			visited[txID] = true
-			recStack[txID] = true
-
-			for _, neighbor := range waitForGraph[txID] {
-				if !visited[neighbor] && hasCycle(neighbor) {
-					return true
-				} else if recStack[neighbor] {
-					// 找到循环，收集死锁的事务
-					if !slices.Contains(deadlockedTxs, txID) {
-						deadlockedTxs = append(deadlockedTxs, txID)
-					}
-					if !slices.Contains(deadlockedTxs, neighbor) {
-						deadlockedTxs = append(deadlockedTxs, neighbor)
-					}
-					return true
-				}
-			}
-		}
-		recStack[txID] = false
-		return false
-	}
-
-	// 只从目标事务开始检测
-	if _, exists := transactionLocks[targetTxID]; exists {
-		hasCycle(targetTxID)
-	}
-
-	return deadlockedTxs
-}
-
 // 生成锁键
 func (t *Table) generateLockKey(fields *map[string]any) string {
 	fieldsBytes := t.FieldsToBytes(fields)
@@ -267,29 +206,6 @@ func (t *Table) acquireRowReadLock(pkValue any, txID uint64, timeout ...time.Dur
 		return fmt.Errorf("锁已过期且无法获取")
 	}
 
-	// 自动检测锁等待并触发死锁检测
-	if rl.lockType == LockTypeWrite && rl.lockHolder != txID {
-		// 记录等待状态
-		t.RecordWaitingLock(txID, pkValue)
-		// 频率控制：限制死锁检测的频率
-		// 如果 deadlockCheckInterval 为 0，则禁用死锁检测
-		if t.deadlockCheckInterval > 0 && time.Since(t.lastDeadlockCheck) > t.deadlockCheckInterval {
-			// 根据系统负载级别选择死锁检测策略
-			var deadlockedTxs []uint64
-			switch t.currentLoadLevel {
-			case 0: // 低负载：使用完整死锁检测
-				deadlockedTxs = t.DetectDeadlock()
-			case 1, 2: // 中高负载：使用局部死锁检测
-				deadlockedTxs = t.DetectLocalDeadlock(txID)
-			}
-			t.lastDeadlockCheck = time.Now()
-			for _, deadlockedTxID := range deadlockedTxs {
-				if deadlockedTxID == txID {
-					return fmt.Errorf("检测到死锁，事务 %d 被标记为死锁", txID)
-				}
-			}
-		}
-	}
 	rl.rwLock.RLock()
 	rl.lockedAt = time.Now()
 	rl.lockType = LockTypeRead
@@ -337,31 +253,6 @@ func (t *Table) acquireRowWriteLock(pkValue any, txID uint64, timeout ...time.Du
 		*/
 		return fmt.Errorf("锁已过期且无法获取")
 	}
-
-	// 自动检测锁等待并触发死锁检测
-	if rl.lockType != LockTypeNone && rl.lockHolder != txID {
-		// 记录等待状态
-		t.RecordWaitingLock(txID, pkValue)
-		// 频率控制：限制死锁检测的频率
-		// 如果 deadlockCheckInterval 为 0，则禁用死锁检测
-		if t.deadlockCheckInterval > 0 && time.Since(t.lastDeadlockCheck) > t.deadlockCheckInterval {
-			// 根据系统负载级别选择死锁检测策略
-			var deadlockedTxs []uint64
-			switch t.currentLoadLevel {
-			case 0: // 低负载：使用完整死锁检测
-				deadlockedTxs = t.DetectDeadlock()
-			case 1, 2: // 中高负载：使用局部死锁检测
-				deadlockedTxs = t.DetectLocalDeadlock(txID)
-			}
-			t.lastDeadlockCheck = time.Now()
-			for _, deadlockedTxID := range deadlockedTxs {
-				if deadlockedTxID == txID {
-					return fmt.Errorf("检测到死锁，事务 %d 被标记为死锁", txID)
-				}
-			}
-		}
-	}
-
 	rl.rwLock.Lock() //如果锁已被其他事务持有，此调用会阻塞 ， 阻塞时，事务会进入等待状态
 	rl.lockedAt = time.Now()
 	rl.lockType = LockTypeWrite
@@ -576,16 +467,6 @@ func (t *Table) GetLockTimeout() time.Duration {
 	return t.lockTimeout
 }
 
-// 设置死锁检测时间间隔
-func (t *Table) SetDeadlockCheckInterval(interval time.Duration) {
-	t.deadlockCheckInterval = interval
-}
-
-// 获取死锁检测时间间隔
-func (t *Table) GetDeadlockCheckInterval() time.Duration {
-	return t.deadlockCheckInterval
-}
-
 // 检查锁是否即将过期
 func (t *Table) IsLockAboutToExpire(pkValue interface{}, threshold time.Duration) bool {
 	lockInfo := t.GetLockInfo(pkValue)
@@ -617,10 +498,6 @@ func (t *Table) BeginTransaction(txID uint64) {
 		StartTime:    time.Now(),
 		IsDeadlocked: false,
 	})
-	// 增加事务计数
-	t.transactionCount++
-	// 检查系统负载
-	t.checkSystemLoad()
 }
 
 // 结束事务锁跟踪
@@ -634,12 +511,6 @@ func (t *Table) EndTransaction(txID uint64) {
 			t.releaseRowLock(lockKey)
 		}
 		t.transactionLocks.Delete(txID)
-		// 减少事务计数
-		if t.transactionCount > 0 {
-			t.transactionCount--
-		}
-		// 检查系统负载
-		t.checkSystemLoad()
 	}
 }
 
@@ -685,44 +556,6 @@ func (t *Table) DetectDeadlock() []uint64 {
 		}
 	}
 	return deadlockedTxs
-}
-
-// 局部死锁检测：只检测与指定事务相关的路径
-func (t *Table) DetectLocalDeadlock(targetTxID uint64) []uint64 {
-	deadlockedTxs := t.deadlockDetector.DetectLocalDeadlock(targetTxID)
-	// 标记死锁的事务
-	for _, txID := range deadlockedTxs {
-		if tli, ok := t.transactionLocks.Load(txID); ok {
-			transactionLockInfo := tli.(*TransactionLockInfo)
-			transactionLockInfo.IsDeadlocked = true
-		}
-	}
-	return deadlockedTxs
-}
-
-// 检查系统负载并设置负载级别
-func (t *Table) checkSystemLoad() {
-	// 限制负载检查的频率
-	if time.Since(t.lastLoadCheck) < 500*time.Millisecond {
-		return
-	}
-	t.lastLoadCheck = time.Now()
-
-	// 根据事务数量判断负载级别
-	switch {
-	case t.transactionCount < 10:
-		// 低负载：使用默认检测频率
-		t.currentLoadLevel = 0
-		t.deadlockCheckInterval = 100 * time.Millisecond
-	case t.transactionCount < 50:
-		// 中负载：降低检测频率
-		t.currentLoadLevel = 1
-		t.deadlockCheckInterval = 200 * time.Millisecond
-	default:
-		// 高负载：大幅降低检测频率
-		t.currentLoadLevel = 2
-		t.deadlockCheckInterval = 500 * time.Millisecond
-	}
 }
 
 // 获取事务锁信息

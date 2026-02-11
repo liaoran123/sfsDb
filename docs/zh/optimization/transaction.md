@@ -1495,7 +1495,169 @@ if err := tx.Commit(); err != nil {
 }
 ```
 
-## 16. 内置事务重试机制
+## 16. 自动锁等待检测和死锁检测
+
+### 16.1 概述
+
+sfsDb 实现了自动锁等待检测和死锁检测功能，能够在事务执行过程中自动检测并防止死锁的发生，提高系统的可靠性和稳定性。
+
+### 16.2 核心特性
+
+- **自动锁等待检测**：在获取锁时自动检测锁等待情况
+- **频率控制的死锁检测**：限制死锁检测的频率，避免性能开销过大
+- **局部死锁检测**：只检测与当前事务相关的路径，提高检测效率
+- **基于负载的分级检测**：根据系统负载选择不同的检测策略
+- **系统负载自适应**：根据系统负载动态调整死锁检测策略
+
+### 16.3 实现原理
+
+#### 16.3.1 自动锁等待检测
+
+当事务尝试获取锁时，sfsDb 会自动检测锁等待情况：
+
+```go
+// 自动检测锁等待并触发死锁检测
+if rl.lockType == LockTypeWrite && rl.lockHolder != txID {
+    // 记录等待状态
+    t.RecordWaitingLock(txID, pkValue)
+    // 频率控制：限制死锁检测的频率
+    if time.Since(t.lastDeadlockCheck) > t.deadlockCheckInterval {
+        // 根据系统负载级别选择死锁检测策略
+        var deadlockedTxs []uint64
+        switch t.currentLoadLevel {
+        case 0: // 低负载：使用完整死锁检测
+            deadlockedTxs = t.DetectDeadlock()
+        case 1, 2: // 中高负载：使用局部死锁检测
+            deadlockedTxs = t.DetectLocalDeadlock(txID)
+        }
+        t.lastDeadlockCheck = time.Now()
+        for _, deadlockedTxID := range deadlockedTxs {
+            if deadlockedTxID == txID {
+                return fmt.Errorf("检测到死锁，事务 %d 被标记为死锁", txID)
+            }
+        }
+    }
+}
+```
+
+#### 16.3.2 频率控制
+
+为了避免死锁检测对系统性能造成过大影响，sfsDb 实现了频率控制机制：
+
+- **检测间隔**：通过 `deadlockCheckInterval` 控制死锁检测的频率
+- **时间窗口**：在一个时间窗口内只执行一次死锁检测
+- **性能优化**：减少高频死锁检测对系统性能的影响
+
+#### 16.3.3 局部死锁检测
+
+局部死锁检测只检测与当前事务相关的路径，提高检测效率：
+
+- **路径限制**：只检测从当前事务出发的等待路径
+- **目标明确**：专注于检测当前事务是否参与了死锁
+- **资源节省**：减少不必要的计算和内存使用
+
+#### 16.3.4 基于负载的分级检测
+
+根据系统负载选择不同的死锁检测策略：
+
+| 负载级别 | 检测策略 | 适用场景 |
+|---------|---------|----------|
+| 0 (低) | 完整死锁检测 | 系统负载低，资源充足 |
+| 1 (中) | 局部死锁检测 | 系统负载中等，需要平衡性能和检测效果 |
+| 2 (高) | 局部死锁检测 | 系统负载高，优先保证性能 |
+
+### 16.4 使用方法
+
+自动锁等待检测和死锁检测功能是 sfsDb 的内置功能，无需手动配置即可使用：
+
+#### 16.4.1 自动启用
+
+当使用事务进行操作时，sfsDb 会自动启用锁等待检测和死锁检测：
+
+```go
+// 开始事务
+tx, err := table.Begin()
+if err != nil {
+    panic(err)
+}
+
+// 执行操作（会自动触发锁等待检测和死锁检测）
+updateFields := map[string]any{"id": 1, "name": "Updated Name"}
+if err := tx.Update(&updateFields); err != nil {
+    // 可能返回死锁检测错误
+    tx.Rollback()
+    panic(err)
+}
+
+// 提交事务
+if err := tx.Commit(); err != nil {
+    panic(err)
+}
+```
+
+#### 16.4.2 错误处理
+
+当检测到死锁时，sfsDb 会返回错误，应用程序需要妥善处理：
+
+```go
+// 错误处理示例
+tx, err := table.Begin()
+if err != nil {
+    return err
+}
+
+transactionErr := func() error {
+    // 执行可能导致死锁的操作
+    updateFields := map[string]any{"id": 1, "name": "Updated Name"}
+    return tx.Update(&updateFields)
+}()
+
+if transactionErr != nil {
+    tx.Rollback()
+    // 检查是否是死锁错误
+    if strings.Contains(transactionErr.Error(), "检测到死锁") {
+        // 处理死锁情况
+        fmt.Println("检测到死锁，正在重试...")
+        // 可以选择重试或返回错误
+        return transactionErr
+    }
+    return transactionErr
+}
+
+return tx.Commit()
+```
+
+### 16.5 性能优化
+
+#### 16.5.1 频率控制优化
+
+- **默认检测间隔**：100ms
+- **可配置性**：可以根据系统特点调整检测间隔
+- **性能平衡**：在检测效果和性能开销之间取得平衡
+
+#### 16.5.2 负载自适应优化
+
+- **负载检测**：定期检测系统负载
+- **动态调整**：根据负载情况动态调整检测策略
+- **资源分配**：在高负载时优先保证系统性能
+
+### 16.6 最佳实践
+
+1. **无需手动配置**：自动锁等待检测和死锁检测功能默认启用，无需手动配置
+2. **错误处理**：妥善处理死锁检测返回的错误，考虑重试机制
+3. **事务设计**：设计合理的事务大小，避免长事务
+4. **并发控制**：合理控制并发度，避免过度竞争
+5. **监控**：监控系统中的死锁情况，及时优化
+
+### 16.7 常见问题与解决方案
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| 死锁错误 | 事务之间存在循环依赖 | 调整事务操作顺序，避免循环依赖 |
+| 性能下降 | 死锁检测频率过高 | 调整 `deadlockCheckInterval` 参数 |
+| 误报死锁 | 检测算法误判 | 检查事务设计，避免复杂的锁依赖 |
+
+## 17. 内置事务重试机制
 
 ### 16.1 概述
 

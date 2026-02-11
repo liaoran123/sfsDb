@@ -1,6 +1,46 @@
 # 全文搜索
 
-## 5.1 创建全文索引
+## 5.1 全文索引原理
+
+sfsDb 实现了原生考据级全文索引功能，采用**滑动窗口分词算法**（也称为 n-gram 分词算法）进行文本切分。
+
+### 滑动窗口分词算法
+
+滑动窗口分词算法的原理如下：
+1. 使用一个长度为 `ftlen` 的滑动窗口
+2. 窗口从字符串的开始位置开始，每次向后移动一个字符
+3. 每次窗口移动时，提取窗口内的子字符串作为一个 token
+4. 这个过程一直持续到窗口滑动到字符串的末尾
+
+### 自定义分词算法
+
+如果需要使用其他分词算法，只需重写 `DefaultFullTextIndex.Tokenize` 方法即可：
+
+```go
+func (dfi *DefaultFullTextIndex) Tokenize(nr string, ftlen int) (tokens []string) {
+    // 自定义分词实现
+    // ...
+    return tokens
+}
+```
+
+### 全文索引长度
+
+全文索引的长度由 `ftlen` 字段控制，这是 `DefaultFullTextIndex` 结构体中的一个属性：
+
+```go
+type DefaultFullTextIndex struct {
+    BaseIndex // 嵌入基础索引
+    // 全文索引切分字段
+    ftsplit string
+    // 切分长度
+    ftlen int
+}
+```
+
+`ftlen` 参数决定了滑动窗口的大小，也就是每个 token 的最大长度。
+
+## 5.2 创建全文索引
 
 ```go
 // 创建全文索引

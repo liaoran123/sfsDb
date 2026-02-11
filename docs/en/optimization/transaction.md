@@ -1032,7 +1032,169 @@ For RepeatableRead and Serializable isolation levels, sfsDb uses a snapshot mech
 - **Choose Suitable Isolation Level**: Select appropriate isolation level based on business requirements
 - **Monitor System Performance**: Regularly monitor system performance and adjust optimization strategies in a timely manner
 
-## 15. Built-in Transaction Retry Mechanism
+## 15. Automatic Lock Wait Detection and Deadlock Detection
+
+### 15.1 Overview
+
+sfsDb implements automatic lock wait detection and deadlock detection functionality, which can automatically detect and prevent deadlocks during transaction execution, improving system reliability and stability.
+
+### 15.2 Core Features
+
+- **Automatic Lock Wait Detection**: Automatically detects lock wait situations when acquiring locks
+- **Frequency-Controlled Deadlock Detection**: Limits the frequency of deadlock detection to avoid excessive performance overhead
+- **Local Deadlock Detection**: Only detects paths related to the current transaction, improving detection efficiency
+- **Load-Based Hierarchical Detection**: Selects different detection strategies based on system load
+- **System Load Adaptation**: Dynamically adjusts deadlock detection strategies based on system load
+
+### 15.3 Implementation Principles
+
+#### 15.3.1 Automatic Lock Wait Detection
+
+When a transaction attempts to acquire a lock, sfsDb automatically detects lock wait situations:
+
+```go
+// Automatically detect lock wait and trigger deadlock detection
+if rl.lockType == LockTypeWrite && rl.lockHolder != txID {
+    // Record waiting status
+    t.RecordWaitingLock(txID, pkValue)
+    // Frequency control: limit the frequency of deadlock detection
+    if time.Since(t.lastDeadlockCheck) > t.deadlockCheckInterval {
+        // Select deadlock detection strategy based on system load level
+        var deadlockedTxs []uint64
+        switch t.currentLoadLevel {
+        case 0: // Low load: use full deadlock detection
+            deadlockedTxs = t.DetectDeadlock()
+        case 1, 2: // Medium-high load: use local deadlock detection
+            deadlockedTxs = t.DetectLocalDeadlock(txID)
+        }
+        t.lastDeadlockCheck = time.Now()
+        for _, deadlockedTxID := range deadlockedTxs {
+            if deadlockedTxID == txID {
+                return fmt.Errorf("Deadlock detected, transaction %d marked as deadlocked", txID)
+            }
+        }
+    }
+}
+```
+
+#### 15.3.2 Frequency Control
+
+To avoid excessive performance impact from deadlock detection, sfsDb implements a frequency control mechanism:
+
+- **Detection Interval**: Controls the frequency of deadlock detection through `deadlockCheckInterval`
+- **Time Window**: Only executes deadlock detection once within a time window
+- **Performance Optimization**: Reduces the impact of high-frequency deadlock detection on system performance
+
+#### 15.3.3 Local Deadlock Detection
+
+Local deadlock detection only detects paths related to the current transaction, improving detection efficiency:
+
+- **Path Limitation**: Only detects waiting paths starting from the current transaction
+- **Targeted Detection**: Focuses on detecting whether the current transaction is involved in a deadlock
+- **Resource Saving**: Reduces unnecessary calculations and memory usage
+
+#### 15.3.4 Load-Based Hierarchical Detection
+
+Selects different deadlock detection strategies based on system load:
+
+| Load Level | Detection Strategy | Applicable Scenario |
+|------------|-------------------|---------------------|
+| 0 (Low) | Full deadlock detection | Low system load, sufficient resources |
+| 1 (Medium) | Local deadlock detection | Medium system load, need to balance performance and detection effectiveness |
+| 2 (High) | Local deadlock detection | High system load, prioritize performance |
+
+### 15.4 Usage Methods
+
+Automatic lock wait detection and deadlock detection are built-in features of sfsDb, no manual configuration required:
+
+#### 15.4.1 Automatic Enablement
+
+When using transactions for operations, sfsDb automatically enables lock wait detection and deadlock detection:
+
+```go
+// Start transaction
+tx, err := table.Begin()
+if err != nil {
+    panic(err)
+}
+
+// Execute operation (will automatically trigger lock wait detection and deadlock detection)
+updateFields := map[string]any{"id": 1, "name": "Updated Name"}
+if err := tx.Update(&updateFields); err != nil {
+    // May return deadlock detection error
+    tx.Rollback()
+    panic(err)
+}
+
+// Commit transaction
+if err := tx.Commit(); err != nil {
+    panic(err)
+}
+```
+
+#### 15.4.2 Error Handling
+
+When a deadlock is detected, sfsDb returns an error, and the application needs to handle it properly:
+
+```go
+// Error handling example
+tx, err := table.Begin()
+if err != nil {
+    return err
+}
+
+transactionErr := func() error {
+    // Execute operation that may cause deadlock
+    updateFields := map[string]any{"id": 1, "name": "Updated Name"}
+    return tx.Update(&updateFields)
+}()
+
+if transactionErr != nil {
+    tx.Rollback()
+    // Check if it's a deadlock error
+    if strings.Contains(transactionErr.Error(), "Deadlock detected") {
+        // Handle deadlock situation
+        fmt.Println("Deadlock detected, retrying...")
+        // Can choose to retry or return error
+        return transactionErr
+    }
+    return transactionErr
+}
+
+return tx.Commit()
+```
+
+### 15.5 Performance Optimization
+
+#### 15.5.1 Frequency Control Optimization
+
+- **Default Detection Interval**: 100ms
+- **Configurability**: Can adjust detection interval based on system characteristics
+- **Performance Balance**: Balances detection effectiveness and performance overhead
+
+#### 15.5.2 Load Adaptation Optimization
+
+- **Load Detection**: Periodically detects system load
+- **Dynamic Adjustment**: Dynamically adjusts detection strategy based on load conditions
+- **Resource Allocation**: Prioritizes system performance during high load
+
+### 15.6 Best Practices
+
+1. **No Manual Configuration Required**: Automatic lock wait detection and deadlock detection are enabled by default, no manual configuration needed
+2. **Error Handling**: Properly handle errors returned by deadlock detection, consider retry mechanisms
+3. **Transaction Design**: Design reasonable transaction sizes, avoid long transactions
+4. **Concurrency Control**: Reasonably control concurrency to avoid excessive competition
+5. **Monitoring**: Monitor deadlock situations in the system and optimize in a timely manner
+
+### 15.7 Common Issues and Solutions
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Deadlock error | Cyclic dependencies between transactions | Adjust transaction operation order to avoid cyclic dependencies |
+| Performance degradation | Deadlock detection frequency too high | Adjust `deadlockCheckInterval` parameter |
+| False deadlock alarms | Detection algorithm misjudgment | Check transaction design, avoid complex lock dependencies |
+
+## 16. Built-in Transaction Retry Mechanism
 
 ### 15.1 Overview
 

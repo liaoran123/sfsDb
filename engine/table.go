@@ -33,15 +33,24 @@ type Table struct {
 	indexs              *Indexs          // 索引集合
 	counter             AutoInt          // 自动增值计数器，使用自定义的AutoInt
 	kvStore             storage.Store
-	fieldIDManager      *IDManager        // 字段ID管理器
-	indexIDManager      *IDManager        // 索引ID管理器
-	timeFields          map[string]bool   // 标记字段是否为时间类型
-	primaryFields       []string          // 缓存的主键字段列表
-	primaryFieldsLoaded bool              // 主键字段列表是否已加载
-	rowLocks            sync.Map          // 行级锁映射，key: 主键值，value: *RowLock
-	lockTimeout         time.Duration     // 锁超时时间
-	transactionLocks    sync.Map          // 事务锁信息映射，key: 事务ID，value: *TransactionLockInfo
-	deadlockDetector    *DeadlockDetector // 死锁检测器
+	fieldIDManager      *IDManager      // 字段ID管理器
+	indexIDManager      *IDManager      // 索引ID管理器
+	timeFields          map[string]bool // 标记字段是否为时间类型
+	primaryFields       []string        // 缓存的主键字段列表
+	primaryFieldsLoaded bool            // 主键字段列表是否已加载
+	// 内嵌事务和锁管理结构体
+	TableTraxn
+}
+type TableTraxn struct {
+	rowLocks              sync.Map          // 行级锁映射，key: 主键值，value: *RowLock
+	lockTimeout           time.Duration     // 锁超时时间
+	transactionLocks      sync.Map          // 事务锁信息映射，key: 事务ID，value: *TransactionLockInfo
+	deadlockDetector      *DeadlockDetector // 死锁检测器
+	lastDeadlockCheck     time.Time         // 上次死锁检测的时间戳
+	deadlockCheckInterval time.Duration     // 死锁检测的时间间隔
+	transactionCount      int               // 当前活跃事务数
+	lastLoadCheck         time.Time         // 上次负载检查的时间戳
+	currentLoadLevel      int               // 当前系统负载级别（0-低，1-中，2-高）
 }
 
 // 创建或获取一个表
@@ -60,6 +69,13 @@ func TableNew(name string) (*Table, error) {
 		fields:   make(map[string]any),
 		fieldsid: make(map[uint8]string),
 		kvStore:  dbMgr.GetDB(),
+		TableTraxn: TableTraxn{
+			lastDeadlockCheck:     time.Now(),
+			deadlockCheckInterval: 100 * time.Millisecond, // 默认100毫秒检测一次
+			transactionCount:      0,
+			lastLoadCheck:         time.Now(),
+			currentLoadLevel:      0, // 默认低负载
+		},
 	}
 	tb.indexs = NewIndexs(&tb.fields)
 	tb.deadlockDetector = NewDeadlockDetector(tb)

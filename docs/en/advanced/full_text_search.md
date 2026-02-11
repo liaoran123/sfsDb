@@ -1,6 +1,46 @@
 # Full-Text Search
 
-## 5.1 Creating Full-Text Index
+## 5.1 Full-Text Index Principles
+
+sfsDb implements native research-grade full-text indexing functionality, using the **sliding window tokenization algorithm** (also known as n-gram tokenization algorithm) for text segmentation.
+
+### Sliding Window Tokenization Algorithm
+
+The principle of the sliding window tokenization algorithm is as follows:
+1. Use a sliding window of length `ftlen`
+2. The window starts from the beginning of the string and moves one character backward each time
+3. Each time the window moves, extract the substring within the window as a token
+4. This process continues until the window slides to the end of the string
+
+### Custom Tokenization Algorithm
+
+If you need to use other tokenization algorithms, simply override the `DefaultFullTextIndex.Tokenize` method:
+
+```go
+func (dfi *DefaultFullTextIndex) Tokenize(nr string, ftlen int) (tokens []string) {
+    // Custom tokenization implementation
+    // ...
+    return tokens
+}
+```
+
+### Full-Text Index Length
+
+The length of the full-text index is controlled by the `ftlen` field, which is a property in the `DefaultFullTextIndex` struct:
+
+```go
+type DefaultFullTextIndex struct {
+    BaseIndex // Embed base index
+    // Full-text index split field
+    ftsplit string
+    // Split length
+    ftlen int
+}
+```
+
+The `ftlen` parameter determines the size of the sliding window, which is the maximum length of each token.
+
+## 5.2 Creating Full-Text Index
 
 ```go
 // Create full-text index
