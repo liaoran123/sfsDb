@@ -126,8 +126,6 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		anyMap := t.table.RecordByteToAny(fieldsBytes)
 		if anyMap == nil {
 			return nil
-		} else {
-			defer PutAnyMap(*anyMap)
 		}
 		// 填充数据到已获取的 Record 对象
 		for k, v := range *anyMap {
@@ -146,15 +144,11 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		trd, err := pk.Parse(t.table.fieldsid, byrecord)
 		if err != nil || trd == nil {
 			return nil
-		} else {
-			defer GlobalFieldsBytesPool.Put(*trd)
 		}
 		//转换为记录 ： *map[string][]byte ==> *map[string]any
 		anyMap := t.table.RecordByteToAny(trd)
 		if anyMap == nil {
 			return nil
-		} else {
-			defer PutAnyMap(*anyMap)
 		}
 		// 填充数据到已获取的 Record 对象
 		for k, v := range *anyMap {

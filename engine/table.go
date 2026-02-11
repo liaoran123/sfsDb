@@ -377,7 +377,8 @@ func (t *Table) RecordByteToAny(value *map[string][]byte) *map[string]any {
 	if value == nil || t.fields == nil {
 		return nil
 	}
-	fields := make(map[string]any, len(*value))
+	fields := GetAnyMap()
+	// 直接使用从对象池获取的 map，Go 会自动处理 map 的扩容
 	for field, val := range *value {
 		fields[field] = util.Bytes(val).ToAny(t.fields[field])
 	}

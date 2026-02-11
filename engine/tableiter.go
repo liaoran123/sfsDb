@@ -126,6 +126,8 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		anyMap := t.table.RecordByteToAny(fieldsBytes)
 		if anyMap == nil {
 			return nil
+		} else {
+			defer PutAnyMap(*anyMap)
 		}
 		// 填充数据到已获取的 Record 对象
 		for k, v := range *anyMap {
@@ -144,11 +146,15 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		trd, err := pk.Parse(t.table.fieldsid, byrecord)
 		if err != nil || trd == nil {
 			return nil
+		} else {
+			defer GlobalFieldsBytesPool.Put(*trd)
 		}
 		//转换为记录 ： *map[string][]byte ==> *map[string]any
 		anyMap := t.table.RecordByteToAny(trd)
 		if anyMap == nil {
 			return nil
+		} else {
+			defer PutAnyMap(*anyMap)
 		}
 		// 填充数据到已获取的 Record 对象
 		for k, v := range *anyMap {
@@ -447,8 +453,10 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 		return
 	}
 	var rd record.Record
-	var rdany *map[string]any
-	var fieldsBytes *map[string][]byte
+	//var rdany *map[string]any
+	//var fieldsBytes *map[string][]byte
+	isMatch := true
+	matchlen := 0
 	page := PageNew(limit...)
 	count := 0
 	loop := 0
@@ -457,17 +465,34 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 	for {
 		key = t.iter.Key()
 		value = t.iter.Value()
-		end = t.JumpRange(key, t.jumpRanges, esc)
-		if end != nil {
-			// 跳跃到区间的结束位置
-			t.iter.Seek(end)
-			if !t.move[esc]() {
-				break
+		if len(t.jumpRanges) > 0 { //如果有跳跃区间，需要跳过某些数据
+			end = t.JumpRange(key, t.jumpRanges, esc)
+			if end != nil {
+				// 跳跃到区间的结束位置
+				t.iter.Seek(end)
+				if !t.move[esc]() {
+					break
+				}
 			}
 		}
-		fieldsBytes = t.ParseBytes(key, value)
-		rdany = t.table.RecordByteToAny(fieldsBytes)
-		if t.Match(rdany, t.match) {
+		fieldsBytes := t.ParseBytes(key, value)
+		defer func() {
+			if fieldsBytes != nil && *fieldsBytes != nil {
+				GlobalFieldsBytesPool.Put(*fieldsBytes)
+			}
+		}()
+		isMatch = true
+		matchlen = len(t.match)
+		if matchlen > 0 { //是否需要匹配
+			rdany := t.table.RecordByteToAny(fieldsBytes)
+			defer func() {
+				if rdany != nil {
+					PutAnyMap(*rdany)
+				}
+			}()
+			isMatch = t.Match(rdany, t.match)
+		}
+		if isMatch {
 			if loop < page.Start {
 				loop++
 				if !t.move[esc]() {
@@ -549,7 +574,9 @@ func (t *TableIter) Map(fields ...string) (data map[any]bool) {
 	return
 }
 func (t *TableIter) ReleaseMap(data map[any]bool) {
-	PutMap(data)
+	if data != nil {
+		PutMap(data)
+	}
 }
 
 // 获取搜索时使用的索引的名称

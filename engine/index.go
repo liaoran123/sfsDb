@@ -401,7 +401,7 @@ func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *m
 		if len, ok := (*pkfieldTypeLen)[fit]; ok {
 			if len == 0 && pklen > 1 { // 组合主键时，主键类型的长度未指定，无法解析主键值。
 				//中断程序
-				panic("使用可变长度类型作为组合主键，需要注册指定长度。")
+				return nil, errors.New("使用可变长度类型作为组合主键，需要注册指定长度。")
 			}
 			pflen += int(len) + 1 //每个字段之间用分隔符隔开
 		}

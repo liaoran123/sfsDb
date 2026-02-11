@@ -7,6 +7,7 @@ import (
 	"github.com/liaoran123/sfsDb/match"
 	"github.com/liaoran123/sfsDb/record"
 	"github.com/liaoran123/sfsDb/storage"
+	"github.com/liaoran123/sfsDb/util"
 )
 
 // 测试多表组合查询功能
@@ -301,6 +302,377 @@ func TestTestSelectForJoin(t *testing.T) {
 	// iter1.First()
 	// fieldValue := iter1.GetFieldValue(iter1.Key(), iter1.Value(), "name")
 	// fmt.Println(fieldValue)
+}
+func TestTestSelectForJoin1(t *testing.T) {
+	// Create test table
+	table1, err := TableNew("test_search_comprehensive1")
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// Set table fields
+	fields := map[string]any{"id": 0, "name": "", "age": 0, "score": 0.0, "active": false}
+	err = table1.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
+
+	// Create primary key index on id
+	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk.AddFields("id")
+	err = table1.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+
+	// Create secondary index on age
+	ageIdx, _ := DefaultNormalIndexNew("age_index")
+	ageIdx.AddFields("age")
+	err = table1.CreateIndex(ageIdx)
+	if err != nil {
+		t.Fatalf("Failed to create age index: %v", err)
+	}
+
+	// Insert test data
+	testData := []map[string]any{
+		{"id": 1, "name": "Alice", "age": 20, "score": 85.5, "active": true},
+		{"id": 2, "name": "Bob", "age": 25, "score": 90.0, "active": true},
+		{"id": 3, "name": "Charlie", "age": 30, "score": 75.5, "active": false},
+		{"id": 4, "name": "David", "age": 35, "score": 95.0, "active": true},
+		{"id": 5, "name": "Eve", "age": 40, "score": 80.0, "active": false},
+	}
+
+	for _, data := range testData {
+		_, err := table1.Insert(&data)
+		if err != nil {
+			t.Fatalf("Failed to insert test data: %v", err)
+		}
+	}
+
+	// Create test table
+	table2, err := TableNew("test_search_comprehensive2")
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// Set table fields
+	fields2 := map[string]any{"id": 0, "name": "", "age": 0, "score": 0.0, "active": false}
+	err = table2.SetFields(fields2)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
+
+	// Create primary key index on id
+	pk2, _ := DefaultPrimaryKeyNew("pk")
+	pk2.AddFields("id")
+	err = table2.CreateIndex(pk2)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+
+	// Create secondary index on age
+	ageIdx2, _ := DefaultNormalIndexNew("age_index")
+	ageIdx2.AddFields("age")
+	err = table2.CreateIndex(ageIdx2)
+	if err != nil {
+		t.Fatalf("Failed to create age index: %v", err)
+	}
+
+	// Insert test data
+	testData2 := []map[string]any{
+
+		{"id": 3, "name": "Charlie", "age": 30, "score": 75.5, "active": false},
+		{"id": 4, "name": "David", "age": 35, "score": 95.0, "active": true},
+		{"id": 5, "name": "Eve", "age": 40, "score": 80.0, "active": false},
+		{"id": 6, "name": "Frank", "age": 45, "score": 88.5, "active": true},
+		{"id": 7, "name": "Grace", "age": 50, "score": 92.0, "active": true},
+	}
+
+	for _, data := range testData2 {
+		_, err := table2.Insert(&data)
+		if err != nil {
+			t.Fatalf("Failed to insert test data: %v", err)
+		}
+	}
+
+	// Create test table
+	table3, err := TableNew("test_search_comprehensive3")
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// Set table fields
+	fields3 := map[string]any{"id": 0, "name": "", "age": 0, "score": 0.0, "active": false}
+	err = table3.SetFields(fields3)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
+
+	// Create primary key index on id
+	pk3, _ := DefaultPrimaryKeyNew("pk")
+	pk3.AddFields("id")
+	err = table3.CreateIndex(pk3)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+
+	// Create secondary index on age
+	ageIdx3, _ := DefaultNormalIndexNew("age_index")
+	ageIdx3.AddFields("age")
+	err = table3.CreateIndex(ageIdx3)
+	if err != nil {
+		t.Fatalf("Failed to create age index: %v", err)
+	}
+
+	// Insert test data
+	testData3 := []map[string]any{
+		{"id": 5, "name": "Eve", "age": 40, "score": 80.0, "active": false},
+		{"id": 6, "name": "Frank", "age": 45, "score": 88.5, "active": true},
+		{"id": 7, "name": "Grace", "age": 50, "score": 92.0, "active": true},
+		{"id": 8, "name": "Henry", "age": 55, "score": 78.5, "active": false},
+		{"id": 9, "name": "Ivy", "age": 60, "score": 83.0, "active": true},
+	}
+
+	for _, data := range testData3 {
+		_, err := table3.Insert(&data)
+		if err != nil {
+			t.Fatalf("Failed to insert test data: %v", err)
+		}
+	}
+	iter1, err := table1.Search(&map[string]any{"id": nil}) //遍历table1的所有记录
+	defer iter1.Release()
+	rd := iter1.GetRecords(true)
+	defer rd.Release()
+	if len(rd) != 5 {
+		t.Fatalf("GetRecords count not equal 5, got %d", len(rd))
+	}
+	iter2, err := table2.Search(&map[string]any{"id": nil}) //遍历table2的所有记录
+	defer iter2.Release()
+	rd2 := iter2.GetRecords(true)
+	defer rd2.Release()
+	if len(rd2) != 5 {
+		t.Fatalf("GetRecords count not equal 5, got %d", len(rd2))
+	}
+	iter3, err := table3.Search(&map[string]any{"id": nil}) //遍历table3的所有记录
+	defer iter3.Release()
+	rd3 := iter3.GetRecords(true)
+	defer rd3.Release()
+	if len(rd3) != 5 {
+		t.Fatalf("GetRecords count not equal 5, got %d", len(rd3))
+	}
+	fmt.Println("---------------------------------------------")
+	// 测试join查询
+	// select table1.* from table1,table2 where table1.id=table2.id
+	fmt.Println("select table1.* from table1,table2 where table1.id=table2.id")
+	fmt.Println("---------------------------------------------")
+	map2 := iter2.Map()
+	defer iter2.ReleaseMap(map2)
+	//defer PutMap(map2)
+	mach := match.NewAND([]string{"id"}, map2)
+	iter1.SetMatch(mach)
+	rd4 := iter1.GetRecords(true)
+	defer rd4.Release()
+	if len(rd4) != 3 {
+		t.Fatalf("GetRecords count not equal 3, got %d", len(rd4))
+	}
+	for _, record := range rd4 {
+		if record["id"] != 5 && record["id"] != 4 && record["id"] != 3 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+	fmt.Println("---------------------------------------------")
+	// select table1.* from table1,table2 where table1.id!=table2.id
+	fmt.Println("select table1.* from table1,table2 where table1.id!=table2.id")
+	fmt.Println("---------------------------------------------")
+	mach1 := match.NewAND([]string{"id"}, map2, false)
+	iter1.SetMatch(mach1)
+	rd5 := iter1.GetRecords(true)
+	defer rd5.Release()
+	if len(rd5) != 2 {
+		t.Fatalf("GetRecords count not equal 2, got %d", len(rd5))
+	}
+	for _, record := range rd5 {
+		if record["id"] != 1 && record["id"] != 2 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+	fmt.Println("---------------------------------------------")
+	// select table1.* from table1,table2,table3 where table1.id=table2.id and table1.id=table3.id
+	fmt.Println("select table1.* from table1,table2,table3 where table1.id=table2.id and table1.id=table3.id")
+	fmt.Println("---------------------------------------------")
+	map3 := iter3.Map()
+	mach2 := match.NewAND([]string{"id"}, map3)
+	iter1.SetMatch(mach, mach2)
+	rd6 := iter1.GetRecords(true)
+	defer rd6.Release()
+	if len(rd6) != 1 {
+		t.Fatalf("GetRecords count not equal 2, got %d", len(rd6))
+	}
+	for _, record := range rd6 {
+		if record["id"] != 5 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+	fmt.Println("---------------------------------------------")
+	// select table1.* from table1,table2,table3 where table1.id!=table2.id and table1.id!=table3.id
+	fmt.Println("select table1.* from table1,table2,table3 where table1.id!=table2.id and table1.id!=table3.id")
+	fmt.Println("---------------------------------------------")
+	mach3 := match.NewAND([]string{"id"}, map3, false)
+	iter1.SetMatch(mach1, mach3)
+	rd7 := iter1.GetRecords(true)
+	defer rd7.Release()
+	if len(rd7) != 2 {
+		t.Fatalf("GetRecords count not equal 4, got %d", len(rd7))
+	}
+	for _, record := range rd7 {
+		if record["id"] != 1 && record["id"] != 2 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+	// select table1.* from table1,table2 where table1.id=4 and table1.id=table2.id
+	fmt.Println("select table1.* from table1,table2 where table1.id=4 and table1.id=table2.id")
+	fmt.Println("---------------------------------------------")
+	iterid4, _ := table1.Search(&map[string]any{"id": 4}, util.Equal)
+	defer iterid4.Release()
+	iterid4.SetMatch(mach) //table2的mach
+	rd8 := iterid4.GetRecords(true)
+	defer rd8.Release()
+	if len(rd8) != 1 {
+		t.Fatalf("GetRecords count not equal 1, got %d", len(rd8))
+	}
+	for _, record := range rd8 {
+		if record["id"] != 4 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+
+	// select table1.* from table1,table2 where table1.id!=4 and table1.id=table2.id
+	fmt.Println("select table1.* from table1,table2 where table1.id!=4 and table1.id=table2.id")
+	fmt.Println("---------------------------------------------")
+	iterid4NotEqual, _ := table1.Search(&map[string]any{"id": 4}, util.NotEqual)
+	defer iterid4NotEqual.Release()
+	iterid4NotEqual.SetMatch(mach) //table2的mach
+	rd9 := iterid4NotEqual.GetRecords(true)
+	defer rd9.Release()
+	if len(rd9) != 2 {
+		t.Fatalf("GetRecords count not equal 4, got %d", len(rd9))
+	}
+	for _, record := range rd9 {
+		if record["id"] != 3 && record["id"] != 5 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+	// select table1.* from table1,table2 where table1.id<4 and table1.id=table2.id
+	fmt.Println("select table1.* from table1,table2 where table1.id<4 and table1.id=table2.id")
+	fmt.Println("---------------------------------------------")
+	iterid4Less, _ := table1.Search(&map[string]any{"id": 4}, util.LessThan)
+	defer iterid4Less.Release()
+	iterid4Less.SetMatch(mach) //table2的mach
+	rd10 := iterid4Less.GetRecords(true)
+	defer rd10.Release()
+	if len(rd10) != 1 {
+		t.Fatalf("GetRecords count not equal 3, got %d", len(rd10))
+	}
+	for _, record := range rd10 {
+		if record["id"] != 3 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+	// select table1.* from table1,table2 where table1.id<=4 and table1.id=table2.id
+	fmt.Println("select table1.* from table1,table2 where table1.id<=4 and table1.id=table2.id")
+	fmt.Println("---------------------------------------------")
+	iterid4LessOrEqual, _ := table1.Search(&map[string]any{"id": 4}, util.LessThanOrEqual)
+	defer iterid4LessOrEqual.Release()
+	iterid4LessOrEqual.SetMatch(mach) //table2的mach
+	rd11 := iterid4LessOrEqual.GetRecords(true)
+	defer rd11.Release()
+	if len(rd11) != 2 {
+		t.Fatalf("GetRecords count not equal 2, got %d", len(rd11))
+	}
+	for _, record := range rd11 {
+		if record["id"] != 3 && record["id"] != 4 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+	// select table1.* from table1,table2 where table1.id>4 and table1.id=table2.id
+	fmt.Println("select table1.* from table1,table2 where table1.id>4 and table1.id=table2.id")
+	fmt.Println("---------------------------------------------")
+	iterid4Greater, _ := table1.Search(&map[string]any{"id": 4}, util.GreaterThan)
+	defer iterid4Greater.Release()
+	iterid4Greater.SetMatch(mach) //table2的mach
+	rd12 := iterid4Greater.GetRecords(true)
+	defer rd12.Release()
+	if len(rd12) != 1 {
+		t.Fatalf("GetRecords count not equal 1, got %d", len(rd12))
+	}
+	for _, record := range rd12 {
+		if record["id"] != 5 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+	// select table1.* from table1,table2 where table1.id>=4 and table1.id=table2.id
+	fmt.Println("select table1.* from table1,table2 where table1.id>=4 and table1.id=table2.id")
+	fmt.Println("---------------------------------------------")
+	iterid4GreaterOrEqual, _ := table1.Search(&map[string]any{"id": 4}, util.GreaterThanOrEqual)
+	defer iterid4GreaterOrEqual.Release()
+	iterid4GreaterOrEqual.SetMatch(mach) //table2的mach
+	rd13 := iterid4GreaterOrEqual.GetRecords(true)
+	defer rd13.Release()
+	if len(rd13) != 2 {
+		t.Fatalf("GetRecords count not equal 2, got %d", len(rd13))
+	}
+	for _, record := range rd13 {
+		if record["id"] != 4 && record["id"] != 5 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+	// select table1.* from table1,table2 where table1.id>4 and table1.id=table2.id
+	fmt.Println("select table1.* from table1,table2 where table1.id>4 and table1.id=table2.id")
+	fmt.Println("---------------------------------------------")
+	iterid4GreaterThan, _ := table1.Search(&map[string]any{"id": 4}, util.GreaterThan)
+	defer iterid4GreaterThan.Release()
+	iterid4GreaterThan.SetMatch(mach) //table2的mach
+	rd14 := iterid4GreaterThan.GetRecords(true)
+	defer rd14.Release()
+	if len(rd14) != 1 {
+		t.Fatalf("GetRecords count not equal 1, got %d", len(rd14))
+	}
+	for _, record := range rd14 {
+		if record["id"] != 5 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+
+	// select table1.* from table1,table2 where table1.id>4 and table1.id=table2.id
+	fmt.Println("select table1.* from table1,table2 where table1.age=40 and table1.id=table2.id")
+	fmt.Println("---------------------------------------------")
+	iterAge40, _ := table1.Search(&map[string]any{"age": 40}, util.Equal)
+	defer iterAge40.Release()
+	iterAge40.SetMatch(mach) //table2的mach
+	rd15 := iterAge40.GetRecords(true)
+	defer rd15.Release()
+	if len(rd15) != 1 {
+		t.Fatalf("GetRecords count not equal 1, got %d", len(rd15))
+	}
+	for _, record := range rd15 {
+		if record["id"] != 5 {
+			t.Errorf("Record with id=%v should have been joined, got %v", record["id"], record)
+		}
+		fmt.Println(record)
+	}
+	fmt.Println("---------------------------------------------")
+	fmt.Println("----Search函数不支持无索引的搜索，如需要支持无索引或自己的匹配策略，可以自定义mach接口实现-----")
 }
 
 // TestTableIter_MapDataClean 测试 TableIter.Map() 方法返回的数据是否干净
