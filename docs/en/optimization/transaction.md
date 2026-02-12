@@ -1105,7 +1105,7 @@ Selects different deadlock detection strategies based on system load:
 
 ### 15.4 Usage Methods
 
-Automatic lock wait detection and deadlock detection are built-in features of sfsDb, no manual configuration required:
+Automatic lock wait detection and deadlock detection are built-in features of sfsDb, enabled by default with no manual configuration required:
 
 #### 15.4.1 Automatic Enablement
 
@@ -1132,7 +1132,31 @@ if err := tx.Commit(); err != nil {
 }
 ```
 
-#### 15.4.2 Error Handling
+#### 15.4.2 Disabling Deadlock Detection
+
+If you need to disable deadlock detection for maximum performance in certain scenarios, you can set the deadlock detection interval to 0:
+
+```go
+// Disable deadlock detection
+table.SetDeadlockCheckInterval(0)
+
+// Execute high-performance operations
+// ...
+
+// Re-enable deadlock detection (set to 100 milliseconds)
+table.SetDeadlockCheckInterval(100 * time.Millisecond)
+```
+
+**Applicable Scenarios**:
+- Low concurrency, low deadlock risk scenarios
+- High-performance batch operations
+- Scenarios where deadlocks are avoided through business logic
+
+**Notes**:
+- Disabling deadlock detection may lead to deadlocks in high-concurrency scenarios
+- Please decide whether to disable based on actual business scenarios and risk assessment
+
+#### 15.4.3 Error Handling
 
 When a deadlock is detected, sfsDb returns an error, and the application needs to handle it properly:
 
