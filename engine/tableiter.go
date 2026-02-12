@@ -16,9 +16,9 @@ import (
 
 type TableIter struct {
 	iter       storage.Iterator
-	jumpRanges []storage.Iterator
+	jumpRanges []storage.Iterator //跳跃区间
 	table      *Table
-	match      []match.Match
+	match      []match.Match //匹配规则
 	selects    []string
 	index      Index //搜索时使用的索引
 	move       map[bool]func() bool
@@ -183,6 +183,7 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 // 跳跃区间：SkipStart = []byte("transaction_20231201"), SkipLimit = []byte("transaction_20231202")
 // 查询除2023年12月1日外的所有交易
 */
+//jumpRange.First()=nil或jumpRange.Last()=nil的情况，需要特殊处理todo...(也可能不存在这样的情况)
 func (t *TableIter) JumpRange(key []byte, jumpRanges []storage.Iterator, esc bool) []byte {
 	if len(jumpRanges) == 0 {
 		return nil

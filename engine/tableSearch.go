@@ -148,24 +148,14 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 }
 
 // 区间搜索
+// fieldname 字段名
+// Start, Limit 区间开始值和结束值。Start=nil表示从索引最小值开始，Limit=nil表示到索引最大值结束。同时为nil即表示遍历索引。
+// 索引为主键时，Start=nil表示从表的主键值最小值开始，Limit=nil表示到表的主键值最大值结束。同时为nil即表示遍历全表。
+// funIter 区间迭代器
 func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, Start, Limit any) (*TableIter, error) {
-	idx := t.MatchIndexCached([]string{fieldname})
-	if idx == nil {
-		return nil, fmt.Errorf("字段 '%s' 不存在于表 '%s'", fieldname, t.name)
-	}
-	pfx := idx.Prefix(t.id)
-	pfx = append(pfx, SPLIT[0])
-	StartBytes := util.AnyToBytes(Start)
-	LimitBytes := util.AnyToBytes(Limit)
-	slice := &util.Range{
-		Start: StartBytes,
-		Limit: LimitBytes,
-	}
-	slice.Start = append(pfx, slice.Start...)
-	slice.Limit = append(pfx, slice.Limit...)
-	iter := funIter(slice.Start, slice.Limit)
-	if iter == nil {
-		return nil, fmt.Errorf("区间迭代器不能为空")
+	iter, idx, err := t.RangeForAny(funIter, fieldname, Start, Limit)
+	if err != nil {
+		return nil, err
 	}
 	tbiter := GlobalTableIterPool.Get(t, iter, idx)
 	if tbiter == nil {
@@ -174,21 +164,80 @@ func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, Start, Li
 	return tbiter, nil
 }
 
-/*
-
-func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, slice *util.Range) (*TableIter, error) {
-	// 参数验证
-	if slice == nil {
-		return nil, fmt.Errorf("区间不能为空")
+// 区间迭代器,用于范围搜索和跳跃区间
+func (t *Table) RangeForAny(funIter storage.FunIter, fieldname string, Start, Limit any) (storage.Iterator, Index, error) {
+	if funIter == nil {
+		funIter = t.kvStore.Iterator
 	}
+	idx := t.MatchIndexCached([]string{fieldname})
+	if idx == nil {
+		return nil, nil, fmt.Errorf("字段 '%s' 不存在于表 '%s'", fieldname, t.name)
+	}
+	pfx := idx.Prefix(t.id)
+	pfx = append(pfx, SPLIT[0])
+	// 处理Start参数
+	var startBytes []byte
+	if Start != nil {
+		startBytes = util.AnyToBytes(Start)
+	}
+	// 处理Limit参数
+	var limitBytes []byte
+	if Limit != nil {
+		limitBytes = util.AnyToBytes(Limit)
+	}
+	// 创建范围对象
+	slice := &util.Range{
+		Start: startBytes,
+		Limit: limitBytes,
+	}
+	// 构建完整的搜索范围
+	slice.Start = append(pfx, slice.Start...)
+	if Limit == nil {
+		// 当Limit为nil时，使用前缀的下一个字节作为上限，表示到无穷大
+		slice.Limit = util.BytesPrefix(pfx).Limit
+	} else {
+		// 当Limit不为nil时，构建完整的上限字节
+		slice.Limit = append(pfx, slice.Limit...)
+	}
+	iter := funIter(slice.Start, slice.Limit)
+	if iter == nil {
+		return nil, nil, fmt.Errorf("区间迭代器不能为空")
+	}
+	return iter, idx, nil
+}
+
+/*
+func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, Start, Limit any) (*TableIter, error) {
 	idx := t.MatchIndexCached([]string{fieldname})
 	if idx == nil {
 		return nil, fmt.Errorf("字段 '%s' 不存在于表 '%s'", fieldname, t.name)
 	}
 	pfx := idx.Prefix(t.id)
 	pfx = append(pfx, SPLIT[0])
+	// 处理Start参数
+	var startBytes []byte
+	if Start != nil {
+		startBytes = util.AnyToBytes(Start)
+	}
+	// 处理Limit参数
+	var limitBytes []byte
+	if Limit != nil {
+		limitBytes = util.AnyToBytes(Limit)
+	}
+	// 创建范围对象
+	slice := &util.Range{
+		Start: startBytes,
+		Limit: limitBytes,
+	}
+	// 构建完整的搜索范围
 	slice.Start = append(pfx, slice.Start...)
-	slice.Limit = append(pfx, slice.Limit...)
+	if Limit == nil {
+		// 当Limit为nil时，使用前缀的下一个字节作为上限，表示到无穷大
+		slice.Limit = util.BytesPrefix(pfx).Limit
+	} else {
+		// 当Limit不为nil时，构建完整的上限字节
+		slice.Limit = append(pfx, slice.Limit...)
+	}
 	iter := funIter(slice.Start, slice.Limit)
 	if iter == nil {
 		return nil, fmt.Errorf("区间迭代器不能为空")

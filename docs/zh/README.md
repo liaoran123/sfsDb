@@ -21,6 +21,7 @@ sfsDb 是一个灵活、高效的嵌入式数据库，支持多种数据类型�
 - [字段修改](./advanced/field_modification.md)
 - [事务管理](./advanced/transaction.md)
 - [管理工具库](./advanced/management.md)
+- [跳跃区间](./advanced/jump_ranges.md)
 - [其他功能](./advanced/other_features.md)
 
 ### 优化与最佳实践

@@ -184,15 +184,31 @@ func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) *
 
 #### SearchRange
 ```go
-func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, slice *util.Range) (*TableIter, error)
+func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, Start, Limit any) (*TableIter, error)
 ```
 - **功能**：根据字段值范围搜索记录，特别适用于时序数据库的时间范围查询
 - **参数**：
   - `funIter`：迭代器函数，用于创建范围迭代器
   - `fieldname`：要搜索的字段名
-  - `slice`：范围对象，包含起始值和结束值
+  - `Start`：区间开始值。Start=nil表示从索引最小值开始
+  - `Limit`：区间结束值。Limit=nil表示到索引最大值结束。同时为nil即表示遍历索引
 - **返回值**：
   - `*TableIter`：表迭代器，用于遍历搜索结果
+  - `error`：错误信息
+
+#### RangeForAny
+```go
+func (t *Table) RangeForAny(funIter storage.FunIter, fieldname string, Start, Limit any) (storage.Iterator, Index, error)
+```
+- **功能**：创建区间迭代器，用于范围搜索和跳跃区间
+- **参数**：
+  - `funIter`：迭代器函数，用于创建范围迭代器。如果为nil，将使用表的默认迭代器
+  - `fieldname`：要搜索的字段名
+  - `Start`：区间开始值。Start=nil表示从索引最小值开始
+  - `Limit`：区间结束值。Limit=nil表示到索引最大值结束。同时为nil即表示遍历索引
+- **返回值**：
+  - `storage.Iterator`：存储迭代器，用于遍历搜索结果
+  - `Index`：使用的索引
   - `error`：错误信息
 
 #### ForData
@@ -994,21 +1010,13 @@ func querySensorDataByTimeRange(startTime, endTime int) error {
     // 使用SearchRange进行时间范围查询
     fmt.Println("=== 时序数据区间搜索示例 ===")
     
-    // 创建范围对象
-    startBytes := util.AnyToBytes(startTime)
-    endBytes := util.AnyToBytes(endTime)
-    slice := &util.Range{
-        Start: startBytes,
-        Limit: endBytes,
-    }
-    
     // 定义迭代器函数
     funIter := storage.FunIter(func(start, limit []byte) storage.Iterator {
         return sensorTable.kvStore.Iterator(start, limit)
     })
     
     // 执行区间搜索
-    iter, err := sensorTable.SearchRange(funIter, "timestamp", slice)
+    iter, err := sensorTable.SearchRange(funIter, "timestamp", startTime, endTime)
     if err != nil {
         return err
     }
