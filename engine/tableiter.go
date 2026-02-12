@@ -615,6 +615,11 @@ func (t *TableIter) Value() []byte {
 	return t.iter.Value()
 }
 
+// Valid 检查迭代器是否有效
+func (t *TableIter) Valid() bool {
+	return t.iter.Valid()
+}
+
 // Seek 移动到大于等于指定key的位置
 func (t *TableIter) Seek(key []byte) bool {
 	startTime := time.Now()

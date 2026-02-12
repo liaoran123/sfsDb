@@ -146,3 +146,57 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 	}
 	return tbiter, nil
 }
+
+// 区间搜索
+func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, Start, Limit any) (*TableIter, error) {
+	idx := t.MatchIndexCached([]string{fieldname})
+	if idx == nil {
+		return nil, fmt.Errorf("字段 '%s' 不存在于表 '%s'", fieldname, t.name)
+	}
+	pfx := idx.Prefix(t.id)
+	pfx = append(pfx, SPLIT[0])
+	StartBytes := util.AnyToBytes(Start)
+	LimitBytes := util.AnyToBytes(Limit)
+	slice := &util.Range{
+		Start: StartBytes,
+		Limit: LimitBytes,
+	}
+	slice.Start = append(pfx, slice.Start...)
+	slice.Limit = append(pfx, slice.Limit...)
+	iter := funIter(slice.Start, slice.Limit)
+	if iter == nil {
+		return nil, fmt.Errorf("区间迭代器不能为空")
+	}
+	tbiter := GlobalTableIterPool.Get(t, iter, idx)
+	if tbiter == nil {
+		return nil, fmt.Errorf("TableIter为nil")
+	}
+	return tbiter, nil
+}
+
+/*
+
+func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, slice *util.Range) (*TableIter, error) {
+	// 参数验证
+	if slice == nil {
+		return nil, fmt.Errorf("区间不能为空")
+	}
+	idx := t.MatchIndexCached([]string{fieldname})
+	if idx == nil {
+		return nil, fmt.Errorf("字段 '%s' 不存在于表 '%s'", fieldname, t.name)
+	}
+	pfx := idx.Prefix(t.id)
+	pfx = append(pfx, SPLIT[0])
+	slice.Start = append(pfx, slice.Start...)
+	slice.Limit = append(pfx, slice.Limit...)
+	iter := funIter(slice.Start, slice.Limit)
+	if iter == nil {
+		return nil, fmt.Errorf("区间迭代器不能为空")
+	}
+	tbiter := GlobalTableIterPool.Get(t, iter, idx)
+	if tbiter == nil {
+		return nil, fmt.Errorf("TableIter为nil")
+	}
+	return tbiter, nil
+}
+*/

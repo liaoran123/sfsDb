@@ -542,3 +542,117 @@ defer records.Release()
 | `Prefix` | 前缀匹配 | `NewPrefixMatch` |
 | `Suffix` | 后缀匹配 | `NewSuffixMatch` |
 | `Contains` | 包含匹配 | `NewContainsMatch` |
+
+## 6.8 时序数据区间搜索（SearchRange）
+
+sfsDb 提供了 `SearchRange` 方法，专门用于时序数据的区间搜索，特别适合 IoT 设备产生的时间序列数据查询。
+
+### 6.8.1 方法签名
+
+```go
+func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, Start, Limit any) (*TableIter, error)
+```
+
+### 6.8.2 参数说明
+
+- `funIter`：迭代器函数，用于创建范围迭代器
+- `fieldname`：要搜索的字段名，通常是时间戳字段
+- `Start`：范围的起始值
+- `Limit`：范围的结束值
+
+### 6.8.3 使用示例
+
+```go
+// 时序数据区间搜索示例：IoT设备数据查询
+func querySensorDataByTimeRange(startTime, endTime int) error {
+    // 创建表
+    sensorTable, err := engine.TableNew("sensor_data")
+    if err != nil {
+        return err
+    }
+    
+    // 设置字段，timestamp作为主键
+    fields := map[string]any{
+        "timestamp": 0,   // 时间戳，int类型
+        "value":     0.0, // 传感器值
+        "sensor_id": "",  // 传感器ID
+    }
+    err = sensorTable.SetFields(fields)
+    if err != nil {
+        return err
+    }
+    
+    // 创建主键索引
+    pk, err := engine.DefaultPrimaryKeyNew("pk")
+    if err != nil {
+        return err
+    }
+    pk.AddFields("timestamp")
+    err = sensorTable.CreateIndex(pk)
+    if err != nil {
+        return err
+    }
+    
+    // 插入测试数据（模拟IoT设备产生的时序数据）
+    now := int(time.Now().Unix())
+    for i := 0; i < 100; i++ {
+        data := map[string]any{
+            "timestamp": now + i,
+            "value":     float64(i * 10),
+            "sensor_id": fmt.Sprintf("sensor_%d", i%10),
+        }
+        _, err := sensorTable.Insert(&data)
+        if err != nil {
+            return err
+        }
+    }
+    
+    // 使用SearchRange进行时间范围查询
+    fmt.Println("=== 时序数据区间搜索示例 ===")
+    
+    // 定义迭代器函数
+    funIter := storage.FunIter(func(start, limit []byte) storage.Iterator {
+        return sensorTable.kvStore.Iterator(start, limit)
+    })
+    
+    // 执行区间搜索
+    iter, err := sensorTable.SearchRange(funIter, "timestamp", startTime, endTime)
+    if err != nil {
+        return err
+    }
+    defer iter.Release()
+    
+    // 获取结果
+    records := iter.GetRecords(true)
+    defer records.Release()
+    
+    // 打印结果
+    fmt.Printf("时间范围 [%d, %d] 内的传感器数据：\n", startTime, endTime)
+    for _, record := range records {
+        fmt.Printf("时间戳: %d, 传感器ID: %s, 值: %f\n", 
+            record["timestamp"], record["sensor_id"], record["value"])
+    }
+    
+    return nil
+}
+
+// 使用示例
+func main() {
+    // 查询最近10秒的传感器数据
+    now := int(time.Now().Unix())
+    err := querySensorDataByTimeRange(now-10, now)
+    if err != nil {
+        panic(err)
+    }
+}
+```
+
+### 6.8.4 时序数据区间搜索的优势
+
+1. **高效的范围查询**：专门针对时序数据的特性优化，提供高效的时间范围查询
+2. **灵活的迭代器函数**：允许自定义迭代器函数，适应不同的存储引擎和查询场景
+3. **支持事务**：可以在事务中使用，确保数据一致性
+4. **适合 IoT 场景**：特别适合处理 IoT 设备产生的海量时序数据
+5. **易于集成**：简洁的 API 设计，易于集成到各种应用场景
+
+通过 `SearchRange` 方法，sfsDb 为 IoT 设备提供了高效、可靠的时序数据查询能力，满足了设备对时间序列数据快速检索的需求。

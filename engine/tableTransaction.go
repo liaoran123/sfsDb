@@ -59,6 +59,8 @@ type Transaction interface {
 	Delete(fields *map[string]any) error
 	// Search 在事务中搜索记录（支持读一致性）
 	Search(fields *map[string]any, ops ...util.ComparisonOperator) (*TableIter, error)
+	// SearchRange 在事务中进行区间搜索（支持读一致性）
+	SearchRange(funIter storage.FunIter, fieldname string, Start, Limit any) (*TableIter, error)
 	// Read 在事务中读取单条记录（支持读一致性）
 	Read(fields *map[string]any) ([]byte, error)
 	// Commit 提交事务
@@ -388,6 +390,26 @@ func (tx *TableTransaction) Search(fields *map[string]any, ops ...util.Compariso
 	// 调用table.Searchs方法，传入funIter函数
 	tbiter, err := tx.table.Searchs(funIter, fields, ops...)
 	return tbiter, err
+}
+
+// SearchRange 在事务中进行区间搜索（支持读一致性，即使用快照）
+func (tx *TableTransaction) SearchRange(funIter storage.FunIter, fieldname string, Start, Limit any) (*TableIter, error) {
+	// 检查事务是否已提交
+	if err := tx.checkCommitted(); err != nil {
+		return nil, err
+	}
+
+	// 创建一个函数，根据是否有快照选择不同的存储获取迭代器
+	transactionFunIter := func(start, limit []byte) storage.Iterator {
+		if tx.snapshot != nil {
+			return tx.snapshot.Iterator(start, limit)
+		} else {
+			return tx.originalStore.Iterator(start, limit)
+		}
+	}
+
+	// 调用table.SearchRange方法，传入事务的funIter函数
+	return tx.table.SearchRange(transactionFunIter, fieldname, Start, Limit)
 }
 
 // GetOptions 获取事务选项
