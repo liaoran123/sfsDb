@@ -15,20 +15,18 @@ import (
 
 // ConcurrentCache 并发安全的缓存实现
 type ConcurrentCache struct {
-	cache       *sync.Map
-	size        int64
-	accesses    int64
-	hits        int64
-	maxSize     int64 // 最大缓存大小
-	enableStats bool  // 是否启用统计，默认关闭
+	cache    *sync.Map
+	size     int64
+	accesses int64
+	hits     int64
+	maxSize  int64 // 最大缓存大小
 }
 
 // NewConcurrentCache 创建新的并发缓存
 func NewConcurrentCache() *ConcurrentCache {
 	return &ConcurrentCache{
-		cache:       &sync.Map{},
-		maxSize:     1000,  // 默认最大缓存大小
-		enableStats: false, // 默认关闭统计
+		cache:   &sync.Map{},
+		maxSize: 1000, // 默认最大缓存大小
 	}
 }
 
@@ -37,13 +35,9 @@ func (c *ConcurrentCache) Get(key string) (interface{}, bool) {
 	if c == nil || c.cache == nil {
 		return nil, false
 	}
-	if c.enableStats {
-		atomic.AddInt64(&c.accesses, 1)
-	}
+	atomic.AddInt64(&c.accesses, 1)
 	if entry, ok := c.cache.Load(key); ok {
-		if c.enableStats {
-			atomic.AddInt64(&c.hits, 1)
-		}
+		atomic.AddInt64(&c.hits, 1)
 		return entry, true
 	}
 	return nil, false
@@ -115,11 +109,6 @@ func (c *ConcurrentCache) Size() int64 {
 // Stats 获取缓存统计信息
 func (c *ConcurrentCache) Stats() (size, accesses, hits int64) {
 	return atomic.LoadInt64(&c.size), atomic.LoadInt64(&c.accesses), atomic.LoadInt64(&c.hits)
-}
-
-// SetEnableStats 设置是否启用统计
-func (c *ConcurrentCache) SetEnableStats(enable bool) {
-	c.enableStats = enable
 }
 
 // 全局缓存实例
