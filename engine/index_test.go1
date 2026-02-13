@@ -1,0 +1,214 @@
+package engine
+
+import (
+	"testing"
+	"time"
+)
+
+// TestBaseIndexRecordUsage 测试 BaseIndex.RecordUsage 方法
+func TestBaseIndexRecordUsage(t *testing.T) {
+	// 创建一个默认的普通索引
+	index, err := DefaultNormalIndexNew("test_index")
+	if err != nil {
+		t.Fatalf("创建索引失败: %v", err)
+	}
+
+	// 添加索引字段
+	index.AddFields("id", "name")
+
+	// 记录第一次使用
+	startTime1 := time.Now()
+	time.Sleep(time.Millisecond * 10)
+	duration1 := time.Since(startTime1)
+	index.RecordUsage(duration1, true)
+
+	// 获取使用统计
+	stats1 := index.GetUsageStats()
+
+	// 验证第一次使用的统计信息
+	if stats1.UsageCount != 1 {
+		t.Errorf("期望使用次数为 1，实际为 %d", stats1.UsageCount)
+	}
+	if stats1.CoveredQueries != 1 {
+		t.Errorf("期望覆盖查询次数为 1，实际为 %d", stats1.CoveredQueries)
+	}
+	if stats1.UncoveredQueries != 0 {
+		t.Errorf("期望未覆盖查询次数为 0，实际为 %d", stats1.UncoveredQueries)
+	}
+	if stats1.TotalQueryTime != duration1 {
+		t.Errorf("期望总查询时间为 %v，实际为 %v", duration1, stats1.TotalQueryTime)
+	}
+	if stats1.AvgQueryTime != duration1 {
+		t.Errorf("期望平均查询时间为 %v，实际为 %v", duration1, stats1.AvgQueryTime)
+	}
+	if stats1.MaxQueryTime != duration1 {
+		t.Errorf("期望最大查询时间为 %v，实际为 %v", duration1, stats1.MaxQueryTime)
+	}
+	if stats1.MinQueryTime != duration1 {
+		t.Errorf("期望最小查询时间为 %v，实际为 %v", duration1, stats1.MinQueryTime)
+	}
+
+	// 记录第二次使用
+	startTime2 := time.Now()
+	time.Sleep(time.Millisecond * 20)
+	duration2 := time.Since(startTime2)
+	index.RecordUsage(duration2, false)
+
+	// 获取使用统计
+	stats2 := index.GetUsageStats()
+
+	// 验证第二次使用的统计信息
+	expectedUsageCount := int64(2)
+	if stats2.UsageCount != expectedUsageCount {
+		t.Errorf("期望使用次数为 %d，实际为 %d", expectedUsageCount, stats2.UsageCount)
+	}
+	if stats2.CoveredQueries != 1 {
+		t.Errorf("期望覆盖查询次数为 1，实际为 %d", stats2.CoveredQueries)
+	}
+	if stats2.UncoveredQueries != 1 {
+		t.Errorf("期望未覆盖查询次数为 1，实际为 %d", stats2.UncoveredQueries)
+	}
+	expectedTotalTime := duration1 + duration2
+	if stats2.TotalQueryTime != expectedTotalTime {
+		t.Errorf("期望总查询时间为 %v，实际为 %v", expectedTotalTime, stats2.TotalQueryTime)
+	}
+	expectedAvgTime := expectedTotalTime / time.Duration(expectedUsageCount)
+	if stats2.AvgQueryTime != expectedAvgTime {
+		t.Errorf("期望平均查询时间为 %v，实际为 %v", expectedAvgTime, stats2.AvgQueryTime)
+	}
+	if stats2.MaxQueryTime != duration2 {
+		t.Errorf("期望最大查询时间为 %v，实际为 %v", duration2, stats2.MaxQueryTime)
+	}
+	if stats2.MinQueryTime != duration1 {
+		t.Errorf("期望最小查询时间为 %v，实际为 %v", duration1, stats2.MinQueryTime)
+	}
+
+	// 记录第三次使用
+	startTime3 := time.Now()
+	time.Sleep(time.Millisecond * 5)
+	duration3 := time.Since(startTime3)
+	index.RecordUsage(duration3, true)
+
+	// 获取使用统计
+	stats3 := index.GetUsageStats()
+
+	// 验证第三次使用的统计信息
+	expectedUsageCount3 := int64(3)
+	if stats3.UsageCount != expectedUsageCount3 {
+		t.Errorf("期望使用次数为 %d，实际为 %d", expectedUsageCount3, stats3.UsageCount)
+	}
+	if stats3.CoveredQueries != 2 {
+		t.Errorf("期望覆盖查询次数为 2，实际为 %d", stats3.CoveredQueries)
+	}
+	if stats3.UncoveredQueries != 1 {
+		t.Errorf("期望未覆盖查询次数为 1，实际为 %d", stats3.UncoveredQueries)
+	}
+	expectedTotalTime3 := duration1 + duration2 + duration3
+	if stats3.TotalQueryTime != expectedTotalTime3 {
+		t.Errorf("期望总查询时间为 %v，实际为 %v", expectedTotalTime3, stats3.TotalQueryTime)
+	}
+	expectedAvgTime3 := expectedTotalTime3 / time.Duration(expectedUsageCount3)
+	if stats3.AvgQueryTime != expectedAvgTime3 {
+		t.Errorf("期望平均查询时间为 %v，实际为 %v", expectedAvgTime3, stats3.AvgQueryTime)
+	}
+	if stats3.MaxQueryTime != duration2 {
+		t.Errorf("期望最大查询时间为 %v，实际为 %v", duration2, stats3.MaxQueryTime)
+	}
+	if stats3.MinQueryTime != duration3 {
+		t.Errorf("期望最小查询时间为 %v，实际为 %v", duration3, stats3.MinQueryTime)
+	}
+}
+
+// TestTableIterRecordQueryUsage 测试 TableIter.recordQueryUsage 方法
+func TestTableIterRecordQueryUsage(t *testing.T) {
+	// 创建一个表
+	table, err := TableNew("test_table")
+	if err != nil {
+		t.Fatalf("创建表失败: %v", err)
+	}
+
+	// 设置表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+	}
+	if err := table.SetFields(fields); err != nil {
+		t.Fatalf("设置表字段失败: %v", err)
+	}
+
+	// 创建主键索引
+	primaryKey, err := DefaultPrimaryKeyNew("primary_key")
+	if err != nil {
+		t.Fatalf("创建主键索引失败: %v", err)
+	}
+	primaryKey.AddFields("id")
+	if err := table.CreateIndex(primaryKey); err != nil {
+		t.Fatalf("创建主键索引失败: %v", err)
+	}
+
+	// 创建普通索引
+	normalIndex, err := DefaultNormalIndexNew("normal_index")
+	if err != nil {
+		t.Fatalf("创建普通索引失败: %v", err)
+	}
+	normalIndex.AddFields("name")
+	if err := table.CreateIndex(normalIndex); err != nil {
+		t.Fatalf("创建普通索引失败: %v", err)
+	}
+
+	// 插入测试数据
+	for i := 0; i < 5; i++ {
+		record := map[string]any{
+			"id":   i,
+			"name": "test_" + string(rune('a'+i)),
+		}
+		_, err := table.Insert(&record)
+		if err != nil {
+			t.Fatalf("插入测试数据失败: %v", err)
+		}
+	}
+
+	// 测试主键索引查询
+	primaryFields := map[string]any{"id": 1}
+	primaryIter, err := table.Search(&primaryFields)
+	if err != nil {
+		t.Fatalf("主键索引查询失败: %v", err)
+	}
+
+	// 执行查询并记录使用情况
+	primaryResults := primaryIter.GetRecordSet(true)
+	if len(primaryResults) == 0 {
+		t.Fatalf("主键索引查询未返回结果")
+	}
+
+	// 获取主键索引使用统计
+	primaryKeyStats := primaryKey.GetUsageStats()
+	if primaryKeyStats.UsageCount == 0 {
+		t.Error("主键索引使用次数应为大于 0，实际为 0")
+	}
+
+	// 测试普通索引查询
+	normalFields := map[string]any{"name": "test_a"}
+	normalIter, err := table.Search(&normalFields)
+	if err != nil {
+		t.Fatalf("普通索引查询失败: %v", err)
+	}
+
+	// 执行查询并记录使用情况
+	normalResults := normalIter.GetRecordSet(true)
+	if len(normalResults) == 0 {
+		t.Fatalf("普通索引查询未返回结果")
+	}
+
+	// 获取普通索引使用统计
+	normalIndexStats := normalIndex.GetUsageStats()
+	if normalIndexStats.UsageCount == 0 {
+		t.Error("普通索引使用次数应为大于 0，实际为 0")
+	}
+
+	// 打印测试结果
+	t.Logf("主键索引使用统计: 使用次数=%d, 总查询时间=%v, 平均查询时间=%v",
+		primaryKeyStats.UsageCount, primaryKeyStats.TotalQueryTime, primaryKeyStats.AvgQueryTime)
+	t.Logf("普通索引使用统计: 使用次数=%d, 总查询时间=%v, 平均查询时间=%v",
+		normalIndexStats.UsageCount, normalIndexStats.TotalQueryTime, normalIndexStats.AvgQueryTime)
+}

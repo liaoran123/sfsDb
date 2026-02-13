@@ -2,12 +2,45 @@ package engine
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/liaoran123/sfsDb/monitor"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
+
+// 全局事务对象池
+var GlobalTableTransactionPool = &TableTransactionPool{
+	pool: sync.Pool{
+		New: func() interface{} {
+			return &TableTransaction{}
+		},
+	},
+}
+
+// TableTransactionPool 事务对象池
+type TableTransactionPool struct {
+	pool sync.Pool
+}
+
+// Get 从池中获取事务对象
+func (p *TableTransactionPool) Get() *TableTransaction {
+	return p.pool.Get().(*TableTransaction)
+}
+
+// Put 将事务对象归还到池中
+func (p *TableTransactionPool) Put(tx *TableTransaction) {
+	// 重置事务对象
+	tx.committed = false
+	tx.cache = make(map[string][]byte)
+	tx.lockKeyCache = make(map[string]string)
+	tx.parent = nil
+	tx.children = nil
+	// 其他字段在使用时会被覆盖，不需要重置
+
+	p.pool.Put(tx)
+}
 
 // 事务隔离级别常量
 const (
@@ -149,18 +182,22 @@ func (t *Table) BeginWithBatchAndOptions(batch storage.Batch, options *Transacti
 	// 生成事务ID
 	txID := uint64(time.Now().UnixNano())
 
-	return &TableTransaction{
-		table:         t,
-		batch:         batch,
-		committed:     false,
-		snapshot:      snapshot,
-		originalStore: t.kvStore,
-		cache:         make(map[string][]byte), // 初始化事务内缓存
-		lockKeyCache:  make(map[string]string), // 初始化锁键缓存
-		options:       options,
-		txID:          txID,
-		startTime:     time.Now(),
-	}, nil
+	// 从对象池获取事务对象
+	tx := GlobalTableTransactionPool.Get()
+
+	// 初始化事务对象
+	tx.table = t
+	tx.batch = batch
+	tx.committed = false
+	tx.snapshot = snapshot
+	tx.originalStore = t.kvStore
+	tx.cache = make(map[string][]byte)        // 初始化事务内缓存
+	tx.lockKeyCache = make(map[string]string) // 初始化锁键缓存
+	tx.options = options
+	tx.txID = txID
+	tx.startTime = time.Now()
+
+	return tx, nil
 }
 
 // BeginNested 创建一个嵌套事务
@@ -464,6 +501,13 @@ func (tx *TableTransaction) Commit() error {
 	tx.committed = true
 	tx.cache = nil
 	tx.lockKeyCache = nil
+	tx.children = nil
+
+	// 4. 归还事务对象到池中
+	if tx.parent == nil {
+		// 只有根事务才归还到池，子事务由父事务管理
+		GlobalTableTransactionPool.Put(tx)
+	}
 
 	return nil
 }
@@ -568,6 +612,13 @@ func (tx *TableTransaction) Rollback() error {
 	tx.committed = true
 	tx.cache = nil
 	tx.lockKeyCache = nil
+	tx.children = nil
+
+	// 3. 归还事务对象到池中
+	if tx.parent == nil {
+		// 只有根事务才归还到池，子事务由父事务管理
+		GlobalTableTransactionPool.Put(tx)
+	}
 
 	return nil
 }

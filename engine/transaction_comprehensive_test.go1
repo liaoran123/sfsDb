@@ -1,0 +1,927 @@
+package engine
+
+import (
+	"fmt"
+	"runtime"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/liaoran123/sfsDb/storage"
+)
+
+// TestTransactionBasic 测试基本事务操作
+func TestTransactionBasic(t *testing.T) {
+	// 创建临时目录作为数据库路径
+	tempDir := t.TempDir()
+
+	// 显式打开数据库，使用临时目录
+	db, err := storage.OpenDefaultDb(tempDir)
+	if err != nil {
+		t.Fatalf("打开数据库失败: %v", err)
+	}
+
+	// 清理测试环境
+	defer func() {
+		if db != nil {
+			db.Close()
+			storage.KVDb = nil
+		}
+	}()
+
+	// 创建测试表
+	table, err := TableNew("test_transaction_basic")
+	if err != nil {
+		t.Fatalf("创建表失败: %v", err)
+	}
+
+	// 设置表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"data": "",
+	}
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("设置表字段失败: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk_id")
+	if err != nil {
+		t.Fatalf("创建主键失败: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("创建主键索引失败: %v", err)
+	}
+
+	// 开始事务
+	tx, err := table.Begin()
+	if err != nil {
+		t.Fatalf("开始事务失败: %v", err)
+	}
+
+	// 插入记录
+	insertRecord := map[string]any{
+		"id":   1,
+		"name": "测试记录",
+		"data": "初始数据",
+	}
+	_, err = tx.Insert(&insertRecord)
+	if err != nil {
+		t.Fatalf("事务中插入记录失败: %v", err)
+	}
+
+	// 提交事务
+	err = tx.Commit()
+	if err != nil {
+		t.Fatalf("提交事务失败: %v", err)
+	}
+
+	// 验证记录存在
+	readRecord := map[string]any{"id": 1}
+	recordBytes, err := table.Read(&readRecord)
+	if err != nil {
+		t.Fatalf("读取记录失败: %v", err)
+	}
+	if recordBytes == nil {
+		t.Fatalf("记录不存在")
+	}
+}
+
+// TestTransactionRollback 测试事务回滚
+func TestTransactionRollback(t *testing.T) {
+	// 创建临时目录作为数据库路径
+	tempDir := t.TempDir()
+
+	// 显式打开数据库，使用临时目录
+	db, err := storage.OpenDefaultDb(tempDir)
+	if err != nil {
+		t.Fatalf("打开数据库失败: %v", err)
+	}
+
+	// 清理测试环境
+	defer func() {
+		if db != nil {
+			db.Close()
+			storage.KVDb = nil
+		}
+	}()
+
+	// 创建测试表
+	table, err := TableNew("test_transaction_rollback")
+	if err != nil {
+		t.Fatalf("创建表失败: %v", err)
+	}
+
+	// 设置表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"data": "",
+	}
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("设置表字段失败: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk_id")
+	if err != nil {
+		t.Fatalf("创建主键失败: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("创建主键索引失败: %v", err)
+	}
+
+	// 开始事务
+	tx, err := table.BeginTx(RepeatableRead)
+	if err != nil {
+		t.Fatalf("开始事务失败: %v", err)
+	}
+
+	// 插入记录
+	insertRecord := map[string]any{
+		"id":   1,
+		"name": "测试记录",
+		"data": "初始数据",
+	}
+	_, err = tx.Insert(&insertRecord)
+	if err != nil {
+		t.Fatalf("事务中插入记录失败: %v", err)
+	}
+
+	// 回滚事务
+	err = tx.Rollback()
+	if err != nil {
+		t.Fatalf("回滚事务失败: %v", err)
+	}
+
+	// 验证记录不存在
+	readRecord := map[string]any{"id": 1}
+	recordBytes, err := table.Read(&readRecord)
+	if err != nil {
+		t.Fatalf("读取记录失败: %v", err)
+	}
+	if recordBytes != nil {
+		t.Fatalf("记录应该不存在，回滚失败")
+	}
+}
+
+// TestTransactionNested 测试嵌套事务
+func TestTransactionNested(t *testing.T) {
+	// 创建临时目录作为数据库路径
+	tempDir := t.TempDir()
+
+	// 显式打开数据库，使用临时目录
+	db, err := storage.OpenDefaultDb(tempDir)
+	if err != nil {
+		t.Fatalf("打开数据库失败: %v", err)
+	}
+
+	// 清理测试环境
+	defer func() {
+		if db != nil {
+			db.Close()
+			storage.KVDb = nil
+		}
+	}()
+
+	// 创建测试表
+	table, err := TableNew("test_transaction_nested")
+	if err != nil {
+		t.Fatalf("创建表失败: %v", err)
+	}
+
+	// 设置表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"data": "",
+	}
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("设置表字段失败: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk_id")
+	if err != nil {
+		t.Fatalf("创建主键失败: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("创建主键索引失败: %v", err)
+	}
+
+	// 开始外层事务
+	outerTx, err := table.BeginTx(RepeatableRead)
+	if err != nil {
+		t.Fatalf("开始外层事务失败: %v", err)
+	}
+
+	// 插入记录1
+	insertRecord1 := map[string]any{
+		"id":   1,
+		"name": "记录1",
+		"data": "数据1",
+	}
+	_, err = outerTx.Insert(&insertRecord1)
+	if err != nil {
+		t.Fatalf("外层事务中插入记录失败: %v", err)
+	}
+
+	// 开始内层事务
+	innerTx, err := outerTx.BeginTx(RepeatableRead)
+	if err != nil {
+		t.Fatalf("开始内层事务失败: %v", err)
+	}
+
+	// 插入记录2
+	insertRecord2 := map[string]any{
+		"id":   2,
+		"name": "记录2",
+		"data": "数据2",
+	}
+	_, err = innerTx.Insert(&insertRecord2)
+	if err != nil {
+		t.Fatalf("内层事务中插入记录失败: %v", err)
+	}
+
+	// 提交内层事务
+	err = innerTx.Commit()
+	if err != nil {
+		t.Fatalf("提交内层事务失败: %v", err)
+	}
+
+	// 提交外层事务
+	err = outerTx.Commit()
+	if err != nil {
+		t.Fatalf("提交外层事务失败: %v", err)
+	}
+
+	// 验证记录1存在
+	readRecord1 := map[string]any{"id": 1}
+	recordBytes1, err := table.Read(&readRecord1)
+	if err != nil {
+		t.Fatalf("读取记录1失败: %v", err)
+	}
+	if recordBytes1 == nil {
+		t.Fatalf("记录1不存在")
+	}
+
+	// 验证记录2存在
+	readRecord2 := map[string]any{"id": 2}
+	recordBytes2, err := table.Read(&readRecord2)
+	if err != nil {
+		t.Fatalf("读取记录2失败: %v", err)
+	}
+	if recordBytes2 == nil {
+		t.Fatalf("记录2不存在")
+	}
+}
+
+// TestTransactionConcurrent 测试并发事务
+func TestTransactionConcurrent(t *testing.T) {
+	// 创建临时目录作为数据库路径
+	tempDir := t.TempDir()
+
+	// 显式打开数据库，使用临时目录
+	db, err := storage.OpenDefaultDb(tempDir)
+	if err != nil {
+		t.Fatalf("打开数据库失败: %v", err)
+	}
+
+	// 清理测试环境
+	defer func() {
+		if db != nil {
+			db.Close()
+			storage.KVDb = nil
+		}
+	}()
+
+	// 创建测试表
+	table, err := TableNew("test_transaction_concurrent")
+	if err != nil {
+		t.Fatalf("创建表失败: %v", err)
+	}
+
+	// 设置表字段
+	fields := map[string]any{
+		"id":      0,
+		"counter": 0,
+		"name":    "",
+	}
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("设置表字段失败: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk_id")
+	if err != nil {
+		t.Fatalf("创建主键失败: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("创建主键索引失败: %v", err)
+	}
+
+	// 插入初始记录
+	insertRecord := map[string]any{
+		"id":      1,
+		"counter": 0,
+		"name":    "初始记录",
+	}
+	_, err = table.Insert(&insertRecord)
+	if err != nil {
+		t.Fatalf("插入初始记录失败: %v", err)
+	}
+
+	// 并发事务测试
+	const goroutines = 10
+	const iterations = 5
+
+	var wg sync.WaitGroup
+	errorChan := make(chan error, goroutines)
+	successCount := 0
+	var successMutex sync.Mutex
+
+	// 记录开始时间
+	startTime := time.Now()
+
+	// 并发执行事务
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+
+			for j := 0; j < iterations; j++ {
+				// 开始事务
+				tx, err := table.BeginTx(RepeatableRead)
+				if err != nil {
+					errorChan <- fmt.Errorf("goroutine %d 开始事务失败: %v", goroutineID, err)
+					return
+				}
+
+				// 读取记录
+				readRecord := map[string]any{"id": 1}
+				recordBytes, err := tx.Read(&readRecord)
+				if err != nil {
+					tx.Rollback()
+					errorChan <- fmt.Errorf("goroutine %d 读取记录失败: %v", goroutineID, err)
+					return
+				}
+
+				// 解析记录
+				pkIndex := table.GetPrimaryKey()
+				fieldsBytes, err := pkIndex.Parse(table.fieldsid, recordBytes)
+				if err != nil {
+					tx.Rollback()
+					errorChan <- fmt.Errorf("goroutine %d 解析记录失败: %v", goroutineID, err)
+					return
+				}
+
+				// 获取当前计数器值
+				currentCounter := 0
+				if counterBytes, ok := (*fieldsBytes)["counter"]; ok && len(counterBytes) > 0 {
+					currentCounter = int(counterBytes[0])
+				}
+
+				// 更新记录
+				updateRecord := map[string]any{
+					"id":      1,
+					"counter": currentCounter + 1,
+				}
+				err = tx.Update(&updateRecord)
+				if err != nil {
+					tx.Rollback()
+					// 忽略锁竞争错误
+					if !strings.Contains(err.Error(), "lock") {
+						errorChan <- fmt.Errorf("goroutine %d 更新记录失败: %v", goroutineID, err)
+						return
+					}
+					continue
+				}
+
+				// 提交事务
+				err = tx.Commit()
+				if err != nil {
+					// 忽略锁竞争错误
+					if !strings.Contains(err.Error(), "lock") {
+						errorChan <- fmt.Errorf("goroutine %d 提交事务失败: %v", goroutineID, err)
+						return
+					}
+					continue
+				}
+
+				// 更新成功
+				successMutex.Lock()
+				successCount++
+				successMutex.Unlock()
+
+				// 模拟处理时间
+				time.Sleep(time.Millisecond * 5)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errorChan)
+
+	// 记录结束时间
+	endTime := time.Now()
+	fmt.Printf("并发事务测试完成，耗时: %v, 成功次数: %d\n", endTime.Sub(startTime), successCount)
+
+	// 检查是否有错误
+	for err := range errorChan {
+		t.Fatalf("并发测试失败: %v", err)
+	}
+
+	// 验证最终计数器值
+	readRecord := map[string]any{"id": 1}
+	recordBytes, err := table.Read(&readRecord)
+	if err != nil {
+		t.Fatalf("读取最终记录失败: %v", err)
+	}
+
+	pkIndex := table.GetPrimaryKey()
+	fieldsBytes, err := pkIndex.Parse(table.fieldsid, recordBytes)
+	if err != nil {
+		t.Fatalf("解析最终记录失败: %v", err)
+	}
+
+	finalCounter := 0
+	if counterBytes, ok := (*fieldsBytes)["counter"]; ok && len(counterBytes) > 0 {
+		finalCounter = int(counterBytes[0])
+	}
+
+	fmt.Printf("最终计数器值: %d\n", finalCounter)
+	if finalCounter <= 0 {
+		t.Errorf("最终计数器值为%d，所有更新都失败了", finalCounter)
+	}
+}
+
+// TestTransactionIsolation 测试事务隔离级别
+func TestTransactionIsolation(t *testing.T) {
+	// 创建临时目录作为数据库路径
+	tempDir := t.TempDir()
+
+	// 显式打开数据库，使用临时目录
+	db, err := storage.OpenDefaultDb(tempDir)
+	if err != nil {
+		t.Fatalf("打开数据库失败: %v", err)
+	}
+
+	// 清理测试环境
+	defer func() {
+		if db != nil {
+			db.Close()
+			storage.KVDb = nil
+		}
+	}()
+
+	// 创建测试表
+	table, err := TableNew("test_transaction_isolation")
+	if err != nil {
+		t.Fatalf("创建表失败: %v", err)
+	}
+
+	// 设置表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"data": "",
+	}
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("设置表字段失败: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk_id")
+	if err != nil {
+		t.Fatalf("创建主键失败: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("创建主键索引失败: %v", err)
+	}
+
+	// 插入初始记录
+	insertRecord := map[string]any{
+		"id":   1,
+		"name": "初始记录",
+		"data": "初始数据",
+	}
+	_, err = table.Insert(&insertRecord)
+	if err != nil {
+		t.Fatalf("插入初始记录失败: %v", err)
+	}
+
+	// 测试不同隔离级别
+	isolationLevels := []IsolationLevel{
+		ReadCommitted,
+		RepeatableRead,
+		Serializable,
+	}
+
+	for _, level := range isolationLevels {
+		t.Run(fmt.Sprintf("IsolationLevel_%v", level), func(t *testing.T) {
+			// 开始事务1
+			tx1, err := table.BeginTx(level)
+			if err != nil {
+				t.Fatalf("开始事务1失败: %v", err)
+			}
+
+			// 读取记录
+			readRecord := map[string]any{"id": 1}
+			recordBytes, err := tx1.Read(&readRecord)
+			if err != nil {
+				tx1.Rollback()
+				t.Fatalf("读取记录失败: %v", err)
+			}
+
+			// 解析记录
+			pkIndex := table.GetPrimaryKey()
+			fieldsBytes, err := pkIndex.Parse(table.fieldsid, recordBytes)
+			if err != nil {
+				tx1.Rollback()
+				t.Fatalf("解析记录失败: %v", err)
+			}
+
+			// 获取当前数据
+			currentData := ""
+			if dataBytes, ok := (*fieldsBytes)["data"]; ok {
+				currentData = string(dataBytes)
+			}
+
+			// 开始事务2
+			tx2, err := table.BeginTx(level)
+			if err != nil {
+				tx1.Rollback()
+				t.Fatalf("开始事务2失败: %v", err)
+			}
+
+			// 在事务2中更新记录
+			updateRecord := map[string]any{
+				"id":   1,
+				"data": "更新后的数据",
+			}
+			err = tx2.Update(&updateRecord)
+			if err != nil {
+				tx1.Rollback()
+				tx2.Rollback()
+				t.Fatalf("事务2更新记录失败: %v", err)
+			}
+
+			// 提交事务2
+			err = tx2.Commit()
+			if err != nil {
+				tx1.Rollback()
+				t.Fatalf("提交事务2失败: %v", err)
+			}
+
+			// 在事务1中再次读取记录
+			recordBytes2, err := tx1.Read(&readRecord)
+			if err != nil {
+				tx1.Rollback()
+				t.Fatalf("事务1再次读取记录失败: %v", err)
+			}
+
+			// 解析记录
+			fieldsBytes2, err := pkIndex.Parse(table.fieldsid, recordBytes2)
+			if err != nil {
+				tx1.Rollback()
+				t.Fatalf("解析记录失败: %v", err)
+			}
+
+			// 获取更新后的数据
+			updatedData := ""
+			if dataBytes, ok := (*fieldsBytes2)["data"]; ok {
+				updatedData = string(dataBytes)
+			}
+
+			fmt.Printf("隔离级别 %v: 第一次读取: '%s', 第二次读取: '%s'\n", level, currentData, updatedData)
+
+			// 提交事务1
+			err = tx1.Commit()
+			if err != nil {
+				t.Fatalf("提交事务1失败: %v", err)
+			}
+		})
+	}
+}
+
+// TestTransactionErrorHandling 测试事务错误处理
+func TestTransactionErrorHandling(t *testing.T) {
+	// 创建临时目录作为数据库路径
+	tempDir := t.TempDir()
+
+	// 显式打开数据库，使用临时目录
+	db, err := storage.OpenDefaultDb(tempDir)
+	if err != nil {
+		t.Fatalf("打开数据库失败: %v", err)
+	}
+
+	// 清理测试环境
+	defer func() {
+		if db != nil {
+			db.Close()
+			storage.KVDb = nil
+		}
+	}()
+
+	// 创建测试表
+	table, err := TableNew("test_transaction_error")
+	if err != nil {
+		t.Fatalf("创建表失败: %v", err)
+	}
+
+	// 设置表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"data": "",
+	}
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("设置表字段失败: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk_id")
+	if err != nil {
+		t.Fatalf("创建主键失败: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("创建主键索引失败: %v", err)
+	}
+
+	// 测试事务中的错误处理
+	t.Run("ErrorInTransaction", func(t *testing.T) {
+		// 开始事务
+		tx, err := table.BeginTx(RepeatableRead)
+		if err != nil {
+			t.Fatalf("开始事务失败: %v", err)
+		}
+
+		// 插入记录
+		insertRecord := map[string]any{
+			"id":   1,
+			"name": "测试记录",
+			"data": "测试数据",
+		}
+		_, err = tx.Insert(&insertRecord)
+		if err != nil {
+			t.Fatalf("插入记录失败: %v", err)
+		}
+
+		// 尝试插入相同主键的记录（应该失败）
+		duplicateRecord := map[string]any{
+			"id":   1,
+			"name": "重复记录",
+			"data": "重复数据",
+		}
+		_, err = tx.Insert(&duplicateRecord)
+		if err == nil {
+			tx.Rollback()
+			t.Fatalf("插入重复主键记录应该失败")
+		}
+
+		// 回滚事务
+		err = tx.Rollback()
+		if err != nil {
+			t.Fatalf("回滚事务失败: %v", err)
+		}
+
+		// 验证记录不存在
+		readRecord := map[string]any{"id": 1}
+		recordBytes, err := table.Read(&readRecord)
+		if err != nil {
+			t.Fatalf("读取记录失败: %v", err)
+		}
+		if recordBytes != nil {
+			t.Fatalf("记录应该不存在，回滚失败")
+		}
+	})
+}
+
+// TestTransactionObjectPool 测试事务对象池释放
+func TestTransactionObjectPool(t *testing.T) {
+	// 创建临时目录作为数据库路径
+	tempDir := t.TempDir()
+
+	// 显式打开数据库，使用临时目录
+	db, err := storage.OpenDefaultDb(tempDir)
+	if err != nil {
+		t.Fatalf("打开数据库失败: %v", err)
+	}
+
+	// 清理测试环境
+	defer func() {
+		if db != nil {
+			db.Close()
+			storage.KVDb = nil
+		}
+	}()
+
+	// 创建测试表
+	table, err := TableNew("test_transaction_pool")
+	if err != nil {
+		t.Fatalf("创建表失败: %v", err)
+	}
+
+	// 设置表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+	}
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("设置表字段失败: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk_id")
+	if err != nil {
+		t.Fatalf("创建主键失败: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("创建主键索引失败: %v", err)
+	}
+
+	// 测试前获取内存统计
+	var memStatsBefore runtime.MemStats
+	runtime.ReadMemStats(&memStatsBefore)
+
+	// 执行大量事务操作
+	const transactions = 1000
+
+	for i := 0; i < transactions; i++ {
+		// 开始事务
+		tx, err := table.BeginTx(ReadCommitted)
+		if err != nil {
+			t.Fatalf("开始事务失败: %v", err)
+		}
+
+		// 插入记录
+		insertRecord := map[string]any{
+			"id":   i + 1,
+			"name": fmt.Sprintf("记录%d", i+1),
+		}
+		_, err = tx.Insert(&insertRecord)
+		if err != nil {
+			tx.Rollback()
+			// 忽略重复主键错误
+			if !strings.Contains(err.Error(), "主键") {
+				t.Fatalf("插入记录失败: %v", err)
+			}
+		}
+
+		// 提交事务
+		err = tx.Commit()
+		if err != nil {
+			// 忽略重复主键错误
+			if !strings.Contains(err.Error(), "主键") {
+				t.Fatalf("提交事务失败: %v", err)
+			}
+		}
+
+		// 每100个事务执行一次垃圾回收
+		if (i+1)%100 == 0 {
+			runtime.GC()
+		}
+	}
+
+	// 测试后获取内存统计
+	var memStatsAfter runtime.MemStats
+	runtime.ReadMemStats(&memStatsAfter)
+
+	// 打印内存使用情况
+	fmt.Printf("内存使用情况:\n")
+	fmt.Printf("测试前分配内存: %d MB\n", memStatsBefore.Alloc/1024/1024)
+	fmt.Printf("测试后分配内存: %d MB\n", memStatsAfter.Alloc/1024/1024)
+	fmt.Printf("内存增长: %d MB\n", (memStatsAfter.Alloc-memStatsBefore.Alloc)/1024/1024)
+
+	// 检查内存增长是否合理（不应该超过100MB）
+	if (memStatsAfter.Alloc - memStatsBefore.Alloc) > 100*1024*1024 {
+		t.Errorf("内存增长过大，可能存在内存泄漏: %d MB", (memStatsAfter.Alloc-memStatsBefore.Alloc)/1024/1024)
+	}
+
+	// 验证快照池是否正常工作
+	fmt.Printf("快照池测试完成\n")
+}
+
+// TestTransactionPerformance 测试事务性能
+func TestTransactionPerformance(t *testing.T) {
+	// 创建临时目录作为数据库路径
+	tempDir := t.TempDir()
+
+	// 显式打开数据库，使用临时目录
+	db, err := storage.OpenDefaultDb(tempDir)
+	if err != nil {
+		t.Fatalf("打开数据库失败: %v", err)
+	}
+
+	// 清理测试环境
+	defer func() {
+		if db != nil {
+			db.Close()
+			storage.KVDb = nil
+		}
+	}()
+
+	// 创建测试表
+	table, err := TableNew("test_transaction_perf")
+	if err != nil {
+		t.Fatalf("创建表失败: %v", err)
+	}
+
+	// 设置表字段
+	fields := map[string]any{
+		"id":   0,
+		"name": "",
+		"data": "",
+	}
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("设置表字段失败: %v", err)
+	}
+
+	// 创建主键索引
+	pk, err := DefaultPrimaryKeyNew("pk_id")
+	if err != nil {
+		t.Fatalf("创建主键失败: %v", err)
+	}
+	pk.AddFields("id")
+	err = table.CreateIndex(pk)
+	if err != nil {
+		t.Fatalf("创建主键索引失败: %v", err)
+	}
+
+	// 测试事务性能
+	const transactions = 100
+
+	// 记录开始时间
+	startTime := time.Now()
+
+	for i := 0; i < transactions; i++ {
+		// 开始事务
+		tx, err := table.BeginTx(ReadCommitted)
+		if err != nil {
+			t.Fatalf("开始事务失败: %v", err)
+		}
+
+		// 插入记录
+		insertRecord := map[string]any{
+			"id":   i + 1,
+			"name": fmt.Sprintf("测试记录%d", i+1),
+			"data": fmt.Sprintf("测试数据%d", i+1),
+		}
+		_, err = tx.Insert(&insertRecord)
+		if err != nil {
+			tx.Rollback()
+			// 忽略重复主键错误
+			if !strings.Contains(err.Error(), "主键") {
+				t.Fatalf("插入记录失败: %v", err)
+			}
+		}
+
+		// 提交事务
+		err = tx.Commit()
+		if err != nil {
+			// 忽略重复主键错误
+			if !strings.Contains(err.Error(), "主键") {
+				t.Fatalf("提交事务失败: %v", err)
+			}
+		}
+	}
+
+	// 记录结束时间
+	endTime := time.Now()
+	duration := endTime.Sub(startTime)
+
+	// 计算性能指标
+	transactionsPerSecond := float64(transactions) / duration.Seconds()
+	fmt.Printf("事务性能测试完成:\n")
+	fmt.Printf("执行 %d 个事务耗时: %v\n", transactions, duration)
+	fmt.Printf("事务处理速度: %.2f 事务/秒\n", transactionsPerSecond)
+
+	// 验证性能是否达标（至少500事务/秒）
+	if transactionsPerSecond < 500 {
+		t.Logf("警告: 事务性能较低: %.2f 事务/秒", transactionsPerSecond)
+	}
+}

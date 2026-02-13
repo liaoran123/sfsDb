@@ -1,0 +1,220 @@
+package engine
+
+import (
+	"fmt"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/liaoran123/sfsDb/match"
+	"github.com/liaoran123/sfsDb/storage"
+)
+
+// 模拟一个简单的索引实现，用于测试
+type mockIndex struct {
+	name   string
+	id     uint8
+	fields []string
+}
+
+func (m *mockIndex) AddFields(field ...string)                       { m.fields = append(m.fields, field...) }
+func (m *mockIndex) GetFields() []string                             { return m.fields }
+func (m *mockIndex) Len() int                                        { return len(m.fields) }
+func (m *mockIndex) setId(id uint8)                                  { m.id = id }
+func (m *mockIndex) GetId() uint8                                    { return m.id }
+func (m *mockIndex) Name() string                                    { return m.name }
+func (m *mockIndex) SetName(name string) error                       { m.name = name; return nil }
+func (m *mockIndex) UpdateFields(oldfields string, newfields string) {}
+func (m *mockIndex) DeleteFields(field ...string)                    {}
+func (m *mockIndex) Prefix(tbid uint8) []byte                        { return nil }
+func (m *mockIndex) Join(fieldsBytes *map[string][]byte) []byte      { return nil }
+func (m *mockIndex) JoinPrefix(tbid uint8, val []byte) []byte        { return nil }
+func (m *mockIndex) JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte {
+	return nil
+}
+func (m *mockIndex) MatchFields(fields ...string) bool                { return true }
+func (m *mockIndex) RecordUsage(duration time.Duration, covered bool) {}
+
+// 模拟一个简单的迭代器实现，用于测试
+type mockIterator struct {
+	released bool
+}
+
+func (m *mockIterator) First() bool          { return true }
+func (m *mockIterator) Last() bool           { return true }
+func (m *mockIterator) Next() bool           { return false }
+func (m *mockIterator) Prev() bool           { return false }
+func (m *mockIterator) Seek(key []byte) bool { return true }
+func (m *mockIterator) Key() []byte          { return nil }
+func (m *mockIterator) Value() []byte        { return nil }
+func (m *mockIterator) Valid() bool          { return true }
+func (m *mockIterator) Release()             { m.released = true }
+
+// TestTableIterPoolGetCleanData 测试从池中获取的对象是否干净
+func TestTableIterPoolGetCleanData(t *testing.T) {
+	pool := NewTableIterPool()
+
+	// 创建模拟对象
+	mockIter := &mockIterator{}
+	table := &Table{}
+	idx := &mockIndex{name: "primary", id: 0}
+
+	// 第一次获取对象
+	t1 := pool.Get(table, mockIter, idx, "field1", "field2")
+	if t1 == nil {
+		t.Fatal("Expected non-nil TableIter")
+	}
+
+	// 验证对象是否被正确初始化
+	if t1.table != table {
+		t.Error("Expected table to be set")
+	}
+	if len(t1.selects) != 2 || t1.selects[0] != "field1" || t1.selects[1] != "field2" {
+		t.Error("Expected selects to be set correctly")
+	}
+	if t1.index == nil {
+		t.Error("Expected index to be set")
+	}
+	if t1.iter != mockIter {
+		t.Error("Expected iter to be set")
+	}
+	if t1.jumpRanges != nil {
+		t.Error("Expected jumpRanges to be nil")
+	}
+	if t1.match != nil {
+		t.Error("Expected match to be nil")
+	}
+
+	// 修改对象的字段
+	t1.selects = []string{"modified"}
+	t1.jumpRanges = []storage.Iterator{mockIter}
+	t1.match = []match.Match{}
+
+	// 放回池中
+	pool.Put(t1)
+
+	// 第二次获取对象，应该是干净的
+	mockIter2 := &mockIterator{}
+	t2 := pool.Get(table, mockIter2, idx, "newfield1")
+	if t2 == nil {
+		t.Fatal("Expected non-nil TableIter")
+	}
+
+	// 验证对象是否干净，不受之前修改的影响
+	if t2.table != table {
+		t.Error("Expected table to be set")
+	}
+	if len(t2.selects) != 1 || t2.selects[0] != "newfield1" {
+		t.Error("Expected selects to be clean and set correctly")
+	}
+	if t2.index == nil {
+		t.Error("Expected index to be set")
+	}
+	if t2.iter != mockIter2 {
+		t.Error("Expected iter to be set to new iterator")
+	}
+	if t2.jumpRanges != nil {
+		t.Error("Expected jumpRanges to be nil")
+	}
+	if t2.match != nil {
+		t.Error("Expected match to be nil")
+	}
+
+	// 验证第一个迭代器是否被释放
+	if !mockIter.released {
+		t.Error("Expected first iterator to be released")
+	}
+
+	// 清理
+	pool.Put(t2)
+	if !mockIter2.released {
+		t.Error("Expected second iterator to be released")
+	}
+}
+
+// TestTableIterPoolConcurrent 测试并发场景下的对象池
+func TestTableIterPoolConcurrent(t *testing.T) {
+	pool := NewTableIterPool()
+	table := &Table{}
+	idx := &mockIndex{name: "primary", id: 0}
+
+	var wg sync.WaitGroup
+	const goroutines = 100
+	const iterations = 10
+
+	// 并发测试获取和放回对象
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(id int, test *testing.T) {
+			defer wg.Done()
+
+			for j := 0; j < iterations; j++ {
+				// 创建模拟迭代器
+				mockIter := &mockIterator{}
+
+				// 获取对象
+				tblIter := pool.Get(table, mockIter, idx, fmt.Sprintf("field%d", id))
+				if tblIter == nil {
+					test.Errorf("Goroutine %d: Expected non-nil TableIter", id)
+					continue
+				}
+
+				// 验证对象是否被正确初始化
+				if tblIter.table != table {
+					test.Errorf("Goroutine %d: Expected table to be set", id)
+				}
+				if len(tblIter.selects) != 1 || tblIter.selects[0] != fmt.Sprintf("field%d", id) {
+					test.Errorf("Goroutine %d: Expected selects to be set correctly", id)
+				}
+				if tblIter.index == nil {
+					test.Errorf("Goroutine %d: Expected index to be set", id)
+				}
+				if tblIter.iter != mockIter {
+					test.Errorf("Goroutine %d: Expected iter to be set", id)
+				}
+
+				// 模拟使用对象
+				tblIter.selects = []string{fmt.Sprintf("modified%d", id)}
+
+				// 放回池中
+				pool.Put(tblIter)
+
+				// 验证迭代器是否被释放
+				if !mockIter.released {
+					test.Errorf("Goroutine %d: Expected iterator to be released", id)
+				}
+			}
+		}(i, t)
+	}
+
+	wg.Wait()
+}
+
+// TestTableIterPoolNilHandling 测试空值处理
+func TestTableIterPoolNilHandling(t *testing.T) {
+	pool := NewTableIterPool()
+	table := &Table{}
+	idx := &mockIndex{name: "primary", id: 0}
+
+	// 测试传入 nil 迭代器
+	tblIter := pool.Get(table, nil, idx)
+	if tblIter != nil {
+		t.Error("Expected nil when iter is nil")
+	}
+
+	// 测试放回 nil 对象
+	pool.Put(nil) // 应该不会 panic
+
+	// 测试正常场景
+	mockIter := &mockIterator{}
+	tblIter = pool.Get(table, mockIter, idx)
+	if tblIter == nil {
+		t.Error("Expected non-nil TableIter")
+	}
+
+	// 清理
+	pool.Put(tblIter)
+	if !mockIter.released {
+		t.Error("Expected iterator to be released")
+	}
+}
