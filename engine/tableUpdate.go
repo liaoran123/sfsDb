@@ -238,7 +238,6 @@ func (t *Table) Update(fields *map[string]any, params ...any) error {
 	if updateFields == nil {
 		return nil
 	}
-	defer PutStringSlice(updateFields)
 
 	// 反序列化记录
 	fieldsBytes, err := t.deserializeRecord(record)
@@ -246,13 +245,19 @@ func (t *Table) Update(fields *map[string]any, params ...any) error {
 		return err
 	}
 
+	// 使用 UpdateImpl
+	updateImpl := NewUpdateImpl(t, batch, userProvidedBatch, fields, timeout)
+	updateImpl.fieldsBytes = fieldsBytes
+	updateImpl.updateFields = updateFields
+	updateImpl.key = key
+
 	// 执行更新操作
-	if err := t.executeUpdateOperation(batch, fields, fieldsBytes, updateFields); err != nil {
+	if err := updateImpl.ExecuteUpdateOperation(); err != nil {
 		return err
 	}
 
 	// 提交事务
-	if err := t.commitUpdateTransaction(batch, userProvidedBatch); err != nil {
+	if err := updateImpl.Commit(); err != nil {
 		return err
 	}
 

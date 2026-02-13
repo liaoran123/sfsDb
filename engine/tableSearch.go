@@ -10,31 +10,25 @@ import (
 
 // 从按主键数据库读取记录
 func (t *Table) Read(fields *map[string]any, timeout ...time.Duration) ([]byte, error) {
-	// 获取主键值用于行级锁
-	pkField := t.GetPrimaryFields()[0]
-	pkValue := (*fields)[pkField]
+	// 解析超时参数
+	var duration time.Duration
+	if len(timeout) > 0 {
+		duration = timeout[0]
+	}
 
-	// 获取行级共享锁（使用默认事务ID）
-	if err := t.acquireRowReadLock(pkValue, 0, timeout...); err != nil {
+	// 使用 SearchImpl
+	searchImpl := NewSearchImpl(t, fields, nil, duration, nil)
+
+	// 读取记录
+	record, err := searchImpl.Read()
+	if err != nil {
 		return nil, err
 	}
-	// 直接使用 RUnlock 释放读锁
-	lockKey := fmt.Sprintf("%v", pkValue)
-	defer func() {
-		if rowLock, ok := t.rowLocks.Load(lockKey); ok {
-			rl := rowLock.(*RowLock)
-			rl.rwLock.RUnlock()
-		}
-	}()
 
-	fieldsBytes := t.FieldsToBytes(fields)
-	defer func() {
-		if fieldsBytes != nil && *fieldsBytes != nil {
-			GlobalFieldsBytesPool.Put(*fieldsBytes)
-		}
-	}()
-	key := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
-	return t.ReadByBytes(key), nil
+	// 归还对象池
+	GlobalSearchImplPool.Put(searchImpl)
+
+	return record, nil
 }
 
 // ReadWithTimeout 带超时的读取方法
@@ -88,62 +82,18 @@ func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) (
 }
 
 func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...util.ComparisonOperator) (*TableIter, error) {
-	var tbiter *TableIter
-	field := GetStringSlice()
-	defer PutStringSlice(field)
-	for k := range *fields {
-		//判断字段是否在表中
-		if _, ok := t.fields[k]; !ok {
-			//写错误日志
-			//log.Printf("字段 '%s' 不存在于表 '%s'", k, t.name)
-			return nil, fmt.Errorf("字段 '%s' 不存在于表 '%s'", k, t.name)
-		}
-		field = append(field, k)
+	// 使用 SearchImpl
+	searchImpl := NewSearchImpl(t, fields, ops, 0, funIter)
+
+	// 搜索记录
+	tbiter, err := searchImpl.Search()
+	if err != nil {
+		return nil, err
 	}
-	//匹配索引
-	idx := t.MatchIndexCached(field) //t.MatchIndex(field...) //
-	var key []byte
-	var fieldsBytes *map[string][]byte
-	if idx != nil {
-		fieldsBytes = t.FieldsToBytesNil(fields) // 业务有需要可以开启缓存 FieldsToBytesNilLRU(fields *map[string]any) *map[string][]byte
-		key = idx.JoinValue(fieldsBytes, t.id)
-		// 使用完后将 fieldsBytes 放回对象池
-		defer func() {
-			if fieldsBytes != nil && *fieldsBytes != nil {
-				GlobalFieldsBytesPool.Put(*fieldsBytes)
-			}
-		}()
-	} else {
-		/*
-			该函数不支持无索引的搜索。
-			如果需要支持，可以使用ForData()方法或当前函数设置主键值为nil，则得到遍历全表迭代器，然后配合mach接口自定义匹配规则。
-			mach接口自定义匹配规则，理论上可以支持任意查询匹配。
-		*/
-		return nil, fmt.Errorf("表 '%s' 没有设置索引", t.name)
-	}
-	var op util.ComparisonOperator
-	if len(ops) == 0 { //默认是Like操作
-		op = util.Like
-	} else {
-		op = ops[0]
-	}
-	pfx := idx.Prefix(t.id)
-	pfx = append(pfx, SPLIT[0])
-	rangeHelper := util.NewRangeHelper(pfx)
-	var iter storage.Iterator
-	if op != util.NotEqual {
-		slice := rangeHelper.FromComparison(op, key)
-		iter = funIter(slice.Start, slice.Limit)
-		//tbiter = TableIterNew(t, iter, idx)
-		tbiter = GlobalTableIterPool.Get(t, iter, idx)
-	} else { //不等于将会通过主键或索引进行全表扫描，并且设置跳跃区间
-		slice := rangeHelper.FromComparison(util.Like, pfx) //遍历前缀，即通过主键或索引全表扫描
-		iter = funIter(slice.Start, slice.Limit)
-		tbiter = GlobalTableIterPool.Get(t, iter, idx)
-		//设置跳跃区间
-		neslice := rangeHelper.FromComparison(util.Like, key) //跳跃区间key=0-1-100==>0-1-101
-		tbiter.SetJumpRanges(funIter(neslice.Start, neslice.Limit))
-	}
+
+	// 归还对象池
+	GlobalSearchImplPool.Put(searchImpl)
+
 	return tbiter, nil
 }
 
@@ -153,14 +103,18 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 // 索引为主键时，Start=nil表示从表的主键值最小值开始，Limit=nil表示到表的主键值最大值结束。同时为nil即表示遍历全表。
 // funIter 区间迭代器
 func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, Start, Limit any) (*TableIter, error) {
-	iter, idx, err := t.RangeForAny(funIter, fieldname, Start, Limit)
+	// 使用 SearchImpl
+	searchImpl := NewSearchImpl(t, nil, nil, 0, funIter)
+
+	// 范围搜索
+	tbiter, err := searchImpl.SearchRange(fieldname, Start, Limit)
 	if err != nil {
 		return nil, err
 	}
-	tbiter := GlobalTableIterPool.Get(t, iter, idx)
-	if tbiter == nil {
-		return nil, fmt.Errorf("TableIter为nil")
-	}
+
+	// 归还对象池
+	GlobalSearchImplPool.Put(searchImpl)
+
 	return tbiter, nil
 }
 
@@ -205,47 +159,3 @@ func (t *Table) RangeForAny(funIter storage.FunIter, fieldname string, Start, Li
 	}
 	return iter, idx, nil
 }
-
-/*
-func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, Start, Limit any) (*TableIter, error) {
-	idx := t.MatchIndexCached([]string{fieldname})
-	if idx == nil {
-		return nil, fmt.Errorf("字段 '%s' 不存在于表 '%s'", fieldname, t.name)
-	}
-	pfx := idx.Prefix(t.id)
-	pfx = append(pfx, SPLIT[0])
-	// 处理Start参数
-	var startBytes []byte
-	if Start != nil {
-		startBytes = util.AnyToBytes(Start)
-	}
-	// 处理Limit参数
-	var limitBytes []byte
-	if Limit != nil {
-		limitBytes = util.AnyToBytes(Limit)
-	}
-	// 创建范围对象
-	slice := &util.Range{
-		Start: startBytes,
-		Limit: limitBytes,
-	}
-	// 构建完整的搜索范围
-	slice.Start = append(pfx, slice.Start...)
-	if Limit == nil {
-		// 当Limit为nil时，使用前缀的下一个字节作为上限，表示到无穷大
-		slice.Limit = util.BytesPrefix(pfx).Limit
-	} else {
-		// 当Limit不为nil时，构建完整的上限字节
-		slice.Limit = append(pfx, slice.Limit...)
-	}
-	iter := funIter(slice.Start, slice.Limit)
-	if iter == nil {
-		return nil, fmt.Errorf("区间迭代器不能为空")
-	}
-	tbiter := GlobalTableIterPool.Get(t, iter, idx)
-	if tbiter == nil {
-		return nil, fmt.Errorf("TableIter为nil")
-	}
-	return tbiter, nil
-}
-*/

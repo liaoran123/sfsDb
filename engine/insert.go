@@ -1,13 +1,378 @@
 package engine
 
-/* 可有可无功能
-//添加记录流程接口
+import (
+	"fmt"
+	"sync"
+
+	"github.com/liaoran123/sfsDb/storage"
+	"github.com/liaoran123/sfsDb/util"
+)
+
+// InsertImplPool 是 InsertImpl 的对象池
+type InsertImplPool struct {
+	pool sync.Pool
+}
+
+// 全局 InsertImpl 对象池
+var GlobalInsertImplPool = &InsertImplPool{
+	pool: sync.Pool{
+		New: func() interface{} {
+			return &InsertImpl{}
+		},
+	},
+}
+
+// Get 从对象池中获取一个 InsertImpl 实例
+func (p *InsertImplPool) Get() *InsertImpl {
+	return p.pool.Get().(*InsertImpl)
+}
+
+// Put 将 InsertImpl 实例放回对象池
+func (p *InsertImplPool) Put(impl *InsertImpl) {
+	// 重置实例状态
+	impl.Reset()
+	p.pool.Put(impl)
+}
+
+// 提供了一个统一的插入流程接口
+// 添加记录流程接口
 type Insert interface {
 	//自动增值主键
-	AutoIncrement() int
+	AutoIncrement() (int, error)
+	// 检查字段类型
+	CheckType() error
+	// 转换字段为字节数组
 	FieldsToBytes(fields *map[string]any) *map[string][]byte
+	// 格式化记录
 	FormatRecord(fieldsBytes *map[string][]byte) []byte
+	// 获取表ID
 	GetID() []byte
+	// 提交事务
 	Commit() error
 }
-*/
+
+// 批量插入接口
+type BatchInsert interface {
+	Insert
+	// 批量插入多条记录
+	BatchInsert(records []*map[string]any, batchs ...storage.Batch) ([]int, error)
+	// 带批量大小控制的批量插入
+	BatchInsertWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error)
+	// 批量提交事务
+	BatchCommit() error
+}
+
+type InsertImpl struct {
+	table             *Table
+	batch             storage.Batch
+	userProvidedBatch bool
+	fields            *map[string]any
+	fieldsBytes       *map[string][]byte
+	record            []byte
+	// 批量操作相关字段
+	records         []*map[string]any
+	fieldsBytesList []*map[string][]byte
+	recordsList     [][]byte
+	ids             []int
+}
+
+// Reset 重置 InsertImpl 实例的状态
+func (i *InsertImpl) Reset() {
+	i.table = nil
+	i.batch = nil
+	i.userProvidedBatch = false
+	i.fields = nil
+	i.fieldsBytes = nil
+	i.record = nil
+	i.records = nil
+	i.fieldsBytesList = nil
+	i.recordsList = nil
+	i.ids = nil
+}
+
+// NewInsertImpl 创建一个新的 InsertImpl 实例
+func NewInsertImpl(table *Table, batch storage.Batch, userProvidedBatch bool, fields *map[string]any) *InsertImpl {
+	impl := GlobalInsertImplPool.Get()
+	impl.table = table
+	impl.batch = batch
+	impl.userProvidedBatch = userProvidedBatch
+	impl.fields = fields
+	return impl
+}
+
+// NewBatchInsertImpl 创建一个新的用于批量插入的 InsertImpl 实例
+func NewBatchInsertImpl(table *Table, batch storage.Batch, userProvidedBatch bool, records []*map[string]any) *InsertImpl {
+	impl := GlobalInsertImplPool.Get()
+	impl.table = table
+	impl.batch = batch
+	impl.userProvidedBatch = userProvidedBatch
+	impl.records = records
+	return impl
+}
+
+// AutoIncrement 实现自动增值主键
+func (i *InsertImpl) AutoIncrement() (int, error) {
+	// 获取主键字段
+	primaryFields := i.table.GetPrimaryFields()
+	if len(primaryFields) == 0 {
+		return -1, fmt.Errorf("表 '%s' 没有设置主键", i.table.name)
+	}
+
+	// 是否支持默认自动增值主键，单主键并且主键字段名为"id"
+	supportDefault := len(primaryFields) == 1 && primaryFields[0] == "id"
+	currentID := -1
+
+	if supportDefault {
+		// 检查是否提供了主键字段
+		//使用默认自动增值主键时，不需要提供主键字段，系统自动生成，强制使用"id"字段和自动增值主键
+		_, ok := (*i.fields)[primaryFields[0]]
+		if !ok { //未提供主键字段，自动生成主键值
+			currentID = i.table.GetAutoInc()
+			(*i.fields)[primaryFields[0]] = currentID
+		} else { //提供了主键字段id，但是值为nil，自动生成主键值
+			if (*i.fields)[primaryFields[0]] == nil {
+				currentID = i.table.GetAutoInc()
+				(*i.fields)[primaryFields[0]] = currentID
+			}
+		}
+	}
+
+	// 检查字段类型是否匹配
+	if err := i.table.CheckType(i.fields); err != nil {
+		return -1, err
+	}
+
+	currentID = util.AnyToInt((*i.fields)[primaryFields[0]])
+	// 添加初始版本号
+	if _, hasVersion := (*i.fields)["v"]; !hasVersion || (*i.fields)["v"] == "" {
+		(*i.fields)["v"] = generateEnhancedVersion() // 使用增强版版本号
+	}
+
+	return currentID, nil
+}
+
+// CheckType 检查字段类型是否匹配
+func (i *InsertImpl) CheckType() error {
+	return i.table.CheckType(i.fields)
+}
+
+// FieldsToBytes 转换字段为字节数组
+func (i *InsertImpl) FieldsToBytes(fields *map[string]any) *map[string][]byte {
+	return i.table.FieldsToBytes(fields)
+}
+
+// FormatRecord 格式化记录
+func (i *InsertImpl) FormatRecord(fieldsBytes *map[string][]byte) []byte {
+	return i.table.FormatRecord(fieldsBytes)
+}
+
+// GetID 获取表ID
+func (i *InsertImpl) GetID() []byte {
+	return []byte{i.table.id}
+}
+
+// Commit 提交事务
+func (i *InsertImpl) Commit() error {
+	// 转换字段为字节数组
+	if i.fieldsBytes == nil {
+		i.fieldsBytes = i.table.FieldsToBytes(i.fields)
+	}
+
+	// 格式化记录
+	if i.record == nil {
+		i.record = i.table.FormatRecord(i.fieldsBytes)
+	}
+
+	// 从对象池中获取一个 batchContainer
+	BatchContainer := GetBatchContainer(i.batch, i.table.indexs, i.table.id, i.table.kvStore)
+	defer PutBatchContainer(BatchContainer)
+
+	// 设置值并执行操作
+	BatchContainer.SetValue(0, i.record)                                     // 添加主键value=record
+	BatchContainer.SetValue(1, i.table.GetPrimaryKey().GetID(i.fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
+	BatchContainer.Operation(i.fieldsBytes)                                  // 添加全文索引key=joinValue,value=nil
+
+	// 提交事务
+	if !i.userProvidedBatch {
+		if err := i.table.kvStore.WriteBatch(i.batch); err != nil {
+			return err
+		}
+	}
+
+	// 归还对象池
+	defer GlobalInsertImplPool.Put(i)
+
+	return nil
+}
+
+// BatchInsert 批量插入多条记录
+func (i *InsertImpl) BatchInsert(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
+	// 检查参数
+	if i.table.fields == nil {
+		return nil, fmt.Errorf("表 '%s' 未设置字段和类型", i.table.name)
+	}
+	if len(records) == 0 {
+		return []int{}, nil
+	}
+	if records == nil {
+		return nil, fmt.Errorf("records cannot be nil")
+	}
+
+	// 保存记录
+	i.records = records
+
+	// 获取主键字段
+	primaryFields := i.table.GetPrimaryFields()
+	if len(primaryFields) == 0 {
+		return nil, fmt.Errorf("表 '%s' 没有设置主键", i.table.name)
+	}
+
+	// 是否支持默认自动增值主键，单主键并且主键字段名为"id"
+	pklen := len(primaryFields)
+	pkfield := primaryFields[0]
+	supportDefault := pklen == 1 && pkfield == "id"
+
+	// 处理批量操作
+	var batch storage.Batch
+	if len(batchs) > 0 { // 用户手动控制事务
+		batch = batchs[0]
+		if batch == nil {
+			return nil, fmt.Errorf("batch cannot be nil")
+		}
+		i.userProvidedBatch = true
+	} else {
+		batch = i.table.kvStore.GetBatch()
+		if batch == nil {
+			return nil, fmt.Errorf("failed to get batch")
+		}
+		i.userProvidedBatch = false
+	}
+	i.batch = batch
+
+	// 预分配ID列表容量
+	ids := make([]int, len(records))
+	i.ids = ids
+
+	// 计算需要自动生成的ID数量
+	autoIncCount := 0
+	for _, fields := range records {
+		if fields == nil {
+			return nil, fmt.Errorf("record cannot be nil")
+		}
+		if supportDefault {
+			if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
+				autoIncCount++
+			}
+		}
+	}
+
+	// 批量获取自动增值ID，确保并发安全
+	var autoIncStart int
+	if supportDefault && autoIncCount > 0 {
+		autoIncStart = i.table.GetAutoIncBatch(autoIncCount)
+	}
+
+	// 处理记录并批量插入
+	autoIncIdx := 0
+	// 从对象池中获取一个 batchContainer
+	BatchContainer := GetBatchContainer(batch, i.table.indexs, i.table.id, i.table.kvStore)
+	defer PutBatchContainer(BatchContainer)
+
+	for j, fields := range records {
+		// 检查字段类型
+		if err := i.table.CheckType(fields); err != nil {
+			return nil, err
+		}
+
+		// 处理自动增值主键
+		if supportDefault {
+			if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
+				// 使用预分配的自动增值ID
+				ids[j] = autoIncStart + autoIncIdx
+				(*fields)[pkfield] = ids[j]
+				autoIncIdx++
+			} else {
+				// 使用提供的主键值
+				ids[j] = util.AnyToInt((*fields)[pkfield])
+			}
+		} else {
+			// 非默认自动增值主键，使用提供的主键值
+			ids[j] = util.AnyToInt((*fields)[pkfield])
+		}
+
+		// 添加初始版本号
+		if _, hasVersion := (*fields)["v"]; !hasVersion || (*fields)["v"] == "" {
+			(*fields)["v"] = generateEnhancedVersion()
+		}
+
+		// 转换字段为字节数组
+		fieldsBytes := i.table.FieldsToBytes(fields)
+
+		// 格式化记录
+		record := i.table.FormatRecord(fieldsBytes)
+
+		// 批量添加记录
+		BatchContainer.SetValue(0, record)
+		BatchContainer.SetValue(1, i.table.GetPrimaryKey().GetID(fieldsBytes))
+		BatchContainer.Operation(fieldsBytes)
+	}
+
+	// 提交批量操作
+	if err := i.BatchCommit(); err != nil {
+		return nil, err
+	}
+
+	return ids, nil
+}
+
+// BatchInsertWithSize 带批量大小控制的批量插入
+func (i *InsertImpl) BatchInsertWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error) {
+	// 检查参数
+	if batchSize <= 0 {
+		batchSize = 100 // 默认批量大小
+	}
+
+	// 计算总批次
+	totalRecords := len(records)
+	if totalRecords == 0 {
+		return []int{}, nil
+	}
+
+	// 预分配ID列表
+	allIds := make([]int, totalRecords)
+
+	// 分批处理
+	for start := 0; start < totalRecords; start += batchSize {
+		end := start + batchSize
+		if end > totalRecords {
+			end = totalRecords
+		}
+
+		// 处理当前批次
+		batchRecords := records[start:end]
+		batchIds, err := i.BatchInsert(batchRecords, batchs...)
+		if err != nil {
+			return nil, err
+		}
+
+		// 复制ID到结果列表
+		copy(allIds[start:end], batchIds)
+	}
+
+	return allIds, nil
+}
+
+// BatchCommit 批量提交事务
+func (i *InsertImpl) BatchCommit() error {
+	// 提交事务
+	if !i.userProvidedBatch {
+		if err := i.table.kvStore.WriteBatch(i.batch); err != nil {
+			return err
+		}
+	}
+
+	// 归还对象池
+	defer GlobalInsertImplPool.Put(i)
+
+	return nil
+}

@@ -64,8 +64,17 @@ func (t *Table) Delete(fields *map[string]any, params ...any) error {
 	// 解析参数
 	batch, timeout := t.parseDeleteParams(params...)
 
+	// 准备batch
+	batch, userProvidedBatch, err := t.prepareDeleteBatch(batch)
+	if err != nil {
+		return err
+	}
+
+	// 使用 DeleteImpl
+	deleteImpl := NewDeleteImpl(t, batch, userProvidedBatch, fields, timeout)
+
 	// 验证字段
-	pkValue, err := t.validateDeleteFields(fields)
+	pkValue, err := deleteImpl.ValidateDeleteFields()
 	if err != nil {
 		return err
 	}
@@ -85,40 +94,18 @@ func (t *Table) Delete(fields *map[string]any, params ...any) error {
 	}()
 
 	// 读取记录
-	key, err := t.readRecordForDelete(fields)
+	_, err = deleteImpl.ReadRecordForDelete()
 	if err != nil {
 		return err
 	}
 
-	// 读取原始记录
-	record := t.ReadByBytes(key)
-	if record == nil {
-		return fmt.Errorf("主键值 '%v' 的记录不存在", fields)
-	}
-
-	// 准备batch
-	batch, userProvidedBatch, err := t.prepareDeleteBatch(batch)
-	if err != nil {
+	// 执行删除操作
+	if err := deleteImpl.ExecuteDeleteOperation(); err != nil {
 		return err
 	}
-
-	// 反序列化记录
-	pk := t.GetPrimaryKey()
-	fieldsBytes, err := pk.Parse(t.fieldsid, record)
-	if err != nil {
-		return err
-	}
-
-	// 从对象池中获取一个 batchContainer
-	BatchContainer := GetBatchContainer(batch, t.indexs, t.id, t.kvStore)
-	defer PutBatchContainer(BatchContainer)
-
-	// 对于删除操作，需要将values[0]设置为nil，这样Add方法才会执行删除操作
-	BatchContainer.SetValue(0, nil)
-	BatchContainer.Operation(fieldsBytes)
 
 	// 提交事务
-	if err := t.commitDeleteTransaction(batch, userProvidedBatch); err != nil {
+	if err := deleteImpl.Commit(); err != nil {
 		return err
 	}
 
