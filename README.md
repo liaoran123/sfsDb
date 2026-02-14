@@ -293,10 +293,16 @@ func main() {
 - [Index Management Guide](./docs/en/advanced/index_management.md) - Index creation, management and optimization (English)
 
 ### 性能测试报告
-- [综合性能基准测试报告](./engine/comprehensive_benchmark_report.md) - 详细的性能测试和分析
-- [事务基准测试报告](./engine/transaction_benchmark_report.md) - 详细的事务性能测试和分析
-- [ACID vs Non-ACID 性能比较报告](./engine/acid_vs_nonacid_benchmark_report.md) - ACID特性对性能的影响分析
-- [时序数据库性能比较报告](./docs/performance/time_series_benchmark.md) - time包基准测试与其他时序数据库性能比较
+- [综合性能基准测试报告](./engine/comprehensive_benchmark_report.md) - 全面的性能测试和分析，包括读写性能、并发性能、不同数据量下的表现，以及与其他数据库的性能比较
+- [事务基准测试报告](./engine/transaction_benchmark_report.md) - 详细的事务性能测试和分析，包括单事务和多事务场景下的性能表现，以及事务优化效果
+- [ACID vs Non-ACID 性能比较报告](./engine/acid_vs_nonacid_benchmark_report.md) - ACID特性对性能的影响分析，比较不同事务模式下的性能差异和适用场景
+- [时序数据库性能比较报告](./docs/performance/time_series_benchmark.md) - time包基准测试与其他时序数据库性能比较，包括单线程和并发性能测试，以及时间序列数据处理的效率分析
+
+### 性能优势分析
+- [sfsDb性能优势分析文章](./docs/marketing/performance_advantage_article.md) - 详细分析sfsDb如何通过无SQL设计和嵌入式架构实现性能突破
+
+### 示例项目
+- [sfsDbIIoT](https://github.com/liaoran123/sfsDbIIoT) - 使用sfsDb实现的智能工厂设备监控系统，展示了sfsDb在工业IoT领域的应用
 
 ### 资源管理
 - [对象池使用指南](./docs/zh/optimization/object_pool.md) - 高效的对象复用机制（中文）
