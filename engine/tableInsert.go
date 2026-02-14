@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/liaoran123/sfsDb/storage"
-	"github.com/liaoran123/sfsDb/util"
 )
 
 // prepareInsertBatch 准备插入操作的batch
@@ -28,6 +27,7 @@ func (t *Table) prepareInsertBatch(batchs ...storage.Batch) (storage.Batch, bool
 	return batch, userProvidedBatch, nil
 }
 
+/*
 // commitInsertTransaction 提交插入事务
 func (t *Table) commitInsertTransaction(batch storage.Batch, userProvidedBatch bool) error {
 	//提交事务
@@ -82,7 +82,7 @@ func (t *Table) handleAutoIncrement(fields *map[string]any) (int, error) {
 
 	return currentID, nil
 }
-
+*/
 // 插入记录
 func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (currentID int, err error) {
 	// 检查参数
