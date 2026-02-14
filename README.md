@@ -296,6 +296,7 @@ func main() {
 - [综合性能基准测试报告](./engine/comprehensive_benchmark_report.md) - 详细的性能测试和分析
 - [事务基准测试报告](./engine/transaction_benchmark_report.md) - 详细的事务性能测试和分析
 - [ACID vs Non-ACID 性能比较报告](./engine/acid_vs_nonacid_benchmark_report.md) - ACID特性对性能的影响分析
+- [时序数据库性能比较报告](./docs/performance/time_series_benchmark.md) - time包基准测试与其他时序数据库性能比较
 
 ### 资源管理
 - [对象池使用指南](./docs/zh/optimization/object_pool.md) - 高效的对象复用机制（中文）

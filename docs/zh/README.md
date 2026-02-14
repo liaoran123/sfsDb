@@ -110,6 +110,10 @@ func main() {
 }
 ```
 
+## 性能测试报告
+
+- [时序数据库性能比较报告](../performance/time_series_benchmark.md) - time包基准测试与其他时序数据库性能比较
+
 ## 文档维护
 
 本文档采用模块化结构组织，便于维护和更新。如有任何问题或建议，请参考 [文档维护指南](../DOCUMENTATION_MAINTENANCE.md)。

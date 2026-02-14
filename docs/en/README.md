@@ -128,6 +128,10 @@ func main() {
 - **Testing**: Fast setup and teardown for test environments
 - **Edge Computing**: Process data locally with minimal overhead
 
+## Performance Reports
+
+- [Time Series Database Performance Comparison](../performance/time_series_benchmark.md) - Benchmark tests for time package and performance comparison with other time series databases
+
 ## Support & Contribution
 
 For bug reports, feature requests, or contributions, please visit the [GitHub repository](https://github.com/liaoran123/sfsDb).
