@@ -657,12 +657,16 @@ for iter.First(); iter.Valid(); iter.Next() {
 type TimeGranularity string
 
 const (
-    TimeGranularitySecond TimeGranularity = "second"
-    TimeGranularityMinute TimeGranularity = "minute"
-    TimeGranularityHour   TimeGranularity = "hour"
-    TimeGranularityDay    TimeGranularity = "day"
-    TimeGranularityMonth  TimeGranularity = "month"
-    TimeGranularityYear   TimeGranularity = "year"
+    TimeGranularityMillisecond TimeGranularity = "millisecond"
+    TimeGranularityMicrosecond TimeGranularity = "microsecond"
+    TimeGranularitySecond      TimeGranularity = "second"
+    TimeGranularityMinute      TimeGranularity = "minute"
+    TimeGranularityHour        TimeGranularity = "hour"
+    TimeGranularityDay         TimeGranularity = "day"
+    TimeGranularityWeek        TimeGranularity = "week"
+    TimeGranularityMonth       TimeGranularity = "month"
+    TimeGranularityQuarter     TimeGranularity = "quarter"
+    TimeGranularityYear        TimeGranularity = "year"
 )
 ```
 
@@ -673,6 +677,115 @@ const (
 type TimeAggregationResult struct {
     TimeKey string  `json:"time_key"`
     Value   float64 `json:"value"`
+}
+```
+
+#### TimeWindow
+时间窗口接口，用于时间窗口计算。
+
+```go
+type TimeWindow interface {
+    // Next 移动到下一个窗口，返回是否还有下一个窗口
+    Next() bool
+    // Start 获取当前窗口的开始时间
+    Start() time.Time
+    // End 获取当前窗口的结束时间
+    End() time.Time
+    // Reset 重置窗口到初始状态
+    Reset()
+}
+```
+
+#### SlidingWindow
+滑动窗口实现，支持固定大小的窗口以固定步长滑动。
+
+```go
+type SlidingWindow struct {
+    startTime    time.Time
+    endTime      time.Time
+    windowSize   time.Duration
+    stepSize     time.Duration
+    currentStart time.Time
+}
+```
+
+#### TumblingWindow
+滚动窗口实现，窗口之间没有重叠。
+
+```go
+type TumblingWindow struct {
+    startTime    time.Time
+    endTime      time.Time
+    windowSize   time.Duration
+    currentStart time.Time
+}
+```
+
+#### WindowAggregation
+窗口聚合结果，用于存储按时间窗口聚合的数据。
+
+```go
+type WindowAggregation struct {
+    WindowStart time.Time  `json:"window_start"`
+    WindowEnd   time.Time  `json:"window_end"`
+    Value       float64    `json:"value"`
+}
+```
+
+#### TimeSeriesPoint
+时间序列数据点，用于时间序列预测。
+
+```go
+type TimeSeriesPoint struct {
+    Time  time.Time
+    Value float64
+}
+```
+
+#### MovingAveragePrediction
+移动平均预测结果。
+
+```go
+type MovingAveragePrediction struct {
+    PredictedPoints []TimeSeriesPoint
+    WindowSize      int
+}
+```
+
+#### LinearRegressionPrediction
+线性回归预测结果。
+
+```go
+type LinearRegressionPrediction struct {
+    PredictedPoints []TimeSeriesPoint
+    Slope           float64
+    Intercept       float64
+    R2              float64 // 决定系数，衡量模型拟合度
+}
+```
+
+#### CompressedTimeSeries
+压缩后的时间序列数据。
+
+```go
+type CompressedTimeSeries struct {
+    StartTime    time.Time
+    Interval     time.Duration
+    CompressedValues []byte
+    CompressionType  string
+}
+```
+
+#### TimeRangeQueryOptions
+时间范围查询选项，用于优化时间范围查询。
+
+```go
+type TimeRangeQueryOptions struct {
+    FieldName     string
+    StartTime     time.Time
+    EndTime       time.Time
+    TimeGranularity TimeGranularity
+    Inclusive     bool // 是否包含边界值
 }
 ```
 
@@ -714,12 +827,12 @@ func TimeRange(start time.Time, granularity TimeGranularity) (time.Time, time.Ti
 
 #### 时间粒度聚合
 ```go
-func AggregateByTimeGranularity(records record.Records, timeField string, valueField string, 
+func AggregateByTimeGranularity(records interface{}, timeField string, valueField string, 
     granularity TimeGranularity, aggregationType string) ([]TimeAggregationResult, error)
 ```
 - **功能**：按时间粒度聚合数据
 - **参数**：
-  - `records`：记录集合
+  - `records`：记录集合，可以是 `[]map[string]any` 或 `record.Records`
   - `timeField`：时间字段名
   - `valueField`：值字段名
   - `granularity`：时间粒度
@@ -748,6 +861,83 @@ func UnixTimestampMsToTime(timestampMs int64) time.Time
 
 // UnixTimestampNsToTime 将纳秒级 Unix 时间戳转换为 time.Time
 func UnixTimestampNsToTime(timestampNs int64) time.Time
+```
+
+#### 时间窗口操作
+
+```go
+// NewSlidingWindow 创建一个新的滑动窗口
+func NewSlidingWindow(startTime, endTime time.Time, windowSize, stepSize time.Duration) *SlidingWindow
+
+// NewTumblingWindow 创建一个新的滚动窗口
+func NewTumblingWindow(startTime, endTime time.Time, windowSize time.Duration) *TumblingWindow
+
+// AggregateByWindow 按时间窗口聚合数据
+func AggregateByWindow(records []map[string]any, timeField string, valueField string, window TimeWindow, aggregationType string) ([]WindowAggregation, error)
+```
+
+#### 时间序列预测
+
+```go
+// NewMovingAveragePrediction 创建移动平均预测
+func NewMovingAveragePrediction(points []TimeSeriesPoint, windowSize, predictCount int, interval time.Duration) *MovingAveragePrediction
+
+// NewLinearRegressionPrediction 创建线性回归预测
+func NewLinearRegressionPrediction(points []TimeSeriesPoint, predictCount int, interval time.Duration) *LinearRegressionPrediction
+
+// PredictTimeSeries 预测时间序列数据
+func PredictTimeSeries(points []TimeSeriesPoint, method string, params map[string]any) (any, error)
+```
+
+#### 时间序列数据压缩
+
+```go
+// CompressTimeSeries 压缩时间序列数据
+func CompressTimeSeries(points []TimeSeriesPoint, compressionType string, interval time.Duration) (*CompressedTimeSeries, error)
+
+// DecompressTimeSeries 解压缩时间序列数据
+func DecompressTimeSeries(cts *CompressedTimeSeries, count int) ([]TimeSeriesPoint, error)
+
+// GetCompressionRatio 计算压缩率
+func GetCompressionRatio(originalSize, compressedSize int) float64
+```
+
+#### 增强的时间粒度支持
+
+```go
+// IsWeekday 检查给定时间是否为工作日
+func IsWeekday(t time.Time) bool
+
+// IsWeekend 检查给定时间是否为周末
+func IsWeekend(t time.Time) bool
+
+// GetQuarter 获取给定时间所在的季度
+func GetQuarter(t time.Time) int
+
+// GetWeekNumber 获取给定时间所在的周数（一年中的第几周）
+func GetWeekNumber(t time.Time) int
+```
+
+#### 时间范围查询优化
+
+```go
+// NewTimeRangeQueryOptions 创建时间范围查询选项
+func NewTimeRangeQueryOptions(fieldName string, startTime, endTime time.Time, granularity TimeGranularity) *TimeRangeQueryOptions
+
+// SearchTimeRange 执行时间范围查询
+func SearchTimeRange(table *engine.Table, options *TimeRangeQueryOptions) (*engine.TableIter, error)
+
+// SearchTimeRangeWithGranularity 按时间粒度执行时间范围查询
+func SearchTimeRangeWithGranularity(table *engine.Table, fieldName string, startTime, endTime time.Time, granularity TimeGranularity) (*engine.TableIter, error)
+
+// AdjustTimeToGranularity 将时间调整到指定粒度的边界
+func AdjustTimeToGranularity(t time.Time, granularity TimeGranularity) time.Time
+
+// AdjustTimeRangeByGranularity 根据时间粒度调整时间范围
+func AdjustTimeRangeByGranularity(startTime, endTime time.Time, granularity TimeGranularity) (time.Time, time.Time)
+
+// TimeRangeQueryWithAggregation 带聚合的时间范围查询
+func TimeRangeQueryWithAggregation(table *engine.Table, options *TimeRangeQueryOptions, valueField string, aggregationType string) ([]TimeAggregationResult, error)
 ```
 
 ### 使用示例
@@ -793,7 +983,7 @@ timeObjNs := sfsTime.UnixTimestampNsToTime(unixTimeNs) // 纳秒级
 records := record.Records{...}
 
 // 按小时聚合
-results, err := sfsTime.AggregateByTimeGranularity(
+hourlyResults, err := sfsTime.AggregateByTimeGranularity(
     records,
     "timestamp",    // 时间字段
     "value",        // 值字段
@@ -802,7 +992,117 @@ results, err := sfsTime.AggregateByTimeGranularity(
 )
 
 // 输出结果
-for _, result := range results {
+for _, result := range hourlyResults {
+    fmt.Printf("Time: %s, Sum: %.2f\n", result.TimeKey, result.Value)
+}
+```
+
+#### 时间窗口计算
+```go
+// 创建滑动窗口
+startTime := time.Now().Add(-10 * time.Minute)
+endTime := time.Now()
+windowSize := 2 * time.Minute
+stepSize := 1 * time.Minute
+
+window := sfsTime.NewSlidingWindow(startTime, endTime, windowSize, stepSize)
+
+// 遍历窗口
+for window.Next() {
+    start := window.Start()
+    end := window.End()
+    fmt.Printf("Window: %s to %s\n", start, end)
+}
+
+// 按窗口聚合
+var records []map[string]any
+// ... 填充数据 ...
+
+results, err := sfsTime.AggregateByWindow(
+    records,
+    "timestamp",
+    "value",
+    window,
+    "sum"
+)
+```
+
+#### 时间序列预测
+```go
+// 创建测试数据点
+var points []sfsTime.TimeSeriesPoint
+now := time.Now()
+for i := 0; i < 10; i++ {
+    points = append(points, sfsTime.TimeSeriesPoint{
+        Time:  now.Add(time.Duration(i) * time.Minute),
+        Value: float64(i),
+    })
+}
+
+// 移动平均预测
+maPrediction := sfsTime.NewMovingAveragePrediction(points, 3, 5, time.Minute)
+for _, point := range maPrediction.PredictedPoints {
+    fmt.Printf("Predicted: %s, Value: %.2f\n", point.Time, point.Value)
+}
+
+// 线性回归预测
+lrPrediction := sfsTime.NewLinearRegressionPrediction(points, 5, time.Minute)
+for _, point := range lrPrediction.PredictedPoints {
+    fmt.Printf("Predicted: %s, Value: %.2f\n", point.Time, point.Value)
+}
+```
+
+#### 时间序列数据压缩
+```go
+// 压缩时间序列数据
+compressed, err := sfsTime.CompressTimeSeries(points, "delta", time.Minute)
+if err != nil {
+    panic(err)
+}
+
+// 解压缩时间序列数据
+decompressed, err := sfsTime.DecompressTimeSeries(compressed, 10)
+if err != nil {
+    panic(err)
+}
+
+// 计算压缩率
+originalSize := len(points) * 16 // 假设每个点16字节
+compressedSize := len(compressed.CompressedValues)
+compressionRatio := sfsTime.GetCompressionRatio(originalSize, compressedSize)
+fmt.Printf("Compression ratio: %.2f\n", compressionRatio)
+```
+
+#### 时间范围查询优化
+```go
+// 创建时间范围查询选项
+options := sfsTime.NewTimeRangeQueryOptions(
+    "timestamp",
+    startTime,
+    endTime,
+    sfsTime.TimeGranularityHour
+)
+
+// 执行时间范围查询
+iter, err := sfsTime.SearchTimeRange(table, options)
+if err != nil {
+    panic(err)
+}
+defer iter.Release()
+
+// 带聚合的时间范围查询
+aggregationResults, err := sfsTime.TimeRangeQueryWithAggregation(
+    table,
+    options,
+    "value",
+    "sum"
+)
+if err != nil {
+    panic(err)
+}
+
+// 输出聚合结果
+for _, result := range aggregationResults {
     fmt.Printf("Time: %s, Sum: %.2f\n", result.TimeKey, result.Value)
 }
 ```

@@ -16,12 +16,23 @@ time 包是 sfsDb 提供的时序数据处理工具，用于处理时间相关�
 
 时间粒度处理允许您以不同的精度处理时间数据，支持以下时间粒度：
 
+- **毫秒** (millisecond)
+- **微秒** (microsecond)
 - **秒** (second)
 - **分钟** (minute)
 - **小时** (hour)
 - **天** (day)
+- **周** (week)
 - **月** (month)
+- **季度** (quarter)
 - **年** (year)
+
+此外，time 包还提供了处理时间模式的工具函数：
+
+- **IsWeekday**：检查给定时间是否为工作日
+- **IsWeekend**：检查给定时间是否为周末
+- **GetQuarter**：获取给定时间所在的季度
+- **GetWeekNumber**：获取给定时间所在的周数（一年中的第几周）
 
 使用 `FormatTimeByGranularity` 函数可以将时间戳格式化为指定粒度的时间字符串：
 
@@ -39,13 +50,82 @@ fmt.Println("Hour:", hourStr) // 输出: Hour: 2024-12-25 14:00:00
 
 ### 时间窗口计算
 
-时间窗口计算根据指定的时间粒度计算时间范围，返回起始时间和结束时间：
+时间窗口计算根据指定的时间粒度计算时间范围，返回起始时间和结束时间。time 包现在支持两种类型的时间窗口：
+
+1. **滑动窗口**：固定大小的窗口，以指定的步长在时间上滑动
+2. **滚动窗口**：非重叠的固定大小窗口，在时间上滚动
+
+#### 滑动窗口示例
 
 ```go
-// 计算时间范围
+// 创建滑动窗口
+startTime := time.Now().Add(-10 * time.Minute)
+endTime := time.Now()
+windowSize := 2 * time.Minute
+stepSize := 1 * time.Minute
+
+window := sfsTime.NewSlidingWindow(startTime, endTime, windowSize, stepSize)
+
+// 遍历窗口
+for window.Next() {
+    start := window.Start()
+    end := window.End()
+    fmt.Printf("窗口: %s 到 %s\n", start, end)
+}
+
+// 重置窗口
+window.Reset()
+```
+
+#### 滚动窗口示例
+
+```go
+// 创建滚动窗口
+startTime := time.Now().Add(-10 * time.Minute)
+endTime := time.Now()
+windowSize := 2 * time.Minute
+
+window := sfsTime.NewTumblingWindow(startTime, endTime, windowSize)
+
+// 遍历窗口
+for window.Next() {
+    start := window.Start()
+    end := window.End()
+    fmt.Printf("窗口: %s 到 %s\n", start, end)
+}
+```
+
+#### 窗口聚合
+
+您可以在每个时间窗口内聚合数据：
+
+```go
+// 创建测试数据
+var records []map[string]any
 now := time.Now()
-start, end := sfsTime.TimeRange(now, sfsTime.TimeGranularityDay)
-fmt.Println("Day range:", start, "to", end)
+for i := 0; i < 10; i++ {
+    records = append(records, map[string]any{
+        "timestamp": now.Add(time.Duration(i) * time.Minute),
+        "value":     float64(i),
+    })
+}
+
+// 创建窗口
+window := sfsTime.NewSlidingWindow(startTime, endTime, windowSize, stepSize)
+
+// 按窗口聚合
+results, err := sfsTime.AggregateByWindow(
+    records,
+    "timestamp",
+    "value",
+    window,
+    "sum"
+)
+
+// 输出结果
+for _, result := range results {
+    fmt.Printf("窗口: %s 到 %s, 总和: %.2f\n", result.WindowStart, result.WindowEnd, result.Value)
+}
 ```
 
 ### 数据聚合
@@ -111,11 +191,99 @@ bucket := sfsTime.TimeBucket(now, time.Hour)
 fmt.Println("Bucket:", bucket) // 输出时间桶的起始时间
 ```
 
+### 时间序列预测
+
+time 包现在包含时间序列预测功能，支持两种预测方法：
+
+1. **移动平均预测**：使用历史数据的移动平均值来预测未来值
+2. **线性回归预测**：使用线性回归基于历史趋势预测未来值
+
+#### 移动平均预测示例
+
+```go
+// 创建测试数据点
+var points []sfsTime.TimeSeriesPoint
+now := time.Now()
+for i := 0; i < 10; i++ {
+    points = append(points, sfsTime.TimeSeriesPoint{
+        Time:  now.Add(time.Duration(i) * time.Minute),
+        Value: float64(i),
+    })
+}
+
+// 创建移动平均预测
+maPrediction := sfsTime.NewMovingAveragePrediction(points, 3, 5, time.Minute)
+
+// 输出预测点
+fmt.Println("移动平均预测结果：")
+for _, point := range maPrediction.PredictedPoints {
+    fmt.Printf("预测: %s, 值: %.2f\n", point.Time, point.Value)
+}
+```
+
+#### 线性回归预测示例
+
+```go
+// 创建线性回归预测
+lrPrediction := sfsTime.NewLinearRegressionPrediction(points, 5, time.Minute)
+
+// 输出预测点
+fmt.Println("线性回归预测结果：")
+for _, point := range lrPrediction.PredictedPoints {
+    fmt.Printf("预测: %s, 值: %.2f\n", point.Time, point.Value)
+}
+
+// 输出回归参数
+fmt.Printf("回归参数: 斜率=%.2f, 截距=%.2f, R²=%.2f\n", 
+    lrPrediction.Slope, lrPrediction.Intercept, lrPrediction.R2)
+```
+
+### 时间序列数据压缩
+
+time 包现在支持时间序列数据压缩，以减少存储空间：
+
+1. **增量编码**：通过存储连续值之间的差异来压缩数据
+2. **游程编码 (RLE)**：通过存储重复值及其计数来压缩数据
+
+#### 压缩示例
+
+```go
+// 创建测试数据点
+var points []sfsTime.TimeSeriesPoint
+now := time.Now()
+for i := 0; i < 10; i++ {
+    points = append(points, sfsTime.TimeSeriesPoint{
+        Time:  now.Add(time.Duration(i) * time.Minute),
+        Value: float64(i),
+    })
+}
+
+// 压缩时间序列数据
+compressed, err := sfsTime.CompressTimeSeries(points, "delta", time.Minute)
+if err != nil {
+    panic(err)
+}
+
+// 解压缩时间序列数据
+decompressed, err := sfsTime.DecompressTimeSeries(compressed, 10)
+if err != nil {
+    panic(err)
+}
+
+// 计算压缩率
+originalSize := len(points) * 16 // 假设每个点16字节
+compressedSize := len(compressed.CompressedValues)
+compressionRatio := sfsTime.GetCompressionRatio(originalSize, compressedSize)
+fmt.Printf("压缩率: %.2f\n", compressionRatio)
+```
+
 ## 与数据库集成
 
-### 基本集成示例
+### 时间范围查询优化
 
-以下是 time 包与 sfsDb 数据库集成的基本示例：
+time 包现在提供了优化的时间范围查询功能，可以与 sfsDb 无缝集成：
+
+#### 增强的时间范围查询示例
 
 ```go
 // 创建表
@@ -160,36 +328,60 @@ for i := 0; i < 10; i++ {
     }
 }
 
-// 查询最近1小时的数据
-startTime := time.Now().Add(-1 * time.Hour)
-endTime := time.Now()
-iter, err := sensorTable.SearchRange(sensorTable.kvStore.Iterator, "timestamp", startTime, endTime)
+// 创建时间范围查询选项
+options := sfsTime.NewTimeRangeQueryOptions(
+    "timestamp",
+    time.Now().Add(-1*time.Hour),
+    time.Now(),
+    sfsTime.TimeGranularityHour
+)
+
+// 执行带优化选项的时间范围查询
+iter, err := sfsTime.SearchTimeRange(sensorTable, options)
 if err != nil {
     return err
 }
-defer engine.GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 // 获取结果
-records := iter.GetRecordSet(true)
-defer record.PutRecords(records)
+records := iter.GetRecords(true)
+defer records.Release()
 
-// 按小时聚合
-aggregationResults, err := sfsTime.AggregateByTimeGranularity(
-    records,
-    "timestamp",
+// 按小时聚合，使用优化的时间范围
+aggregationResults, err := sfsTime.TimeRangeQueryWithAggregation(
+    sensorTable,
+    options,
     "value",
-    sfsTime.TimeGranularityHour,
-    "avg",
+    "sum"
 )
 if err != nil {
     return err
 }
 
 // 输出聚合结果
-fmt.Println("按小时聚合的平均传感器值：")
+fmt.Println("传感器值的每小时总和：")
 for _, result := range aggregationResults {
-    fmt.Printf("时间: %s, 平均值: %.2f\n", result.TimeKey, result.Value)
+    fmt.Printf("时间: %s, 总和: %.2f\n", result.TimeKey, result.Value)
 }
+```
+
+#### 带粒度的时间范围查询
+
+```go
+// 执行带指定粒度的时间范围查询
+iter, err := sfsTime.SearchTimeRangeWithGranularity(
+    sensorTable,
+    "timestamp",
+    time.Now().Add(-24*time.Hour),
+    time.Now(),
+    sfsTime.TimeGranularityHour
+)
+if err != nil {
+    return err
+}
+defer iter.Release()
+
+// 处理结果...
 ```
 
 ### 复合主键示例

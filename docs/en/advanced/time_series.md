@@ -16,12 +16,23 @@ This package is particularly suitable for:
 
 Time granularity handling allows you to process time data at different precision levels, supporting the following time granularities:
 
+- **Millisecond**
+- **Microsecond**
 - **Second**
 - **Minute**
 - **Hour**
 - **Day**
+- **Week**
 - **Month**
+- **Quarter**
 - **Year**
+
+Additionally, the time package provides utilities for working with time patterns:
+
+- **IsWeekday**: Check if a given time is a weekday
+- **IsWeekend**: Check if a given time is a weekend
+- **GetQuarter**: Get the quarter of the year for a given time
+- **GetWeekNumber**: Get the week number of the year for a given time
 
 Use the `FormatTimeByGranularity` function to format timestamps into time strings with the specified granularity:
 
@@ -39,13 +50,82 @@ fmt.Println("Hour:", hourStr) // Output: Hour: 2024-12-25 14:00:00
 
 ### Time Window Calculation
 
-Time window calculation computes time ranges based on the specified time granularity, returning start and end times:
+Time window calculation computes time ranges based on the specified time granularity, returning start and end times. The time package now supports two types of time windows:
+
+1. **Sliding Window**: A fixed-size window that slides over time with a specified step size
+2. **Tumbling Window**: Non-overlapping fixed-size windows that tumble over time
+
+#### Sliding Window Example
 
 ```go
-// Calculate time range
+// Create sliding window
+startTime := time.Now().Add(-10 * time.Minute)
+endTime := time.Now()
+windowSize := 2 * time.Minute
+stepSize := 1 * time.Minute
+
+window := sfsTime.NewSlidingWindow(startTime, endTime, windowSize, stepSize)
+
+// Iterate through windows
+for window.Next() {
+    start := window.Start()
+    end := window.End()
+    fmt.Printf("Window: %s to %s\n", start, end)
+}
+
+// Reset window
+window.Reset()
+```
+
+#### Tumbling Window Example
+
+```go
+// Create tumbling window
+startTime := time.Now().Add(-10 * time.Minute)
+endTime := time.Now()
+windowSize := 2 * time.Minute
+
+window := sfsTime.NewTumblingWindow(startTime, endTime, windowSize)
+
+// Iterate through windows
+for window.Next() {
+    start := window.Start()
+    end := window.End()
+    fmt.Printf("Window: %s to %s\n", start, end)
+}
+```
+
+#### Window Aggregation
+
+You can aggregate data within each time window:
+
+```go
+// Create test data
+var records []map[string]any
 now := time.Now()
-start, end := sfsTime.TimeRange(now, sfsTime.TimeGranularityDay)
-fmt.Println("Day range:", start, "to", end)
+for i := 0; i < 10; i++ {
+    records = append(records, map[string]any{
+        "timestamp": now.Add(time.Duration(i) * time.Minute),
+        "value":     float64(i),
+    })
+}
+
+// Create window
+window := sfsTime.NewSlidingWindow(startTime, endTime, windowSize, stepSize)
+
+// Aggregate by window
+results, err := sfsTime.AggregateByWindow(
+    records,
+    "timestamp",
+    "value",
+    window,
+    "sum"
+)
+
+// Output results
+for _, result := range results {
+    fmt.Printf("Window: %s to %s, Sum: %.2f\n", result.WindowStart, result.WindowEnd, result.Value)
+}
 ```
 
 ### Data Aggregation
@@ -100,6 +180,92 @@ timeObjMs := sfsTime.UnixTimestampMsToTime(unixTimeMs) // Millisecond precision
 timeObjNs := sfsTime.UnixTimestampNsToTime(unixTimeNs) // Nanosecond precision
 ```
 
+### Time Series Prediction
+
+The time package now includes time series prediction capabilities, supporting two prediction methods:
+
+1. **Moving Average Prediction**: Uses the moving average of historical data to predict future values
+2. **Linear Regression Prediction**: Uses linear regression to predict future values based on historical trends
+
+#### Moving Average Prediction Example
+
+```go
+// Create test data points
+var points []sfsTime.TimeSeriesPoint
+now := time.Now()
+for i := 0; i < 10; i++ {
+    points = append(points, sfsTime.TimeSeriesPoint{
+        Time:  now.Add(time.Duration(i) * time.Minute),
+        Value: float64(i),
+    })
+}
+
+// Create moving average prediction
+maPrediction := sfsTime.NewMovingAveragePrediction(points, 3, 5, time.Minute)
+
+// Output predicted points
+fmt.Println("Moving average predictions:")
+for _, point := range maPrediction.PredictedPoints {
+    fmt.Printf("Predicted: %s, Value: %.2f\n", point.Time, point.Value)
+}
+```
+
+#### Linear Regression Prediction Example
+
+```go
+// Create linear regression prediction
+lrPrediction := sfsTime.NewLinearRegressionPrediction(points, 5, time.Minute)
+
+// Output predicted points
+fmt.Println("Linear regression predictions:")
+for _, point := range lrPrediction.PredictedPoints {
+    fmt.Printf("Predicted: %s, Value: %.2f\n", point.Time, point.Value)
+}
+
+// Output regression parameters
+fmt.Printf("Regression parameters: Slope=%.2f, Intercept=%.2f, R²=%.2f\n", 
+    lrPrediction.Slope, lrPrediction.Intercept, lrPrediction.R2)
+```
+
+### Time Series Data Compression
+
+The time package now supports time series data compression to reduce storage space:
+
+1. **Delta Encoding**: Compresses data by storing the difference between consecutive values
+2. **Run-Length Encoding (RLE)**: Compresses data by storing repeated values and their counts
+
+#### Compression Example
+
+```go
+// Create test data points
+var points []sfsTime.TimeSeriesPoint
+now := time.Now()
+for i := 0; i < 10; i++ {
+    points = append(points, sfsTime.TimeSeriesPoint{
+        Time:  now.Add(time.Duration(i) * time.Minute),
+        Value: float64(i),
+    })
+}
+
+// Compress time series data
+compressed, err := sfsTime.CompressTimeSeries(points, "delta", time.Minute)
+if err != nil {
+    panic(err)
+}
+
+// Decompress time series data
+decompressed, err := sfsTime.DecompressTimeSeries(compressed, 10)
+if err != nil {
+    panic(err)
+}
+
+// Calculate compression ratio
+originalSize := len(points) * 16 // Assuming 16 bytes per point
+compressedSize := len(compressed.CompressedValues)
+compressionRatio := sfsTime.GetCompressionRatio(originalSize, compressedSize)
+fmt.Printf("Compression ratio: %.2f\n", compressionRatio)
+```
+
 ### Time Bucket Allocation
 
 Time bucket allocation assigns timestamps to time buckets of the specified granularity, returning the start time of the time bucket:
@@ -113,9 +279,11 @@ fmt.Println("Bucket:", bucket) // Output: start time of the time bucket
 
 ## Database Integration
 
-### Basic Integration Example
+### Time Range Query Optimization
 
-Here's a basic example of integrating the time package with sfsDb:
+The time package now provides optimized time range query capabilities that integrate seamlessly with sfsDb:
+
+#### Enhanced Time Range Query Example
 
 ```go
 // Create table
@@ -160,36 +328,60 @@ for i := 0; i < 10; i++ {
     }
 }
 
-// Query data from the last 1 hour
-startTime := time.Now().Add(-1 * time.Hour)
-endTime := time.Now()
-iter, err := sensorTable.SearchRange(sensorTable.kvStore.Iterator, "timestamp", startTime, endTime)
+// Create time range query options
+options := sfsTime.NewTimeRangeQueryOptions(
+    "timestamp",
+    time.Now().Add(-1*time.Hour),
+    time.Now(),
+    sfsTime.TimeGranularityHour
+)
+
+// Execute time range query with optimized options
+iter, err := sfsTime.SearchTimeRange(sensorTable, options)
 if err != nil {
     return err
 }
-defer engine.GlobalTableIterPool.Put(iter)
+defer iter.Release()
 
 // Get results
-records := iter.GetRecordSet(true)
-defer record.PutRecords(records)
+records := iter.GetRecords(true)
+defer records.Release()
 
-// Aggregate by hour
-aggregationResults, err := sfsTime.AggregateByTimeGranularity(
-    records,
-    "timestamp",
+// Aggregate by hour with optimized time range
+aggregationResults, err := sfsTime.TimeRangeQueryWithAggregation(
+    sensorTable,
+    options,
     "value",
-    sfsTime.TimeGranularityHour,
-    "avg",
+    "sum"
 )
 if err != nil {
     return err
 }
 
 // Output aggregation results
-fmt.Println("Hourly average sensor values:")
+fmt.Println("Hourly sum of sensor values:")
 for _, result := range aggregationResults {
-    fmt.Printf("Time: %s, Average: %.2f\n", result.TimeKey, result.Value)
+    fmt.Printf("Time: %s, Sum: %.2f\n", result.TimeKey, result.Value)
 }
+```
+
+#### Time Range Query with Granularity
+
+```go
+// Execute time range query with specified granularity
+iter, err := sfsTime.SearchTimeRangeWithGranularity(
+    sensorTable,
+    "timestamp",
+    time.Now().Add(-24*time.Hour),
+    time.Now(),
+    sfsTime.TimeGranularityHour
+)
+if err != nil {
+    return err
+}
+defer iter.Release()
+
+// Process results...
 ```
 
 ### Composite Primary Key Example
