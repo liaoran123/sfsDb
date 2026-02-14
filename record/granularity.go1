@@ -1,0 +1,36 @@
+package record
+
+import "time"
+
+// TimeGranularity 时间粒度类型
+type TimeGranularity string
+
+const (
+	TimeGranularitySecond TimeGranularity = "second"
+	TimeGranularityMinute TimeGranularity = "minute"
+	TimeGranularityHour   TimeGranularity = "hour"
+	TimeGranularityDay    TimeGranularity = "day"
+	TimeGranularityMonth  TimeGranularity = "month"
+	TimeGranularityYear   TimeGranularity = "year"
+)
+
+//时间粒度转换工具函数
+// FormatTimeByGranularity 根据时间粒度格式化时间
+func FormatTimeByGranularity(t time.Time, granularity TimeGranularity) string {
+	switch granularity {
+	case TimeGranularitySecond:
+		return t.Format("2006-01-02 15:04:05")
+	case TimeGranularityMinute:
+		return t.Format("2006-01-02 15:04:00")
+	case TimeGranularityHour:
+		return t.Format("2006-01-02 15:00:00")
+	case TimeGranularityDay:
+		return t.Format("2006-01-02")
+	case TimeGranularityMonth:
+		return t.Format("2006-01")
+	case TimeGranularityYear:
+		return t.Format("2006")
+	default:
+		return t.Format("2006-01-02 15:04:05")
+	}
+}

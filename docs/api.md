@@ -646,6 +646,167 @@ for iter.First(); iter.Valid(); iter.Next() {
 5. **批量操作**：对于删除和更新操作，使用迭代器的批量操作功能，减少数据库交互
 6. **选择必要字段**：使用 `SetSelects()` 方法只选择必要的字段，减少数据传输和处理开销
 
+## 时序数据处理 (Time Package)
+
+### 核心类型
+
+#### TimeGranularity
+时间粒度类型，用于指定时间处理的精度。
+
+```go
+type TimeGranularity string
+
+const (
+    TimeGranularitySecond TimeGranularity = "second"
+    TimeGranularityMinute TimeGranularity = "minute"
+    TimeGranularityHour   TimeGranularity = "hour"
+    TimeGranularityDay    TimeGranularity = "day"
+    TimeGranularityMonth  TimeGranularity = "month"
+    TimeGranularityYear   TimeGranularity = "year"
+)
+```
+
+#### TimeAggregationResult
+时间聚合结果结构，用于存储按时间粒度聚合的数据。
+
+```go
+type TimeAggregationResult struct {
+    TimeKey string  `json:"time_key"`
+    Value   float64 `json:"value"`
+}
+```
+
+### 核心函数
+
+#### 时间粒度格式化
+```go
+func FormatTimeByGranularity(t time.Time, granularity TimeGranularity) string
+```
+- **功能**：将时间戳格式化为指定粒度的时间字符串
+- **参数**：
+  - `t`：时间对象
+  - `granularity`：时间粒度
+- **返回值**：
+  - `string`：格式化后的时间字符串
+
+#### 时间桶分配
+```go
+func TimeBucket(t time.Time, duration time.Duration) time.Time
+```
+- **功能**：将时间戳分配到指定粒度的时间桶
+- **参数**：
+  - `t`：时间对象
+  - `duration`：时间桶大小
+- **返回值**：
+  - `time.Time`：时间桶的起始时间
+
+#### 时间范围计算
+```go
+func TimeRange(start time.Time, granularity TimeGranularity) (time.Time, time.Time)
+```
+- **功能**：根据时间粒度计算时间范围
+- **参数**：
+  - `start`：起始时间
+  - `granularity`：时间粒度
+- **返回值**：
+  - `time.Time`：范围起始时间
+  - `time.Time`：范围结束时间
+
+#### 时间粒度聚合
+```go
+func AggregateByTimeGranularity(records record.Records, timeField string, valueField string, 
+    granularity TimeGranularity, aggregationType string) ([]TimeAggregationResult, error)
+```
+- **功能**：按时间粒度聚合数据
+- **参数**：
+  - `records`：记录集合
+  - `timeField`：时间字段名
+  - `valueField`：值字段名
+  - `granularity`：时间粒度
+  - `aggregationType`：聚合类型（sum, avg, count, max, min）
+- **返回值**：
+  - `[]TimeAggregationResult`：聚合结果
+  - `error`：错误信息
+
+#### 时间戳转换
+
+```go
+// TimeToUnixTimestamp 将 time.Time 转换为秒级 Unix 时间戳
+func TimeToUnixTimestamp(t time.Time) int64
+
+// TimeToUnixTimestampMs 将 time.Time 转换为毫秒级 Unix 时间戳
+func TimeToUnixTimestampMs(t time.Time) int64
+
+// TimeToUnixTimestampNs 将 time.Time 转换为纳秒级 Unix 时间戳
+func TimeToUnixTimestampNs(t time.Time) int64
+
+// UnixTimestampToTime 将秒级 Unix 时间戳转换为 time.Time
+func UnixTimestampToTime(timestamp int64) time.Time
+
+// UnixTimestampMsToTime 将毫秒级 Unix 时间戳转换为 time.Time
+func UnixTimestampMsToTime(timestampMs int64) time.Time
+
+// UnixTimestampNsToTime 将纳秒级 Unix 时间戳转换为 time.Time
+func UnixTimestampNsToTime(timestampNs int64) time.Time
+```
+
+### 使用示例
+
+#### 基本时间处理
+```go
+import (
+    "time"
+    sfsTime "github.com/liaoran123/sfsDb/time"
+)
+
+// 格式化时间
+now := time.Now()
+hourStr := sfsTime.FormatTimeByGranularity(now, sfsTime.TimeGranularityHour)
+fmt.Println("Hour:", hourStr) // 输出: Hour: 2024-12-25 14:00:00
+
+// 时间桶分配
+bucket := sfsTime.TimeBucket(now, time.Hour)
+fmt.Println("Bucket:", bucket) // 输出时间桶的起始时间
+
+// 时间范围计算
+start, end := sfsTime.TimeRange(now, sfsTime.TimeGranularityDay)
+fmt.Println("Day range:", start, "to", end)
+```
+
+#### 时间戳转换
+```go
+// 时间对象转整数时间戳
+now := time.Now()
+unixTime := sfsTime.TimeToUnixTimestamp(now)         // 秒级
+unixTimeMs := sfsTime.TimeToUnixTimestampMs(now)     // 毫秒级
+unixTimeNs := sfsTime.TimeToUnixTimestampNs(now)     // 纳秒级
+
+// 整数时间戳转时间对象
+timeObj := sfsTime.UnixTimestampToTime(unixTime)     // 秒级
+timeObjMs := sfsTime.UnixTimestampMsToTime(unixTimeMs) // 毫秒级
+timeObjNs := sfsTime.UnixTimestampNsToTime(unixTimeNs) // 纳秒级
+```
+
+#### 数据聚合
+```go
+// 假设我们有一组传感器数据记录
+records := record.Records{...}
+
+// 按小时聚合
+results, err := sfsTime.AggregateByTimeGranularity(
+    records,
+    "timestamp",    // 时间字段
+    "value",        // 值字段
+    sfsTime.TimeGranularityHour,  // 时间粒度
+    "sum",          // 聚合类型
+)
+
+// 输出结果
+for _, result := range results {
+    fmt.Printf("Time: %s, Sum: %.2f\n", result.TimeKey, result.Value)
+}
+```
+
 ## 错误处理
 
 ### 常见错误
