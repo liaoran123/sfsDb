@@ -67,7 +67,7 @@ type DeleteImpl struct {
 	pkValue           any
 	timeout           time.Duration
 	// 批量操作相关字段
-	records           []*map[string]any
+	records []*map[string]any
 }
 
 // Reset 重置 DeleteImpl 实例的状态
@@ -126,6 +126,8 @@ func (d *DeleteImpl) ValidateDeleteFields() (any, error) {
 func (d *DeleteImpl) ReadRecordForDelete() ([]byte, error) {
 	//读取记录 - 直接使用 ReadByBytes 避免死锁
 	fieldsBytes := d.table.FieldsToBytes(d.fields)
+	defer GlobalFieldsBytesPool.Put(*fieldsBytes)
+
 	key := d.table.GetPrimaryKey().JoinValue(fieldsBytes, d.table.id)
 	record := d.table.ReadByBytes(key)
 	if record == nil {
