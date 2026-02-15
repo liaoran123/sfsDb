@@ -51,11 +51,12 @@ func (t *Table) readRecordForDelete(fields *map[string]any) ([]byte, error) {
 	return key, nil
 }
 
+/*
 // commitDeleteTransaction 提交删除事务
 func (t *Table) commitDeleteTransaction(batch storage.Batch, userProvidedBatch bool) error {
 	return t.commitTransaction(batch, userProvidedBatch)
 }
-
+*/
 // 删除记录
 // fields *map[string]any 主键值，可能是组合主键
 // 之前Delete的缺省参数为batchs ...storage.Batch ，支持乐观锁需要增加一个参数，故而为兼容之前的函数，

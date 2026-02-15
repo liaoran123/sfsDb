@@ -40,7 +40,8 @@ func (t *Table) MaxAutoValue() int {
 	if err != nil {
 		return 0
 	}
-	defer GlobalTableIterPool.Put(tableIter)
+	defer tableIter.Release()
+	//defer GlobalTableIterPool.Put(tableIter)
 	if tableIter == nil {
 		return 0
 	}

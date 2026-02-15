@@ -136,26 +136,19 @@ func (i *InsertImpl) AutoIncrement() (int, error) {
 			}
 		}
 	}
-	currentID = util.AnyToInt((*i.fields)[primaryFields[0]])
-	/*// 检查字段类型是否匹配
+
+	// 检查字段类型是否匹配
 	if err := i.table.CheckType(i.fields); err != nil {
 		return -1, err
 	}
 
-
-		// 添加初始版本号
-		if _, hasVersion := (*i.fields)["v"]; !hasVersion || (*i.fields)["v"] == "" {
-			(*i.fields)["v"] = generateEnhancedVersion() // 使用增强版版本号
-		}
-	*/
-	return currentID, nil
-}
-
-// 添加初始版本号
-func (i *InsertImpl) AddVersion() {
+	currentID = util.AnyToInt((*i.fields)[primaryFields[0]])
+	// 添加初始版本号
 	if _, hasVersion := (*i.fields)["v"]; !hasVersion || (*i.fields)["v"] == "" {
 		(*i.fields)["v"] = generateEnhancedVersion() // 使用增强版版本号
 	}
+
+	return currentID, nil
 }
 
 // CheckType 检查字段类型是否匹配
@@ -183,11 +176,7 @@ func (i *InsertImpl) Commit() error {
 	// 转换字段为字节数组
 	if i.fieldsBytes == nil {
 		i.fieldsBytes = i.table.FieldsToBytes(i.fields)
-		// 检查fieldsBytes是否为nil
-		if i.fieldsBytes == nil {
-			return fmt.Errorf("failed to convert fields to bytes")
-		}
-		defer GlobalFieldsBytesPool.PutMapPointer(i.fieldsBytes)
+		defer GlobalFieldsBytesPool.Put(*i.fieldsBytes)
 	}
 
 	// 格式化记录
@@ -245,11 +234,21 @@ func (i *InsertImpl) BatchInsert(records []*map[string]any, batchs ...storage.Ba
 	supportDefault := pklen == 1 && pkfield == "id"
 
 	// 处理批量操作
-	var err error
-	i.batch, i.userProvidedBatch, err = i.table.prepareInsertBatch(batchs...)
-	if err != nil {
-		return nil, err
+	var batch storage.Batch
+	if len(batchs) > 0 { // 用户手动控制事务
+		batch = batchs[0]
+		if batch == nil {
+			return nil, fmt.Errorf("batch cannot be nil")
+		}
+		i.userProvidedBatch = true
+	} else {
+		batch = i.table.kvStore.GetBatch()
+		if batch == nil {
+			return nil, fmt.Errorf("failed to get batch")
+		}
+		i.userProvidedBatch = false
 	}
+	i.batch = batch
 
 	// 预分配ID列表容量
 	ids := make([]int, len(records))
@@ -277,7 +276,7 @@ func (i *InsertImpl) BatchInsert(records []*map[string]any, batchs ...storage.Ba
 	// 处理记录并批量插入
 	autoIncIdx := 0
 	// 从对象池中获取一个 batchContainer
-	BatchContainer := GetBatchContainer(i.batch, i.table.indexs, i.table.id, i.table.kvStore)
+	BatchContainer := GetBatchContainer(batch, i.table.indexs, i.table.id, i.table.kvStore)
 	defer PutBatchContainer(BatchContainer)
 
 	for j, fields := range records {
@@ -309,11 +308,7 @@ func (i *InsertImpl) BatchInsert(records []*map[string]any, batchs ...storage.Ba
 
 		// 转换字段为字节数组
 		fieldsBytes := i.table.FieldsToBytes(fields)
-		// 检查fieldsBytes是否为nil
-		if fieldsBytes == nil {
-			return nil, fmt.Errorf("failed to convert fields to bytes")
-		}
-		defer GlobalFieldsBytesPool.PutMapPointer(fieldsBytes)
+		defer GlobalFieldsBytesPool.Put(*fieldsBytes)
 
 		// 格式化记录
 		record := i.table.FormatRecord(fieldsBytes)
@@ -369,46 +364,6 @@ func (i *InsertImpl) BatchInsertWithSize(records []*map[string]any, batchSize in
 	return allIds, nil
 }
 
-// BatchInsertWithSizeNoInc 带批量大小控制的批量插入（不需要自动增值）
-func (i *InsertImpl) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize int, skipVersion bool, batchs ...storage.Batch) ([]int, error) {
-	// 检查参数
-	if batchSize <= 0 {
-		batchSize = 100 // 默认批量大小
-	}
-
-	// 计算总批次
-	totalRecords := len(records)
-	if totalRecords == 0 {
-		return []int{}, nil
-	}
-
-	// 预分配ID列表
-	allIds := make([]int, totalRecords)
-
-	// 分批处理
-	for start := 0; start < totalRecords; start += batchSize {
-		end := start + batchSize
-		if end > totalRecords {
-			end = totalRecords
-		}
-
-		// 处理当前批次
-		batchRecords := records[start:end]
-
-		// 创建新的InsertImpl实例处理每一批
-		batchImpl := NewBatchInsertImpl(i.table, nil, i.userProvidedBatch, batchRecords)
-		batchIds, err := batchImpl.BatchInsertNoInc(batchRecords, skipVersion, batchs...)
-		if err != nil {
-			return nil, err
-		}
-
-		// 复制ID到结果列表
-		copy(allIds[start:end], batchIds)
-	}
-
-	return allIds, nil
-}
-
 // BatchCommit 批量提交事务
 func (i *InsertImpl) BatchCommit() error {
 	// 提交事务
@@ -424,10 +379,8 @@ func (i *InsertImpl) BatchCommit() error {
 	return nil
 }
 
-// 批量添加不需要自动增值的记录，并且全部记录规则相同。
-// skipVersion 是否跳过版本号，用于不需要更新的记录
-// 可用于批量插入时序数据，当表主键为时间戳时，建议使用此方法
-func (i *InsertImpl) BatchInsertNoInc(records []*map[string]any, skipVersion bool, batchs ...storage.Batch) ([]int, error) {
+// BatchInsertTimeSeries 批量插入时序数据
+func (i *InsertImpl) BatchInsertTimeSeries(timestampField string, skipVersion bool, records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
 	// 检查参数
 	if i.table.fields == nil {
 		return nil, fmt.Errorf("表 '%s' 未设置字段和类型", i.table.name)
@@ -442,29 +395,29 @@ func (i *InsertImpl) BatchInsertNoInc(records []*map[string]any, skipVersion boo
 	// 保存记录
 	i.records = records
 
-	// 获取主键字段
-	primaryFields := i.table.GetPrimaryFields()
-	if len(primaryFields) == 0 {
-		return nil, fmt.Errorf("表 '%s' 没有设置主键", i.table.name)
-	}
-
-	pkfield := primaryFields[0]
-
 	// 处理批量操作
-	var err error
-	i.batch, i.userProvidedBatch, err = i.table.prepareInsertBatch(batchs...)
-	if err != nil {
-		return nil, err
+	var batch storage.Batch
+	if len(batchs) > 0 { // 用户手动控制事务
+		batch = batchs[0]
+		if batch == nil {
+			return nil, fmt.Errorf("batch cannot be nil")
+		}
+		i.userProvidedBatch = true
+	} else {
+		batch = i.table.kvStore.GetBatch()
+		if batch == nil {
+			return nil, fmt.Errorf("failed to get batch")
+		}
+		i.userProvidedBatch = false
 	}
+	i.batch = batch
 
 	// 预分配ID列表容量
 	ids := make([]int, len(records))
 	i.ids = ids
 
-	// 处理记录并批量插入
-
 	// 从对象池中获取一个 batchContainer
-	BatchContainer := GetBatchContainer(i.batch, i.table.indexs, i.table.id, i.table.kvStore)
+	BatchContainer := GetBatchContainer(batch, i.table.indexs, i.table.id, i.table.kvStore)
 	defer PutBatchContainer(BatchContainer)
 
 	for j, fields := range records {
@@ -472,13 +425,23 @@ func (i *InsertImpl) BatchInsertNoInc(records []*map[string]any, skipVersion boo
 		if err := i.table.CheckType(fields); err != nil {
 			return nil, err
 		}
-		if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
-			return nil, fmt.Errorf("primary key field '%s' not found in record", pkfield)
-		} else {
-			ids[j] = util.AnyToInt((*fields)[pkfield])
+
+		// 验证时间戳字段
+		if _, ok := (*fields)[timestampField]; !ok {
+			return nil, fmt.Errorf("timestamp field '%s' not found in record", timestampField)
 		}
 
-		// 添加初始版本号
+		// 使用提供的时间戳作为主键
+		timestamp := (*fields)[timestampField]
+		ids[j] = util.AnyToInt(timestamp)
+
+		// 跳过或添加版本号
+		/*
+			时序数据的特性 ：
+			- 时序数据通常是追加写入，很少更新
+			- 版本号主要用于乐观锁机制，防止并发更新冲突
+			- 对于纯时序数据，由于很少更新，版本号可能不是必需的
+		*/
 		if !skipVersion {
 			if _, hasVersion := (*fields)["v"]; !hasVersion || (*fields)["v"] == "" {
 				(*fields)["v"] = generateEnhancedVersion()
@@ -487,18 +450,15 @@ func (i *InsertImpl) BatchInsertNoInc(records []*map[string]any, skipVersion boo
 
 		// 转换字段为字节数组
 		fieldsBytes := i.table.FieldsToBytes(fields)
-		// 检查fieldsBytes是否为nil
-		if fieldsBytes == nil {
-			return nil, fmt.Errorf("failed to convert fields to bytes")
-		}
+		defer GlobalFieldsBytesPool.Put(*fieldsBytes)
+
 		// 格式化记录
 		record := i.table.FormatRecord(fieldsBytes)
+
 		// 批量添加记录
 		BatchContainer.SetValue(0, record)
 		BatchContainer.SetValue(1, i.table.GetPrimaryKey().GetID(fieldsBytes))
 		BatchContainer.Operation(fieldsBytes)
-		// 使用专门的指针释放方法
-		GlobalFieldsBytesPool.PutMapPointer(fieldsBytes)
 	}
 
 	// 提交批量操作

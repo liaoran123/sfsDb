@@ -107,7 +107,12 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	if err != nil {
 		return -1, err
 	}
-
+	// 检查字段类型是否匹配
+	if err := insertImpl.CheckType(); err != nil {
+		return -1, err
+	}
+	// 添加初始版本号
+	insertImpl.AddVersion()
 	// 提交事务
 	if err := insertImpl.Commit(); err != nil {
 		return -1, err
@@ -131,25 +136,8 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 // batchs ...storage.Batch 可选的批量操作容器
 // 返回值：插入记录的ID列表和错误信息
 func (t *Table) BatchInsert(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
-	// 检查参数
-	if t.fields == nil {
-		return nil, fmt.Errorf("表 '%s' 未设置字段和类型", t.name)
-	}
-	if len(records) == 0 {
-		return []int{}, nil
-	}
-	if records == nil {
-		return nil, fmt.Errorf("records cannot be nil")
-	}
-
-	// 准备批量操作
-	batch, userProvidedBatch, err := t.prepareInsertBatch(batchs...)
-	if err != nil {
-		return nil, err
-	}
-
 	// 使用 InsertImpl
-	insertImpl := NewBatchInsertImpl(t, batch, userProvidedBatch, records)
+	insertImpl := NewBatchInsertImpl(t, nil, false, records)
 
 	// 执行批量插入
 	return insertImpl.BatchInsert(records, batchs...)
@@ -183,4 +171,41 @@ func (t *Table) BatchInsertWithSize(records []*map[string]any, batchSize int, ba
 
 	// 执行带批量大小控制的批量插入
 	return insertImpl.BatchInsertWithSize(records, batchSize, batchs...)
+}
+
+// BatchInsertWithSizeNoInc 带批量大小控制的批量插入（不需要自动增值）
+// records []*map[string]any 要插入的记录列表
+// batchSize int 每批处理的记录数量
+// skipVersion bool 是否跳过版本号
+// batchs ...storage.Batch 可选的批量操作容器
+// 返回值：插入记录的ID列表和错误信息
+func (t *Table) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize int, skipVersion bool, batchs ...storage.Batch) ([]int, error) {
+	// 检查参数
+	if batchSize <= 0 {
+		batchSize = 100 // 默认批量大小
+	}
+
+	// 计算总批次
+	totalRecords := len(records)
+	if totalRecords == 0 {
+		return []int{}, nil
+	}
+
+	// 使用 InsertImpl
+	insertImpl := NewBatchInsertImpl(t, nil, false, records)
+
+	// 执行带批量大小控制的批量插入
+	return insertImpl.BatchInsertWithSizeNoInc(records, batchSize, skipVersion, batchs...)
+}
+
+// BatchInsertNoInc 批量插入不需要自动增值的记录
+// records []*map[string]any 要插入的记录列表
+// skipVersion bool 是否跳过版本号
+// batchs ...storage.Batch 可选的批量操作容器
+// 返回值：插入记录的ID列表和错误信息
+func (t *Table) BatchInsertNoInc(records []*map[string]any, skipVersion bool, batchs ...storage.Batch) ([]int, error) {
+	// 使用 InsertImpl
+	insertImpl := NewBatchInsertImpl(t, nil, false, records)
+	// 执行批量插入
+	return insertImpl.BatchInsertNoInc(records, skipVersion, batchs...)
 }
