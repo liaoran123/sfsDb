@@ -9,7 +9,7 @@ import (
 	"github.com/liaoran123/sfsDb/storage"
 )
 
-func main() {
+func main10() {
 	fmt.Println("sfsDb 事务冲突和死锁测试")
 	fmt.Println("=========================")
 

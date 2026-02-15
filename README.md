@@ -81,7 +81,6 @@ import (
 	"fmt"
 
 	"github.com/liaoran123/sfsDb/engine"
-	"github.com/liaoran123/sfsDb/record"
 	"github.com/liaoran123/sfsDb/storage"
 )
 
@@ -91,12 +90,13 @@ func main() {
 
 	// 1. 初始化数据库
 	fmt.Println("\n1. 初始化数据库")
-	_, err := storage.OpenDefaultDb("./readme_example_db")
+	dbManager := storage.GetDBManager()
+	_, err := dbManager.OpenDB("./readme_example_db")
 	if err != nil {
 		fmt.Printf("打开数据库失败: %v\n", err)
 		return
 	}
-	defer storage.CloseDb()
+	defer dbManager.CloseDB()
 
 	// 2. 创建/打开用户表
 	fmt.Println("\n2. 创建用户表")
@@ -170,13 +170,13 @@ func main() {
 	fmt.Println("\n7. 主键查询")
 	{
 		iter, err := userTable.Search(&map[string]any{"id": 1})
-		defer engine.GlobalTableIterPool.Put(iter)
+		defer iter.Release()
 		if err != nil {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
 		records := iter.GetRecordSet(true)
-		defer record.PutRecords(records)
+		defer records.Release()
 
 		if len(records) > 0 {
 			fmt.Printf("查询结果: %v\n", records[0])
@@ -187,13 +187,13 @@ func main() {
 	fmt.Println("\n8. 普通索引查询")
 	{
 		nameIter, err := userTable.Search(&map[string]any{"name": "李四"})
-		defer engine.GlobalTableIterPool.Put(nameIter)
+		defer nameIter.Release()
 		if err != nil {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
 		nameRecords := nameIter.GetRecordSet(true)
-		defer record.PutRecords(nameRecords)
+		defer nameRecords.Release()
 
 		if len(nameRecords) > 0 {
 			fmt.Printf("按姓名查询结果: %v\n", nameRecords[0])
@@ -217,13 +217,13 @@ func main() {
 	// 验证更新
 	{
 		iter, err := userTable.Search(&map[string]any{"id": 1})
-		defer engine.GlobalTableIterPool.Put(iter)
+		defer iter.Release()
 		if err != nil {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
 		records := iter.GetRecordSet(true)
-		defer record.PutRecords(records)
+		defer records.Release()
 		if len(records) > 0 {
 			fmt.Printf("更新后的数据: %v\n", records[0])
 		}
@@ -244,13 +244,13 @@ func main() {
 	// 验证删除
 	{
 		iter, err := userTable.Search(&map[string]any{"id": 3})
-		defer engine.GlobalTableIterPool.Put(iter)
+		defer iter.Release()
 		if err != nil {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
 		records := iter.GetRecordSet(true)
-		defer record.PutRecords(records)
+		defer records.Release()
 		fmt.Printf("删除后查询结果数: %d\n", len(records))
 	}
 
@@ -258,13 +258,13 @@ func main() {
 	fmt.Println("\n11. 查询所有数据")
 	{
 		allIter, err := userTable.Search(&map[string]any{})
-		defer engine.GlobalTableIterPool.Put(allIter)
+		defer allIter.Release()
 		if err != nil {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
 		allRecords := allIter.GetRecordSet(true)
-		defer record.PutRecords(allRecords)
+		defer allRecords.Release()
 		fmt.Printf("当前表中共有 %d 条记录\n", len(allRecords))
 		for i, r := range allRecords {
 			fmt.Printf("记录 %d: %v\n", i+1, r)
