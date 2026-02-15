@@ -193,7 +193,6 @@ func (t *Table) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize in
 
 	// 使用 InsertImpl
 	insertImpl := NewBatchInsertImpl(t, nil, false, records)
-
 	// 执行带批量大小控制的批量插入
 	return insertImpl.BatchInsertWithSizeNoInc(records, batchSize, skipVersion, batchs...)
 }
