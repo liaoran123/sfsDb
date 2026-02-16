@@ -16,8 +16,17 @@ type TableSchema struct {
 	// 字段定义，string为字段名，any为字段值示例（用于类型推断）
 	Fields map[string]any `json:"fields"`
 
+	// 字段ID映射，uint8为字段ID，string为字段名
+	FieldsID map[uint8]string `json:"fields_id"`
+
 	// 索引信息，包含所有索引的基本信息
 	Indexes []IndexSchema `json:"indexes"`
+
+	// 时间字段映射，标记字段是否为时间类型
+	TimeFields map[string]bool `json:"time_fields"`
+
+	// 主键字段列表
+	PrimaryFields []string `json:"primary_fields"`
 }
 
 // TableSerialization 包含Table的完整序列化信息，包括运行时状态
@@ -44,20 +53,28 @@ type IndexSchema struct {
 
 	// 索引字段，顺序表示索引顺序
 	Fields []string `json:"fields"`
-
-	// 是否唯一索引
-	Unique bool `json:"unique"`
 }
 
 // ToSchema 将Table转换为TableSchema
 // 用于序列化Table结构体的元数据
 func (t *Table) ToSchema() *TableSchema {
 	// 创建Schema实例
+	// 排除 'v' 字段，因为这是默认的版本号字段，不应该由用户自定义
+	fieldsWithoutV := make(map[string]any, len(t.fields)-1)
+	for k, v := range t.fields {
+		if k != "v" {
+			fieldsWithoutV[k] = v
+		}
+	}
+
 	schema := &TableSchema{
-		ID:      t.id,
-		Name:    t.GetName(),
-		Fields:  t.GetAllFields(),
-		Indexes: make([]IndexSchema, 0, len(t.indexs.GetAllIndexes())),
+		ID:            t.id,
+		Name:          t.GetName(),
+		Fields:        fieldsWithoutV,
+		FieldsID:      t.fieldsid,
+		Indexes:       make([]IndexSchema, 0, len(t.indexs.GetAllIndexes())),
+		TimeFields:    t.timeFields,
+		PrimaryFields: t.GetPrimaryFields(),
 	}
 
 	// 转换索引信息
@@ -71,16 +88,12 @@ func (t *Table) ToSchema() *TableSchema {
 		switch index.(type) {
 		case PrimaryKey:
 			indexSchema.Type = "primary"
-			indexSchema.Unique = true
 		case NormalIndex:
 			indexSchema.Type = "normal"
-			indexSchema.Unique = false
 		case FullTextIndex:
 			indexSchema.Type = "fulltext"
-			indexSchema.Unique = false
 		default:
 			indexSchema.Type = "unknown"
-			indexSchema.Unique = false
 		}
 
 		// 添加到索引列表
@@ -114,6 +127,22 @@ func FromSchema(schema *TableSchema) (*Table, error) {
 	// 设置字段
 	if err := table.SetFields(schema.Fields); err != nil {
 		return nil, err
+	}
+
+	// 恢复字段ID映射
+	if schema.FieldsID != nil {
+		table.fieldsid = schema.FieldsID
+	}
+
+	// 恢复时间字段映射
+	if schema.TimeFields != nil {
+		table.timeFields = schema.TimeFields
+	}
+
+	// 恢复主键字段列表
+	if schema.PrimaryFields != nil {
+		table.primaryFields = schema.PrimaryFields
+		table.primaryFieldsLoaded = true
 	}
 
 	// 直接操作indexs的indexs切片，避免调用GetPrimaryKey()导致自动创建主键索引
