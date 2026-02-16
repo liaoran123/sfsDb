@@ -178,11 +178,12 @@ func (t *Table) deserializeRecord(record []byte) (*map[string][]byte, error) {
 	return fieldsBytes, nil
 }
 
+/*
 // commitUpdateTransaction 提交更新事务
 func (t *Table) commitUpdateTransaction(batch storage.Batch, userProvidedBatch bool) error {
 	return t.commitTransaction(batch, userProvidedBatch)
 }
-
+*/
 // 更新记录，不支持修改主键字段
 // fields *map[string]any 主键值，可能是组合主键
 // 乐观锁并发控制，允许多个事务同时读取记录，但只有一个事务能成功更新记录，避免了并发更新冲突。

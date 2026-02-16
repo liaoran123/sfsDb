@@ -151,7 +151,7 @@ func (i *InsertImpl) AutoIncrement() (int, error) {
 	return currentID, nil
 }
 
-// 添加初始版本号
+// 添加初始版本号，用于乐观锁机制。
 func (i *InsertImpl) AddVersion() {
 	if _, hasVersion := (*i.fields)["v"]; !hasVersion || (*i.fields)["v"] == "" {
 		(*i.fields)["v"] = generateEnhancedVersion() // 使用增强版版本号
@@ -246,7 +246,7 @@ func (i *InsertImpl) BatchInsert(records []*map[string]any, batchs ...storage.Ba
 
 	// 处理批量操作
 	var err error
-	i.batch, i.userProvidedBatch, err = i.table.prepareInsertBatch(batchs...)
+	i.batch, i.userProvidedBatch, err = i.table.prepareBatch(batchs...)
 	if err != nil {
 		return nil, err
 	}
@@ -452,7 +452,7 @@ func (i *InsertImpl) BatchInsertNoInc(records []*map[string]any, skipVersion boo
 
 	// 处理批量操作
 	var err error
-	i.batch, i.userProvidedBatch, err = i.table.prepareInsertBatch(batchs...)
+	i.batch, i.userProvidedBatch, err = i.table.prepareBatch(batchs...)
 	if err != nil {
 		return nil, err
 	}

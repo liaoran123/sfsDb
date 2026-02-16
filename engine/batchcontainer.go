@@ -62,12 +62,14 @@ func (c *batchContainer) GetValue(key uint8) []byte {
 	return c.values[key]
 }
 
-// 添加/删除记录操作
-// 添加时，key值已经存在的field值，value中会过滤掉，不重复添加。
+// 添加/删除记录操作。修改操作，通过existFields，可以指定需要更新（包括加/删除）的字段。
+// 这个是数据库的核心枢纽。通过索引为桥梁组织key值。
+// 通过fieldsBytes *map[string][]byte 组织各个索引的key值。
+// value值为record（主键值）和GetPrimaryKey().GetID()（其他索引指向的主键值），由外部预先传入batchContainer.values  map[uint8][]byte // 操作值集合。
 func (c *batchContainer) Operation(fieldsBytes *map[string][]byte, existFields ...string) {
 	var mapkey int
 	var KeyFun monitor.Keyfun
-	if c.values[0] == nil {
+	if c.values[0] == nil { //判断是Delete操作还是Put操作，记录每一个put,delete操作次数。
 		KeyFun = monitor.KeyDec
 	} else {
 		KeyFun = monitor.KeyInc

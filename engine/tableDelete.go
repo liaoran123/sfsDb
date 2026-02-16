@@ -17,6 +17,7 @@ func (t *Table) prepareDeleteBatch(batch storage.Batch) (storage.Batch, bool, er
 	return t.prepareBatch(batch)
 }
 
+/*
 // validateDeleteFields 验证删除操作的字段
 func (t *Table) validateDeleteFields(fields *map[string]any) (any, error) {
 	// 检查是否提供了所有主键字段
@@ -51,7 +52,7 @@ func (t *Table) readRecordForDelete(fields *map[string]any) ([]byte, error) {
 	return key, nil
 }
 
-/*
+
 // commitDeleteTransaction 提交删除事务
 func (t *Table) commitDeleteTransaction(batch storage.Batch, userProvidedBatch bool) error {
 	return t.commitTransaction(batch, userProvidedBatch)

@@ -6,8 +6,9 @@ import (
 	"github.com/liaoran123/sfsDb/storage"
 )
 
+/*
 // prepareInsertBatch 准备插入操作的batch
-func (t *Table) prepareInsertBatch(batchs ...storage.Batch) (storage.Batch, bool, error) {
+func (t *Table) prepareInsertBatch1(batchs ...storage.Batch) (storage.Batch, bool, error) {
 	var batch storage.Batch
 	userProvidedBatch := len(batchs) > 0
 
@@ -26,62 +27,6 @@ func (t *Table) prepareInsertBatch(batchs ...storage.Batch) (storage.Batch, bool
 
 	return batch, userProvidedBatch, nil
 }
-
-/*
-// commitInsertTransaction 提交插入事务
-func (t *Table) commitInsertTransaction(batch storage.Batch, userProvidedBatch bool) error {
-	//提交事务
-	if !userProvidedBatch {
-		if err := t.kvStore.WriteBatch(batch); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// handleAutoIncrement 处理自动增值主键
-func (t *Table) handleAutoIncrement(fields *map[string]any) (int, error) {
-	//获取主键字段
-	primaryFields := t.GetPrimaryFields()
-	if len(primaryFields) == 0 {
-		return -1, fmt.Errorf("表 '%s' 没有设置主键", t.name)
-	}
-
-	//是否支持默认自动增值主键，单主键并且主键字段名为"id"
-	pklen := len(primaryFields)
-	pkfield := primaryFields[0]
-	supportDefault := pklen == 1 && pkfield == "id"
-	currentID := -1
-
-	if supportDefault {
-		// 检查是否提供了主键字段
-		//使用默认自动增值主键时，不需要提供主键字段，系统自动生成，强制使用"id"字段和自动增值主键
-		_, ok := (*fields)[pkfield]
-		if !ok { //未提供主键字段，自动生成主键值
-			currentID = t.GetAutoInc()
-			(*fields)[pkfield] = currentID
-		} else { //提供了主键字段id，但是值为nil，自动生成主键值
-			if (*fields)[pkfield] == nil {
-				currentID = t.GetAutoInc()
-				(*fields)[pkfield] = currentID
-			}
-		}
-	}
-
-	// 检查字段类型是否匹配
-	if err := t.CheckType(fields); err != nil {
-		return -1, err
-	}
-
-	currentID = util.AnyToInt((*fields)[pkfield])
-	// 添加初始版本号
-	if _, hasVersion := (*fields)["v"]; !hasVersion || (*fields)["v"] == "" {
-		(*fields)["v"] = generateEnhancedVersion() // 使用增强版版本号
-	}
-
-	return currentID, nil
-}
 */
 // 插入记录
 func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (currentID int, err error) {
@@ -94,7 +39,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	}
 
 	// 准备批量操作
-	batch, userProvidedBatch, err := t.prepareInsertBatch(batchs...)
+	batch, userProvidedBatch, err := t.prepareBatch(batchs...)
 	if err != nil {
 		return -1, err
 	}
@@ -149,19 +94,8 @@ func (t *Table) BatchInsert(records []*map[string]any, batchs ...storage.Batch) 
 // batchs ...storage.Batch 可选的批量操作容器
 // 返回值：插入记录的ID列表和错误信息
 func (t *Table) BatchInsertWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error) {
-	// 检查参数
-	if batchSize <= 0 {
-		batchSize = 100 // 默认批量大小
-	}
-
-	// 计算总批次
-	totalRecords := len(records)
-	if totalRecords == 0 {
-		return []int{}, nil
-	}
-
 	// 准备批量操作
-	_, userProvidedBatch, err := t.prepareInsertBatch(batchs...)
+	_, userProvidedBatch, err := t.prepareBatch(batchs...)
 	if err != nil {
 		return nil, err
 	}
@@ -180,17 +114,6 @@ func (t *Table) BatchInsertWithSize(records []*map[string]any, batchSize int, ba
 // batchs ...storage.Batch 可选的批量操作容器
 // 返回值：插入记录的ID列表和错误信息
 func (t *Table) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize int, skipVersion bool, batchs ...storage.Batch) ([]int, error) {
-	// 检查参数
-	if batchSize <= 0 {
-		batchSize = 100 // 默认批量大小
-	}
-
-	// 计算总批次
-	totalRecords := len(records)
-	if totalRecords == 0 {
-		return []int{}, nil
-	}
-
 	// 使用 InsertImpl
 	insertImpl := NewBatchInsertImpl(t, nil, false, records)
 	// 执行带批量大小控制的批量插入

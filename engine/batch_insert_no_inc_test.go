@@ -9,7 +9,7 @@ import (
 // TestBatchInsertNoInc 测试BatchInsertNoInc函数
 func TestBatchInsertNoInc(t *testing.T) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./batch_no_inc_test_db")
+	_, err := storage.OpenDefaultDb("./batch_no_inc_test_db_1")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestBatchInsertNoInc(t *testing.T) {
 // TestBatchInsertNoIncSkipVersion 测试BatchInsertNoInc函数的skipVersion参数
 func TestBatchInsertNoIncSkipVersion(t *testing.T) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./batch_no_inc_skip_version_test_db")
+	_, err := storage.OpenDefaultDb("./batch_no_inc_skip_version_test_db_1")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}

@@ -154,7 +154,8 @@ func (d *DeleteImpl) ExecuteDeleteOperation() error {
 	defer PutBatchContainer(BatchContainer)
 
 	// 对于删除操作，需要将values[0]设置为nil，这样Add方法才会执行删除操作
-	BatchContainer.SetValue(0, nil)
+	// 明确设置为 nil 以确保执行删除操作，提高代码可读性和防御性
+	BatchContainer.SetValue(0, nil) //这行代码可有可无。
 	BatchContainer.Operation(d.fieldsBytes)
 
 	return nil
@@ -218,6 +219,12 @@ func (d *DeleteImpl) BatchDelete(records []*map[string]any, params ...any) error
 		}
 
 		// 释放行级锁
+		/*
+			- defer 执行时机 ： defer 语句只会在包含它的函数（ BatchDelete ）结束时执行，而不是在每次循环迭代结束时执行
+			- 锁持有时间过长 ：在处理多条记录时，所有行级锁都会在整个方法结束时才释放，而不是在处理完每条记录后立即释放
+			- 并发性能影响 ：这会导致锁竞争加剧，特别是在处理大量记录时
+			- 鉴于此为删除操作，业务已经没有必要给其他操作的机会，也不会存在竞争问题。
+		*/
 		defer func() {
 			if rowLock, ok := d.table.rowLocks.Load(lockKey); ok {
 				rl := rowLock.(*RowLock)
@@ -235,6 +242,8 @@ func (d *DeleteImpl) BatchDelete(records []*map[string]any, params ...any) error
 		if err := deleteImpl.ExecuteDeleteOperation(); err != nil {
 			return err
 		}
+		// 释放临时实例回对象池
+		GlobalDeleteImplPool.Put(deleteImpl)
 	}
 
 	// 提交批量操作

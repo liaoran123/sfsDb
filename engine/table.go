@@ -373,7 +373,7 @@ func (t *Table) FormatRecord(fieldsBytes *map[string][]byte) []byte {
 //
 //go:inline
 func (t *Table) BatchFormatRecords(records []*map[string][]byte) [][]byte {
-	// 预分配结果切片，减少扩容次数
+	// 预分配结果切片，减少扩容次数 , 比多次调用高效
 	results := make([][]byte, len(records))
 
 	// 批量处理所有记录
@@ -418,6 +418,7 @@ func (t *Table) GetAllIndexNameIdMap() map[string]uint8 {
 }
 
 // parseParams 解析操作的参数
+// 解析可变参数，返回batch和timeout。这2个参考都可能不需要提供。
 func (t *Table) parseParams(params ...any) (storage.Batch, time.Duration) {
 	var batch storage.Batch
 	var timeout time.Duration
@@ -435,8 +436,10 @@ func (t *Table) parseParams(params ...any) (storage.Batch, time.Duration) {
 	return batch, timeout
 }
 
+/*
 // prepareBatch 准备批量操作的batch
-func (t *Table) prepareBatch(batch storage.Batch) (storage.Batch, bool, error) {
+// 如果不是手动事务从外部传入batch，则使用创建一个batch，如果是手动事务，则使用外部传入的batch。
+func (t *Table) prepareBatch1(batch storage.Batch) (storage.Batch, bool, error) {
 	userProvidedBatch := batch != nil
 
 	// 如果没有提供batch，使用默认batch
@@ -449,15 +452,38 @@ func (t *Table) prepareBatch(batch storage.Batch) (storage.Batch, bool, error) {
 
 	return batch, userProvidedBatch, nil
 }
+*/
+// prepareBatch 准备批量操作的 batch
+// prepareBatch 准备批量操作的batch
+// 如果不是手动事务从外部传入batch，则使用创建一个batch，如果是手动事务，则使用外部传入的batch。
+func (t *Table) prepareBatch(batchs ...storage.Batch) (storage.Batch, bool, error) {
+	var batch storage.Batch
+	userProvidedBatch := len(batchs) > 0
 
+	if userProvidedBatch {
+		batch = batchs[0]
+		if batch == nil {
+			return nil, false, fmt.Errorf("batch cannot be nil")
+		}
+	} else {
+		batch = t.kvStore.GetBatch()
+		if batch == nil {
+			return nil, false, fmt.Errorf("failed to get batch")
+		}
+	}
+
+	return batch, userProvidedBatch, nil
+}
+
+/*
 // commitTransaction 提交事务
 func (t *Table) commitTransaction(batch storage.Batch, userProvidedBatch bool) error {
 	//提交事务
-	if !userProvidedBatch {
+	if !userProvidedBatch { //如果不是手动事务，则提交默认batch。否则由外部提交。
 		if err := t.kvStore.WriteBatch(batch); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
+*/
