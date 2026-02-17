@@ -25,11 +25,11 @@ type Index interface {
 	UpdateFields(oldfields string, newfields string)
 	//删除索引字段
 	DeleteFields(field ...string)
-	//拼接前缀
+	//拼接前缀，表id+索引id
 	Prefix(tbid uint8) []byte
-	//拼接值，不需要前缀
+	//拼接值，字段值拼接
 	Join(fieldsBytes *map[string][]byte) []byte
-	//拼接前缀+值
+	//拼接前缀+值。调用Prefix方法
 	JoinPrefix(tbid uint8, val []byte) []byte
 	// 拼接索引前缀+索引值，调用JoinPrefix，Join方法
 	JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte
@@ -115,6 +115,8 @@ func JoinAndToBytes(v ...string) []byte {
 	}
 	return Value.Bytes()
 }
+
+// 拼接前缀，表id+索引id
 func (bi *BaseIndex) Prefix(tbid uint8) []byte {
 	//fmt.Printf(" %d %s%d\n", tbid, SPLIT, bi.id)
 	return []byte{byte(tbid), SPLIT[0], byte(bi.id)}
@@ -401,7 +403,7 @@ func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *m
 		if len, ok := (*pkfieldTypeLen)[fit]; ok {
 			if len == 0 && pklen > 1 { // 组合主键时，主键类型的长度未指定，无法解析主键值。
 				//中断程序
-				panic("使用可变长度类型作为组合主键，需要注册指定长度。")
+				return nil, errors.New("使用可变长度类型作为组合主键，需要注册指定长度。")
 			}
 			pflen += int(len) + 1 //每个字段之间用分隔符隔开
 		}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 
+	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
 
@@ -33,6 +34,8 @@ type Index interface {
 	JoinPrefix(tbid uint8, val []byte) []byte
 	// 拼接索引前缀+索引值，调用JoinPrefix，Join方法
 	JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte
+	//是否唯一key，key=JoinValue方法返回的值
+	IsUnique(key []byte) bool
 	// 匹配索引字段
 	MatchFields(fields ...string) bool
 	// 解析kv的value值，返回字段值map
@@ -164,6 +167,17 @@ func (bi *BaseIndex) JoinValue(fieldsBytes *map[string][]byte, tbid uint8, exist
 	val := bi.Join(fieldsBytes)
 	return bi.JoinPrefix(tbid, val)
 }
+
+// IsUnique方法返回false，表示不是唯一索引。
+// 传入参考key=JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte
+func (bi *BaseIndex) IsUnique(key []byte) bool {
+	_, err := storage.GetDBManager().GetDB().Get(key)
+	if err != nil {
+		return true
+	}
+	return false
+}
+
 func (bi *BaseIndex) JoinPrefix(tbid uint8, val []byte) []byte {
 	var Value bytes.Buffer
 	//表id和索引id拼接
@@ -325,7 +339,6 @@ func (dpk *DefaultPrimaryKey) Parse(fieldsid map[uint8]string, value []byte) (*m
 type NormalIndex interface {
 	Index
 	// 将索引的value转换为主键map值
-
 	// 由于NormalIndex完全匹配index接口，所以需要一个Tag方法来区别是否是二级索引。
 	Tag() bool
 	Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error)

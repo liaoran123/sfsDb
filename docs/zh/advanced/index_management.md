@@ -34,6 +34,8 @@ type Index interface {
     JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte
     // 匹配索引字段
     MatchFields(fields ...string) bool
+    // 检查索引键是否唯一，key=JoinValue方法返回的值
+    IsUnique(key []byte) bool
 }
 ```
 
@@ -294,8 +296,31 @@ type BaseIndex struct {
 - **获取字段**: `GetFields() []string` - 获取索引的所有字段
 - **更新字段名称**: `UpdateFields(oldfields string, newfields string)` - 修改索引字段名称
 - **删除字段**: `DeleteFields(field ...string)` - 从索引中删除字段
+- **检查唯一性**: `IsUnique(key []byte) bool` - 检查索引键在存储中是否唯一
 
-### 4.6.3 索引值拼接
+### 4.6.3 IsUnique 方法实现
+
+`IsUnique` 方法在 `BaseIndex` 结构体中实现，被所有索引类型用于检查索引键是否唯一：
+
+```go
+// IsUnique方法检查索引键是否唯一
+// 传入参考key=JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte
+func (bi *BaseIndex) IsUnique(key []byte) bool {
+    _, err := storage.GetDBManager().GetDB().Get(key)
+    if err != nil {
+        return true
+    }
+    return false
+}
+```
+
+**功能**：
+- 接收一个索引键作为输入
+- 尝试从存储中检索该键
+- 如果键不存在，返回 `true`（唯一）
+- 如果键已存在，返回 `false`（不唯一）
+
+### 4.6.4 索引值拼接
 
 索引内部使用字节数组来存储索引值，提供了多种拼接方法：
 
@@ -304,7 +329,7 @@ type BaseIndex struct {
 - **JoinPrefix**: 拼接前缀和值
 - **JoinValue**: 拼接完整的索引值
 
-### 4.6.4 复合索引注意事项
+### 4.6.5 复合索引注意事项
 
 1. **组合主键限制**: 组合主键只支持固定长度类型的组合，字符串类型必须指定长度
 2. **字段顺序**: 索引字段的顺序会影响查询性能，应将最常用的字段放在前面

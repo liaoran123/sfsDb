@@ -34,6 +34,8 @@ type Index interface {
     JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte
     // Match index fields
     MatchFields(fields ...string) bool
+    // Check if the index key is unique
+    IsUnique(key []byte) bool
 }
 ```
 
@@ -294,6 +296,29 @@ type BaseIndex struct {
 - **Get Fields**: `GetFields() []string` - Get all fields of the index
 - **Update Field Names**: `UpdateFields(oldfields string, newfields string)` - Modify index field names
 - **Delete Fields**: `DeleteFields(field ...string)` - Remove fields from the index
+- **Check Uniqueness**: `IsUnique(key []byte) bool` - Check if the index key is unique in the storage
+
+### 4.6.3 IsUnique Method Implementation
+
+The `IsUnique` method is implemented in the `BaseIndex` struct and is used by all index types to check if an index key is unique:
+
+```go
+// IsUnique method checks if the index key is unique
+// Reference key format: JoinValue(fieldsBytes *map[string][]byte, tbid uint8, existFields ...string) []byte
+func (bi *BaseIndex) IsUnique(key []byte) bool {
+    _, err := storage.GetDBManager().GetDB().Get(key)
+    if err != nil {
+        return true
+    }
+    return false
+}
+```
+
+**Functionality**: 
+- Takes an index key as input
+- Attempts to retrieve the key from the storage
+- Returns `true` if the key does not exist (unique)
+- Returns `false` if the key already exists (not unique)
 
 ### 4.6.3 Index Value Concatenation
 
