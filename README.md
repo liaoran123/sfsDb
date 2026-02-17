@@ -35,6 +35,9 @@ sfsDb 已在实际生产环境中得到应用，其中最典型的案例是 **Re
 - **应用场景**: 提供高精度、高性能的文档搜索功能，支持复杂的文本匹配和检索需求
 - **技术亮点**: 充分利用 sfsDb 的原生全文索引和高性能查询能力，实现了考据级的文档搜索体验
 
+### 示例项目
+- [sfsDbIIoT](https://github.com/liaoran123/sfsDbIIoT) - 使用sfsDb实现的智能工厂设备监控系统，展示了sfsDb在工业IoT领域的应用
+
 ## 主要目标用户群体
 
 ### 1. 边缘智能与 IoT 场景
@@ -301,8 +304,6 @@ func main() {
 ### 性能优势分析
 - [sfsDb性能优势分析文章](./docs/marketing/performance_advantage_article.md) - 详细分析sfsDb如何通过无SQL设计和嵌入式架构实现性能突破
 
-### 示例项目
-- [sfsDbIIoT](https://github.com/liaoran123/sfsDbIIoT) - 使用sfsDb实现的智能工厂设备监控系统，展示了sfsDb在工业IoT领域的应用
 
 ### 资源管理
 - [对象池使用指南](./docs/zh/optimization/object_pool.md) - 高效的对象复用机制（中文）
