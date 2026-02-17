@@ -319,10 +319,6 @@ func main() {
 ### API 参考
 - [API 参考文档](./docs/api.md) - 详细的 API 文档
 
-### 命令行工具
-- [命令行工具指南](./docs/cli_commands.md) - 详细的命令行工具使用指南（中文）
-- [CLI Commands Guide](./docs/cli_commands.en.md) - Detailed CLI commands usage guide (English)
-
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request 来帮助改进 sfsDb！
