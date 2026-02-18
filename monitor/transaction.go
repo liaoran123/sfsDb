@@ -48,6 +48,34 @@ func (t *TransactionStatsMap) SetTimeAsync(txID uint64, duration time.Duration, 
 	})
 }
 
+// SetCount 记录事务操作计数和冲突计数
+func (t *TransactionStatsMap) SetCount(txID uint64, operationCount, conflictCount int, tableName string, isolationLevel string, isCommitted bool) {
+	value, ok := t.Data.Load(txID)
+	if !ok {
+		// 使用 LoadOrStore 避免竞态条件
+		newValue := NewTransactionStats(txID, tableName, isolationLevel)
+		newValue.IsCommitted = isCommitted
+		value, ok = t.Data.LoadOrStore(txID, newValue)
+		if !ok {
+			value = newValue
+		}
+	}
+
+	// 获取 TransactionStats 实例
+	stats := value.(*TransactionStats)
+
+	// 更新统计信息
+	stats.TotalCount.Add(int64(operationCount))
+}
+
+// SetCountAsync 异步记录事务操作计数和冲突计数
+func (t *TransactionStatsMap) SetCountAsync(txID uint64, operationCount, conflictCount int, tableName string, isolationLevel string, isCommitted bool) {
+	// 提交任务到全局 Pool
+	globalPool.Submit(func() {
+		t.SetCount(txID, operationCount, conflictCount, tableName, isolationLevel, isCommitted)
+	})
+}
+
 // GetAll 返回所有数据的普通 map 副本
 func (t *TransactionStatsMap) GetAll() map[uint64]*TransactionStats {
 	result := make(map[uint64]*TransactionStats)
