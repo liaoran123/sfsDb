@@ -37,7 +37,6 @@ sfsDb 已在实际生产环境中得到应用，其中最典型的案例是 **Re
 
 ### 示例项目
 - [sfsDbIIoT](https://github.com/liaoran123/sfsDbIIoT) - 使用sfsDb实现的智能工厂设备监控系统，展示了sfsDb在工业IoT领域的应用
-- [sfsDbGateway](https://github.com/liaoran123/sfsDbGateway) - 基于sfsDb的工业网关可靠性测试示例，验证sfsDb在网络波动、电源中断等恶劣工业环境下的可靠性和稳定性
 
 ## 主要目标用户群体
 

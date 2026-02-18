@@ -16,9 +16,9 @@ import (
 
 type TableIter struct {
 	iter       storage.Iterator
-	jumpRanges []storage.Iterator
+	jumpRanges []storage.Iterator //跳跃区间
 	table      *Table
-	match      []match.Match
+	match      []match.Match //匹配规则
 	selects    []string
 	index      Index //搜索时使用的索引
 	move       map[bool]func() bool
@@ -126,6 +126,8 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		anyMap := t.table.RecordByteToAny(fieldsBytes)
 		if anyMap == nil {
 			return nil
+		} else {
+			defer PutAnyMap(*anyMap)
 		}
 		// 填充数据到已获取的 Record 对象
 		for k, v := range *anyMap {
@@ -144,11 +146,15 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		trd, err := pk.Parse(t.table.fieldsid, byrecord)
 		if err != nil || trd == nil {
 			return nil
+		} else {
+			defer GlobalFieldsBytesPool.Put(*trd)
 		}
 		//转换为记录 ： *map[string][]byte ==> *map[string]any
 		anyMap := t.table.RecordByteToAny(trd)
 		if anyMap == nil {
 			return nil
+		} else {
+			defer PutAnyMap(*anyMap)
 		}
 		// 填充数据到已获取的 Record 对象
 		for k, v := range *anyMap {
@@ -177,6 +183,7 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 // 跳跃区间：SkipStart = []byte("transaction_20231201"), SkipLimit = []byte("transaction_20231202")
 // 查询除2023年12月1日外的所有交易
 */
+//jumpRange.First()=nil或jumpRange.Last()=nil的情况，需要特殊处理todo...(也可能不存在这样的情况)
 func (t *TableIter) JumpRange(key []byte, jumpRanges []storage.Iterator, esc bool) []byte {
 	if len(jumpRanges) == 0 {
 		return nil
@@ -449,6 +456,8 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 	var rd record.Record
 	//var rdany *map[string]any
 	//var fieldsBytes *map[string][]byte
+	isMatch := true
+	matchlen := 0
 	page := PageNew(limit...)
 	count := 0
 	loop := 0
@@ -457,12 +466,14 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 	for {
 		key = t.iter.Key()
 		value = t.iter.Value()
-		end = t.JumpRange(key, t.jumpRanges, esc)
-		if end != nil {
-			// 跳跃到区间的结束位置
-			t.iter.Seek(end)
-			if !t.move[esc]() {
-				break
+		if len(t.jumpRanges) > 0 { //如果有跳跃区间，需要跳过某些数据
+			end = t.JumpRange(key, t.jumpRanges, esc)
+			if end != nil {
+				// 跳跃到区间的结束位置
+				t.iter.Seek(end)
+				if !t.move[esc]() {
+					break
+				}
 			}
 		}
 		fieldsBytes := t.ParseBytes(key, value)
@@ -471,13 +482,18 @@ func (t *TableIter) ExportRecord(export ExportRecord, esc bool, limit ...int) {
 				GlobalFieldsBytesPool.Put(*fieldsBytes)
 			}
 		}()
-		rdany := t.table.RecordByteToAny(fieldsBytes)
-		defer func() {
-			if rdany != nil {
-				PutAnyMap(*rdany)
-			}
-		}()
-		if t.Match(rdany, t.match) {
+		isMatch = true
+		matchlen = len(t.match)
+		if matchlen > 0 { //是否需要匹配
+			rdany := t.table.RecordByteToAny(fieldsBytes)
+			defer func() {
+				if rdany != nil {
+					PutAnyMap(*rdany)
+				}
+			}()
+			isMatch = t.Match(rdany, t.match)
+		}
+		if isMatch {
 			if loop < page.Start {
 				loop++
 				if !t.move[esc]() {
@@ -598,6 +614,11 @@ func (t *TableIter) Key() []byte {
 }
 func (t *TableIter) Value() []byte {
 	return t.iter.Value()
+}
+
+// Valid 检查迭代器是否有效
+func (t *TableIter) Valid() bool {
+	return t.iter.Valid()
 }
 
 // Seek 移动到大于等于指定key的位置
