@@ -76,24 +76,12 @@ func (t *Table) Delete(fields *map[string]any, params ...any) error {
 	deleteImpl := NewDeleteImpl(t, batch, userProvidedBatch, fields, timeout)
 
 	// 验证字段
-	pkValue, err := deleteImpl.ValidateDeleteFields()
+	_, err = deleteImpl.ValidateDeleteFields()
 	if err != nil {
 		return err
 	}
 
-	// 获取行级排他锁
-	lockKey := fmt.Sprintf("%v", pkValue)
-	if err := t.acquireRowWriteLock(pkValue, 0, timeout); err != nil {
-		return err
-	}
 
-	// 释放行级锁
-	defer func() {
-		if rowLock, ok := t.rowLocks.Load(lockKey); ok {
-			rl := rowLock.(*RowLock)
-			rl.rwLock.Unlock()
-		}
-	}()
 
 	// 读取记录
 	_, err = deleteImpl.ReadRecordForDelete()

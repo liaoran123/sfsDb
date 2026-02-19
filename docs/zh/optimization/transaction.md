@@ -724,241 +724,73 @@ func main() {
 
 ## 11. 高级并发控制
 
-### 11.1 锁超时机制
+### 11.1 非阻塞锁操作
 
-sfsDb 实现了锁超时机制，防止事务无限期持有锁，从而避免死锁或性能问题。
+sfsDb 实现了非阻塞锁操作，完全避免死锁的发生。所有锁操作现在使用非阻塞的尝试锁定机制，而不是可能导致死锁的阻塞锁。
 
-#### 11.1.1 设置锁超时
+#### 11.1.1 非阻塞读锁
 
 ```go
-// 为表设置锁超时
-table.SetLockTimeout(30 * time.Second)
+// 非阻塞读锁获取
+if !table.TryRLock("primary_key_value") {
+    // 锁获取失败，相应处理
+    return fmt.Errorf("获取读锁失败")
+}
+// 锁获取成功
 ```
 
-#### 11.1.2 带超时获取锁
+#### 11.1.2 非阻塞写锁
 
 ```go
-// 带超时获取读锁
-err := table.acquireRowReadLock("primary_key_value", 0, 10*time.Second)
-
-// 带超时获取写锁
-err := table.acquireRowWriteLock("primary_key_value", 0, 10*time.Second)
+// 非阻塞写锁获取
+if !table.TryLock("primary_key_value") {
+    // 锁获取失败，相应处理
+    return fmt.Errorf("获取写锁失败")
+}
+// 锁获取成功
 ```
 
-### 11.2 死锁检测
+### 11.2 锁管理
 
-sfsDb 包含内置的死锁检测器，可以识别和处理死锁情况。
+sfsDb 提供了全面的锁管理功能，确保高效的并发操作。
 
-#### 11.2.1 检测死锁
+#### 11.2.1 锁释放
 
 ```go
-// 检测表中的死锁
-deadlockedTxs := table.DetectDeadlock()
-if len(deadlockedTxs) > 0 {
-    fmt.Printf("检测到死锁的事务: %v\n", deadlockedTxs)
+// 释放读锁
+table.RUnlock("primary_key_value")
+
+// 释放写锁
+table.Unlock("primary_key_value")
+```
+
+#### 11.2.2 锁键生成
+
+sfsDb 优化了锁键生成，利用现有的主键键值生成机制：
+
+```go
+func (t *Table) generateLockKey(fields *map[string]any) string {
+    fieldsBytes := t.FieldsToBytes(fields)
+    pkKey := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
+    return string(pkKey)
 }
 ```
 
-#### 11.2.2 事务锁跟踪
+### 11.3 锁键缓存
 
-```go
-// 开始事务锁跟踪
-table.BeginTransaction(txID)
+为了提高性能，sfsDb 实现了事务锁键缓存机制：
 
-// 记录持有锁
-table.RecordHeldLock(txID, "primary_key_value")
+- 在事务结构体中添加了 `lockKeyCache` 字段
+- 在事务操作中缓存生成的锁键，避免重复计算
+- 在事务提交或回滚时自动清理缓存
 
-// 记录等待锁（触发死锁检测）
-table.RecordWaitingLock(txID, "another_primary_key_value")
+### 11.4 并发最佳实践
 
-// 结束事务锁跟踪
-table.EndTransaction(txID)
-```
-
-#### 11.2.3 事务锁跟踪的完整使用方式
-
-要在实际事务中启用死锁检测，需要按照以下步骤使用事务锁跟踪功能：
-
-```go
-// 1. 生成事务ID
-txID := uint64(time.Now().UnixNano())
-
-// 2. 开始事务锁跟踪
-table.BeginTransaction(txID)
-
-// 3. 开始事务
-tx, err := table.Begin()
-if err != nil {
-    table.EndTransaction(txID) // 结束锁跟踪
-    return err
-}
-
-// 4. 执行更新操作（可能触发锁竞争）
-updateFields := map[string]any{"id": 1, "name": "Updated Name"}
-
-// 在执行更新前，记录可能需要等待的锁
-primaryKey := "1"
-table.RecordWaitingLock(txID, primaryKey)
-
-// 执行更新操作
-if err := tx.Update(&updateFields); err != nil {
-    tx.Rollback()
-    table.EndTransaction(txID) // 结束锁跟踪
-    return err
-}
-
-// 5. 记录已持有的锁
-table.RecordHeldLock(txID, primaryKey)
-
-// 6. 提交事务
-if err := tx.Commit(); err != nil {
-    table.EndTransaction(txID) // 结束锁跟踪
-    return err
-}
-
-// 7. 结束事务锁跟踪
-table.EndTransaction(txID)
-```
-
-#### 11.2.4 批量操作中的死锁检测
-
-在批量操作中使用死锁检测：
-
-```go
-// 1. 生成事务ID
-txID := uint64(time.Now().UnixNano())
-
-// 2. 开始事务锁跟踪
-table.BeginTransaction(txID)
-
-// 3. 获取批处理对象
-batch := storage.KVDb.GetBatch()
-if batch == nil {
-    table.EndTransaction(txID) // 结束锁跟踪
-    return fmt.Errorf("无法获取批处理对象")
-}
-
-// 4. 执行批量操作
-for _, record := range records {
-    primaryKey := fmt.Sprintf("%v", (*record)["id"])
-    
-    // 记录等待锁
-    table.RecordWaitingLock(txID, primaryKey)
-    
-    // 执行更新操作
-    if err := table.Update(record, batch); err != nil {
-        table.EndTransaction(txID) // 结束锁跟踪
-        return err
-    }
-    
-    // 记录已持有的锁
-    table.RecordHeldLock(txID, primaryKey)
-}
-
-// 5. 提交批处理
-if err := storage.KVDb.WriteBatch(batch); err != nil {
-    table.EndTransaction(txID) // 结束锁跟踪
-    return err
-}
-
-// 6. 结束事务锁跟踪
-table.EndTransaction(txID)
-```
-
-#### 11.2.5 死锁处理策略
-
-当检测到死锁时，推荐的处理策略：
-
-```go
-// 检测死锁
-deadlockedTxs := table.DetectDeadlock()
-if len(deadlockedTxs) > 0 {
-    fmt.Printf("检测到死锁的事务: %v\n", deadlockedTxs)
-    
-    // 处理策略1：回滚当前事务
-    // tx.Rollback()
-    
-    // 处理策略2：等待一段时间后重试
-    // time.Sleep(100 * time.Millisecond)
-    // 重新执行操作
-    
-    // 处理策略3：根据事务优先级选择回滚
-    // if isLowPriorityTransaction(txID) {
-    //     tx.Rollback()
-    // }
-}
-```
-
-**使用建议**：
-- 对于简单的应用场景，可能不需要启用事务锁跟踪
-- 对于复杂的并发场景，特别是涉及多个表的操作，建议启用死锁检测
-- 合理设置锁超时时间，避免事务无限期等待
-- 结合事务重试机制，提高系统的可靠性
-
-### 11.3 锁升级/降级
-
-sfsDb 支持锁升级（从读到写）和降级（从写到读）操作。
-
-#### 11.3.1 锁升级
-
-```go
-// 从读锁升级为写锁
-err := table.UpgradeLock("primary_key_value", txID, 5*time.Second)
-if err != nil {
-    fmt.Printf("升级锁失败: %v\n", err)
-}
-```
-
-#### 11.3.2 锁降级
-
-```go
-// 从写锁降级为读锁
-err := table.DowngradeLock("primary_key_value", txID)
-if err != nil {
-    fmt.Printf("降级锁失败: %v\n", err)
-}
-```
-
-### 11.4 锁统计和监控
-
-sfsDb 提供了全面的锁统计和监控功能。
-
-#### 11.4.1 获取锁统计信息
-
-```go
-// 获取锁统计信息
-stats := table.GetLockStats()
-fmt.Printf("总锁数: %d\n", stats.TotalLocks)
-fmt.Printf("读锁数: %d\n", stats.ReadLocks)
-fmt.Printf("写锁数: %d\n", stats.WriteLocks)
-fmt.Printf("平均锁等待时间: %v\n", stats.LockWaitTime)
-fmt.Printf("平均锁持有时间: %v\n", stats.LockHoldTime)
-```
-
-#### 11.4.2 锁清理
-
-```go
-// 清理过期锁
-cleanedCount := table.CleanupExpiredLocks()
-fmt.Printf("清理了 %d 个过期锁\n", cleanedCount)
-
-// 启动定期锁清理
-// table.StartLockCleanup(1 * time.Minute)
-```
-
-### 11.5 延长锁超时
-
-sfsDb 允许为长时间运行的操作延长锁超时。
-
-```go
-// 延长锁超时
-if table.IsLockAboutToExpire("primary_key_value", 5*time.Second) {
-    err := table.ExtendLockTimeout("primary_key_value", 10*time.Second)
-    if err != nil {
-        fmt.Printf("延长锁超时失败: %v\n", err)
-    }
-}
-```
+- **使用短事务**：保持事务简短，减少锁竞争
+- **实现重试机制**：为失败的锁获取实现重试逻辑
+- **正确释放锁**：使用完锁后务必释放
+- **避免锁升级**：只对必要的数据加锁
+- **优化锁粒度**：根据使用场景选择合适的锁粒度
 
 ## 12. 金融事务示例
 
@@ -1361,94 +1193,55 @@ if err := parentTx.Commit(); err != nil {
 }
 ```
 
-### 15.3 事务锁跟踪使用方式
+### 15.3 事务锁管理
 
-在复杂的并发场景中启用事务锁跟踪和死锁检测：
+在复杂的并发场景中有效地管理锁：
 
 ```go
-// 1. 生成事务ID
-txID := uint64(time.Now().UnixNano())
-
-// 2. 开始事务锁跟踪
-table.BeginTransaction(txID)
-
-// 3. 开始事务
+// 1. 开始事务
 tx, err := table.Begin()
 if err != nil {
-    table.EndTransaction(txID) // 结束锁跟踪
     return err
 }
 
-// 4. 执行更新操作（可能触发锁竞争）
+// 2. 执行更新操作（内部使用非阻塞锁）
 updateFields := map[string]any{"id": 1, "name": "Updated Name"}
-
-// 在执行更新前，记录可能需要等待的锁
-primaryKey := "1"
-table.RecordWaitingLock(txID, primaryKey)
 
 // 执行更新操作
 if err := tx.Update(&updateFields); err != nil {
     tx.Rollback()
-    table.EndTransaction(txID) // 结束锁跟踪
     return err
 }
 
-// 5. 记录已持有的锁
-table.RecordHeldLock(txID, primaryKey)
-
-// 6. 提交事务
+// 3. 提交事务
 if err := tx.Commit(); err != nil {
-    table.EndTransaction(txID) // 结束锁跟踪
     return err
 }
-
-// 7. 结束事务锁跟踪
-table.EndTransaction(txID)
 ```
 
-### 15.4 批量操作中的死锁检测
+### 15.4 批量操作中的非阻塞锁
 
-在批量操作中使用死锁检测：
+在批量操作中使用非阻塞锁：
 
 ```go
-// 1. 生成事务ID
-txID := uint64(time.Now().UnixNano())
-
-// 2. 开始事务锁跟踪
-table.BeginTransaction(txID)
-
-// 3. 获取批处理对象
+// 1. 获取批处理对象
 batch := storage.KVDb.GetBatch()
 if batch == nil {
-    table.EndTransaction(txID) // 结束锁跟踪
     return fmt.Errorf("无法获取批处理对象")
 }
 
-// 4. 执行批量操作
+// 2. 执行批量操作
 for _, record := range records {
-    primaryKey := fmt.Sprintf("%v", (*record)["id"])
-    
-    // 记录等待锁
-    table.RecordWaitingLock(txID, primaryKey)
-    
-    // 执行更新操作
+    // 执行更新操作（内部使用非阻塞锁）
     if err := table.Update(record, batch); err != nil {
-        table.EndTransaction(txID) // 结束锁跟踪
         return err
     }
-    
-    // 记录已持有的锁
-    table.RecordHeldLock(txID, primaryKey)
 }
 
-// 5. 提交批处理
+// 3. 提交批处理
 if err := storage.KVDb.WriteBatch(batch); err != nil {
-    table.EndTransaction(txID) // 结束锁跟踪
     return err
 }
-
-// 6. 结束事务锁跟踪
-table.EndTransaction(txID)
 ```
 
 ### 15.5 事务重试机制
@@ -1495,84 +1288,61 @@ if err := tx.Commit(); err != nil {
 }
 ```
 
-## 16. 自动锁等待检测和死锁检测
+## 16. 非阻塞锁实现
 
 ### 16.1 概述
 
-sfsDb 实现了自动锁等待检测和死锁检测功能，能够在事务执行过程中自动检测并防止死锁的发生，提高系统的可靠性和稳定性。
+sfsDb 实现了非阻塞锁操作，完全消除死锁的发生。通过使用 `TryRLock` 和 `TryLock` 代替阻塞锁操作，sfsDb 确保事务永远不会等待锁，从而完全防止死锁。
 
 ### 16.2 核心特性
 
-- **自动锁等待检测**：在获取锁时自动检测锁等待情况
-- **频率控制的死锁检测**：限制死锁检测的频率，避免性能开销过大
-- **局部死锁检测**：只检测与当前事务相关的路径，提高检测效率
-- **基于负载的分级检测**：根据系统负载选择不同的检测策略
-- **系统负载自适应**：根据系统负载动态调整死锁检测策略
+- **非阻塞锁操作**：使用 `TryRLock`/`TryLock` 代替阻塞锁操作
+- **死锁预防**：通过完全避免锁等待来消除死锁
+- **简化代码库**：移除复杂的死锁检测代码
+- **提高性能**：减少与死锁检测相关的开销
+- **可预测行为**：事务要么立即获取锁，要么快速失败
 
 ### 16.3 实现原理
 
-#### 16.3.1 自动锁等待检测
+#### 16.3.1 非阻塞锁获取
 
-当事务尝试获取锁时，sfsDb 会自动检测锁等待情况：
+所有锁获取操作现在使用非阻塞的尝试锁定机制：
 
 ```go
-// 自动检测锁等待并触发死锁检测
-if rl.lockType == LockTypeWrite && rl.lockHolder != txID {
-    // 记录等待状态
-    t.RecordWaitingLock(txID, pkValue)
-    // 频率控制：限制死锁检测的频率
-    if time.Since(t.lastDeadlockCheck) > t.deadlockCheckInterval {
-        // 根据系统负载级别选择死锁检测策略
-        var deadlockedTxs []uint64
-        switch t.currentLoadLevel {
-        case 0: // 低负载：使用完整死锁检测
-            deadlockedTxs = t.DetectDeadlock()
-        case 1, 2: // 中高负载：使用局部死锁检测
-            deadlockedTxs = t.DetectLocalDeadlock(txID)
-        }
-        t.lastDeadlockCheck = time.Now()
-        for _, deadlockedTxID := range deadlockedTxs {
-            if deadlockedTxID == txID {
-                return fmt.Errorf("检测到死锁，事务 %d 被标记为死锁", txID)
-            }
-        }
-    }
+// 非阻塞读锁获取
+func (t *Table) TryRLock(key string) bool {
+    return t.lockMap.TryRLock(key)
+}
+
+// 非阻塞写锁获取
+func (t *Table) TryLock(key string) bool {
+    return t.lockMap.TryLock(key)
 }
 ```
 
-#### 16.3.2 频率控制
+#### 16.3.2 锁释放
 
-为了避免死锁检测对系统性能造成过大影响，sfsDb 实现了频率控制机制：
+锁释放操作保持不变：
 
-- **检测间隔**：通过 `deadlockCheckInterval` 控制死锁检测的频率
-- **时间窗口**：在一个时间窗口内只执行一次死锁检测
-- **性能优化**：减少高频死锁检测对系统性能的影响
+```go
+// 释放读锁
+func (t *Table) RUnlock(key string) {
+    t.lockMap.RUnlock(key)
+}
 
-#### 16.3.3 局部死锁检测
-
-局部死锁检测只检测与当前事务相关的路径，提高检测效率：
-
-- **路径限制**：只检测从当前事务出发的等待路径
-- **目标明确**：专注于检测当前事务是否参与了死锁
-- **资源节省**：减少不必要的计算和内存使用
-
-#### 16.3.4 基于负载的分级检测
-
-根据系统负载选择不同的死锁检测策略：
-
-| 负载级别 | 检测策略 | 适用场景 |
-|---------|---------|----------|
-| 0 (低) | 完整死锁检测 | 系统负载低，资源充足 |
-| 1 (中) | 局部死锁检测 | 系统负载中等，需要平衡性能和检测效果 |
-| 2 (高) | 局部死锁检测 | 系统负载高，优先保证性能 |
+// 释放写锁
+func (t *Table) Unlock(key string) {
+    t.lockMap.Unlock(key)
+}
+```
 
 ### 16.4 使用方法
 
-自动锁等待检测和死锁检测功能是 sfsDb 的内置功能，默认启用，无需手动配置即可使用：
+非阻塞锁由事务系统自动使用，无需手动配置：
 
-#### 16.4.1 自动启用
+#### 16.4.1 自动使用
 
-当使用事务进行操作时，sfsDb 会自动启用锁等待检测和死锁检测：
+当使用事务时，sfsDb 会自动使用非阻塞锁：
 
 ```go
 // 开始事务
@@ -1581,10 +1351,10 @@ if err != nil {
     panic(err)
 }
 
-// 执行操作（会自动触发锁等待检测和死锁检测）
+// 执行操作（内部使用非阻塞锁）
 updateFields := map[string]any{"id": 1, "name": "Updated Name"}
 if err := tx.Update(&updateFields); err != nil {
-    // 可能返回死锁检测错误
+    // 可能返回锁获取错误
     tx.Rollback()
     panic(err)
 }
@@ -1595,33 +1365,9 @@ if err := tx.Commit(); err != nil {
 }
 ```
 
-#### 16.4.2 禁用死锁检测
+#### 16.4.2 错误处理
 
-如果需要在某些场景下禁用死锁检测以获得极致性能，可以将死锁检测时间间隔设置为 0：
-
-```go
-// 禁用死锁检测
-table.SetDeadlockCheckInterval(0)
-
-// 执行高性能操作
-// ...
-
-// 重新启用死锁检测（设置为 100 毫秒）
-table.SetDeadlockCheckInterval(100 * time.Millisecond)
-```
-
-**适用场景**：
-- 低并发、低死锁风险的场景
-- 对性能要求极高的批量操作
-- 已经通过业务逻辑避免死锁的场景
-
-**注意事项**：
-- 禁用死锁检测可能会导致系统在高并发场景下出现死锁
-- 请根据实际业务场景和风险评估决定是否禁用
-
-#### 16.4.3 错误处理
-
-当检测到死锁时，sfsDb 会返回错误，应用程序需要妥善处理：
+当锁获取失败时，sfsDb 会返回错误，应用程序应妥善处理：
 
 ```go
 // 错误处理示例
@@ -1631,17 +1377,17 @@ if err != nil {
 }
 
 transactionErr := func() error {
-    // 执行可能导致死锁的操作
+    // 执行可能无法获取锁的操作
     updateFields := map[string]any{"id": 1, "name": "Updated Name"}
     return tx.Update(&updateFields)
 }()
 
 if transactionErr != nil {
     tx.Rollback()
-    // 检查是否是死锁错误
-    if strings.Contains(transactionErr.Error(), "检测到死锁") {
-        // 处理死锁情况
-        fmt.Println("检测到死锁，正在重试...")
+    // 检查是否是锁获取错误
+    if strings.Contains(transactionErr.Error(), "获取锁失败") {
+        // 处理锁获取失败
+        fmt.Println("锁获取失败，正在重试...")
         // 可以选择重试或返回错误
         return transactionErr
     }
@@ -1651,35 +1397,27 @@ if transactionErr != nil {
 return tx.Commit()
 ```
 
-### 16.5 性能优化
+### 16.5 最佳实践
 
-#### 16.5.1 频率控制优化
+1. **实现重试逻辑**：对于可能无法获取锁的操作，实现适当的重试逻辑
+2. **使用短事务**：保持事务简短，减少锁竞争
+3. **优化锁粒度**：只对必要的数据加锁，最小化竞争
+4. **优雅处理锁失败**：为锁获取失败实现适当的错误处理
+5. **监控系统性能**：定期监控系统性能，及时调整优化策略
 
-- **默认检测间隔**：100ms
-- **可配置性**：可以根据系统特点调整检测间隔
-- **性能平衡**：在检测效果和性能开销之间取得平衡
-
-#### 16.5.2 负载自适应优化
-
-- **负载检测**：定期检测系统负载
-- **动态调整**：根据负载情况动态调整检测策略
-- **资源分配**：在高负载时优先保证系统性能
-
-### 16.6 最佳实践
-
-1. **无需手动配置**：自动锁等待检测和死锁检测功能默认启用，无需手动配置
-2. **错误处理**：妥善处理死锁检测返回的错误，考虑重试机制
-3. **事务设计**：设计合理的事务大小，避免长事务
-4. **并发控制**：合理控制并发度，避免过度竞争
-5. **监控**：监控系统中的死锁情况，及时优化
-
-### 16.7 常见问题与解决方案
+### 16.6 常见问题与解决方案
 
 | 问题 | 原因 | 解决方案 |
 |------|------|----------|
-| 死锁错误 | 事务之间存在循环依赖 | 调整事务操作顺序，避免循环依赖 |
-| 性能下降 | 死锁检测频率过高 | 调整 `deadlockCheckInterval` 参数 |
-| 误报死锁 | 检测算法误判 | 检查事务设计，避免复杂的锁依赖 |
+| 锁获取失败 | 高并发和锁竞争 | 实现指数退避重试机制 |
+| 性能下降 | 过多的锁获取尝试 | 优化事务设计，减少锁竞争 |
+| 应用程序错误 | 未处理的锁获取失败 | 实现适当的错误处理和重试逻辑 |
+
+### 16.7 注意事项
+
+- **应用层需要实现重试机制**：由于锁操作变为非阻塞，获取锁失败时需要应用层进行重试
+- **建议使用指数退避**：避免频繁重试导致的 CPU 资源占用
+- **设置合理的重试超时**：避免长时间无法获取锁时影响用户体验
 
 ## 17. 内置事务重试机制
 

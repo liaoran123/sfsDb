@@ -84,9 +84,7 @@ func TestOpenTable_Comprehensive(t *testing.T) {
 				if table.timeFields == nil {
 					t.Error("时间字段映射未初始化")
 				}
-				if table.deadlockDetector == nil {
-					t.Error("死锁检测器未初始化")
-				}
+
 				t.Logf("成功打开表: %s, 表ID: %d", table.name, table.GetId())
 			}
 		})
@@ -157,8 +155,8 @@ func TestOpenTable_MultipleTables(t *testing.T) {
 		}
 		// 设置字段
 		fields := map[string]any{
-			"id":    0,
-			"name":  "",
+			"id":   0,
+			"name": "",
 		}
 		if err := table.SetFields(fields); err != nil {
 			t.Fatalf("设置字段失败: %v", err)

@@ -10,7 +10,7 @@ import BackupComponent from './BackupComponent.js';
 import MemoryComponent from './MemoryComponent.js';
 import KeyComponent from './KeyComponent.js';
 import IndexStatsComponent from './IndexStatsComponent.js';
-import TransactionStatsComponent from './TransactionStatsComponent.js';
+
 import CrudComponent from './CrudComponent.js';
 import DataQueryComponent from './DataQueryComponent.js';
 import ImportExportComponent from './ImportExportComponent.js';
@@ -39,7 +39,7 @@ const components = {
     memory: MemoryComponent,
     key: KeyComponent,
     indexStats: IndexStatsComponent,
-    transactionStats: TransactionStatsComponent,
+
     crud: CrudComponent,
     dataQuery: DataQueryComponent,
     importExport: ImportExportComponent

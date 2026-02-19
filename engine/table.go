@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
-	"sync"
 	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
@@ -38,19 +37,6 @@ type Table struct {
 	timeFields          map[string]bool // 标记字段是否为时间类型
 	primaryFields       []string        // 缓存的主键字段列表
 	primaryFieldsLoaded bool            // 主键字段列表是否已加载
-	// 内嵌事务和锁管理结构体
-	TableTraxn
-}
-type TableTraxn struct {
-	rowLocks              sync.Map          // 行级锁映射，key: 主键值，value: *RowLock
-	lockTimeout           time.Duration     // 锁超时时间
-	transactionLocks      sync.Map          // 事务锁信息映射，key: 事务ID，value: *TransactionLockInfo
-	deadlockDetector      *DeadlockDetector // 死锁检测器
-	lastDeadlockCheck     time.Time         // 上次死锁检测的时间戳
-	deadlockCheckInterval time.Duration     // 死锁检测的时间间隔
-	transactionCount      int               // 当前活跃事务数
-	lastLoadCheck         time.Time         // 上次负载检查的时间戳
-	currentLoadLevel      int               // 当前系统负载级别（0-低，1-中，2-高）
 }
 
 // 创建或获取一个表
@@ -69,16 +55,8 @@ func TableNew(name string) (*Table, error) {
 		fields:   make(map[string]any),
 		fieldsid: make(map[uint8]string),
 		kvStore:  dbMgr.GetDB(),
-		TableTraxn: TableTraxn{
-			lastDeadlockCheck:     time.Now(),
-			deadlockCheckInterval: 100 * time.Millisecond, // 默认100毫秒检测一次
-			transactionCount:      0,
-			lastLoadCheck:         time.Now(),
-			currentLoadLevel:      0, // 默认低负载
-		},
 	}
 	tb.indexs = NewIndexs(&tb.fields)
-	tb.deadlockDetector = NewDeadlockDetector(tb)
 	if TableIDManager == nil {
 		TableIDManager = NewIDManager(tb.kvStore)
 	}
@@ -111,21 +89,12 @@ func (t *Table) ResetPrimaryFields() {
 }
 
 // 必须先为表预设字段和类型
-// 由于进行乐观锁的设计，版本号字段默认是v，占据一个字段，故而只支持254个字段。默认版本号值为0，每次更新时自动增加1
 func (t *Table) SetFields(fields map[string]any) error {
-	// 检查用户是否自定义了版本号名称v
-	if _, ok := fields["v"]; ok {
-		return fmt.Errorf("字段名称 'v' 是默认字段，作为版本号，不能自定义。")
-	}
-
 	// 创建字段的副本，避免修改原始映射
-	fieldsCopy := make(map[string]any, len(fields)+1)
+	fieldsCopy := make(map[string]any, len(fields))
 	for k, v := range fields {
 		fieldsCopy[k] = v
 	}
-
-	// 添加版本号字段
-	fieldsCopy["v"] = "" // 使用空字符串作为版本号初始值
 
 	// 更新表字段
 	t.fields = fieldsCopy
@@ -143,17 +112,6 @@ func (t *Table) SetFields(fields map[string]any) error {
 		t.fieldsid[id] = field
 	}
 
-	// 确保版本号字段v的ID为255
-	// 先删除版本号可能存在的其他ID映射
-	for id, name := range t.fieldsid {
-		if name == "v" && id != uint8(255) {
-			delete(t.fieldsid, id)
-			break
-		}
-	}
-	// 设置v字段的ID为255
-	t.fieldsid[uint8(255)] = "v"
-
 	// 更新时间字段映射
 	t.initTimeFields()
 	t.ResetPrimaryFields()
@@ -162,14 +120,6 @@ func (t *Table) SetFields(fields map[string]any) error {
 
 // 修改字段名称
 func (t *Table) UpdateFieldName(oldfield string, newfield string) error {
-	// 阻止修改版本号字段"v"
-	if oldfield == "v" {
-		return fmt.Errorf("字段 '%s' 是默认版本号字段，不能修改", oldfield)
-	}
-	// 阻止将其他字段重命名为"v"
-	if newfield == "v" {
-		return fmt.Errorf("字段名称 '%s' 是默认版本号字段，不能使用", newfield)
-	}
 	if _, ok := t.fields[oldfield]; !ok {
 		return fmt.Errorf("字段 '%s' 不存在于表中", oldfield)
 	}
@@ -261,11 +211,6 @@ func (t *Table) GetFieldsName() []string {
 //go:inline
 func (t *Table) CheckType(fields *map[string]any) error {
 	for field, value := range *fields {
-		// 跳过对版本号字段v的类型检查，因为它是系统默认字段，类型由系统控制
-		if field == "v" {
-			continue
-		}
-
 		fieldValue, exists := t.fields[field]
 		// 只检查已经存在于表中的字段的类型
 		if exists {
@@ -514,20 +459,8 @@ func (t *Table) OpenTable(name string) error {
 	// 设置存储实例
 	t.kvStore = dbMgr.GetDB()
 
-	// 初始化事务和锁管理
-	t.TableTraxn = TableTraxn{
-		lastDeadlockCheck:     time.Now(),
-		deadlockCheckInterval: 100 * time.Millisecond, // 默认100毫秒检测一次
-		transactionCount:      0,
-		lastLoadCheck:         time.Now(),
-		currentLoadLevel:      0, // 默认低负载
-	}
-
 	// 初始化索引集合
 	t.indexs = NewIndexs(&t.fields)
-
-	// 初始化死锁检测器
-	t.deadlockDetector = NewDeadlockDetector(t)
 
 	// 初始化表ID管理器
 	if TableIDManager == nil {

@@ -207,30 +207,10 @@ func (d *DeleteImpl) BatchDelete(records []*map[string]any, params ...any) error
 		deleteImpl := NewDeleteImpl(d.table, batch, userProvidedBatch, fields, timeout)
 
 		// 验证字段
-		pkValue, err := deleteImpl.ValidateDeleteFields()
+		_, err := deleteImpl.ValidateDeleteFields()
 		if err != nil {
 			return err
 		}
-
-		// 获取行级排他锁
-		lockKey := fmt.Sprintf("%v", pkValue)
-		if err := d.table.acquireRowWriteLock(pkValue, 0, timeout); err != nil {
-			return err
-		}
-
-		// 释放行级锁
-		/*
-			- defer 执行时机 ： defer 语句只会在包含它的函数（ BatchDelete ）结束时执行，而不是在每次循环迭代结束时执行
-			- 锁持有时间过长 ：在处理多条记录时，所有行级锁都会在整个方法结束时才释放，而不是在处理完每条记录后立即释放
-			- 并发性能影响 ：这会导致锁竞争加剧，特别是在处理大量记录时
-			- 鉴于此为删除操作，业务已经没有必要给其他操作的机会，也不会存在竞争问题。
-		*/
-		defer func() {
-			if rowLock, ok := d.table.rowLocks.Load(lockKey); ok {
-				rl := rowLock.(*RowLock)
-				rl.rwLock.Unlock()
-			}
-		}()
 
 		// 读取记录
 		_, err = deleteImpl.ReadRecordForDelete()

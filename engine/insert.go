@@ -151,13 +151,6 @@ func (i *InsertImpl) AutoIncrement() (int, error) {
 	return currentID, nil
 }
 
-// 添加初始版本号，用于乐观锁机制。
-func (i *InsertImpl) AddVersion() {
-	if _, hasVersion := (*i.fields)["v"]; !hasVersion || (*i.fields)["v"] == "" {
-		(*i.fields)["v"] = generateEnhancedVersion() // 使用增强版版本号
-	}
-}
-
 // CheckType 检查字段类型是否匹配
 func (i *InsertImpl) CheckType() error {
 	return i.table.CheckType(i.fields)
@@ -300,11 +293,6 @@ func (i *InsertImpl) BatchInsert(records []*map[string]any, batchs ...storage.Ba
 		} else {
 			// 非默认自动增值主键，使用提供的主键值
 			ids[j] = util.AnyToInt((*fields)[pkfield])
-		}
-
-		// 添加初始版本号
-		if _, hasVersion := (*fields)["v"]; !hasVersion || (*fields)["v"] == "" {
-			(*fields)["v"] = generateEnhancedVersion()
 		}
 
 		// 转换字段为字节数组
@@ -479,12 +467,6 @@ func (i *InsertImpl) BatchInsertNoInc(records []*map[string]any, skipVersion boo
 		}
 
 		// 添加初始版本号
-		if !skipVersion {
-			if _, hasVersion := (*fields)["v"]; !hasVersion || (*fields)["v"] == "" {
-				(*fields)["v"] = generateEnhancedVersion()
-			}
-		}
-
 		// 转换字段为字节数组
 		fieldsBytes := i.table.FieldsToBytes(fields)
 		// 检查fieldsBytes是否为nil

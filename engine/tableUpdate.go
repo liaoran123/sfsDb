@@ -31,30 +31,6 @@ func (t *Table) prepareUpdateFields(fields *map[string]any) ([]string, error) {
 	return updateFields, nil
 }
 
-// 检查并更新版本号
-func (t *Table) checkAndUpdateVersion(fields *map[string]any, fieldsBytes *map[string][]byte) (string, error) {
-	// 获取当前版本号
-	currentVersionBytes, exists := (*fieldsBytes)["v"]
-	if !exists {
-		currentVersionBytes = []byte{1} // 默认版本号
-	}
-	currentVersion := string(currentVersionBytes)
-
-	// 检查版本号是否匹配
-	if updateVersion, hasVersion := (*fields)["v"].(string); hasVersion {
-		if updateVersion != currentVersion {
-			return "", fmt.Errorf("optimistic lock conflict: version mismatch, expected %s, got %s", currentVersion, updateVersion)
-		}
-	}
-
-	// 更新版本号为增强版版本号
-	enhancedVersion := generateEnhancedVersion()
-	(*fields)["v"] = enhancedVersion
-	(*fieldsBytes)["v"] = []byte(enhancedVersion)
-
-	return enhancedVersion, nil
-}
-
 // 更新字段值
 func (t *Table) updateFieldsValue(fields *map[string]any, fieldsBytes *map[string][]byte) {
 	for field, val := range *fields {
@@ -76,12 +52,6 @@ func (t *Table) executeUpdateOperation(batch storage.Batch, fields *map[string]a
 
 	// 删除旧记录
 	batchContainer.Operation(fieldsBytes, updateFields...)
-
-	// 检查并更新版本号
-	_, err := t.checkAndUpdateVersion(fields, fieldsBytes)
-	if err != nil {
-		return err
-	}
 
 	// 更新字段值
 	t.updateFieldsValue(fields, fieldsBytes)
@@ -200,24 +170,10 @@ func (t *Table) Update(fields *map[string]any, params ...any) error {
 	}
 
 	// 验证字段
-	_, pkValue, err := t.validateUpdateFields(fields)
+	_, _, err = t.validateUpdateFields(fields)
 	if err != nil {
 		return err
 	}
-
-	// 获取行级排他锁
-	lockKey := fmt.Sprintf("%v", pkValue)
-	if err := t.acquireRowWriteLock(pkValue, 0, timeout); err != nil {
-		return err
-	}
-
-	// 释放行级锁
-	defer func() {
-		if rowLock, ok := t.rowLocks.Load(lockKey); ok {
-			rl := rowLock.(*RowLock)
-			rl.rwLock.Unlock()
-		}
-	}()
 
 	// 读取记录
 	key, err := t.readRecordForUpdate(fields)

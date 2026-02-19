@@ -222,12 +222,9 @@ func (s *Server) handleMonitor(c *gin.Context) {
 		monitorMgr := s.manager.MonitorManager()
 		keyChangeStats := monitorMgr.GetKeyChangeStats()
 		indexStats := monitorMgr.GetIndexStats()
-		transactionStats := monitorMgr.GetTransactionStats()
-
 		response := gin.H{
 			"keyChangeStats":    keyChangeStats,
 			"indexStats":        indexStats,
-			"transactionStats":  transactionStats,
 			"monitorRunning":    monitor != nil && s.isMonitorRunning(),
 		}
 
@@ -435,8 +432,6 @@ func (s *Server) handleDiagnostic(c *gin.Context) {
 	monitorMgr := s.manager.MonitorManager()
 	keyChangeStats := monitorMgr.GetKeyChangeStats()
 	indexStats := monitorMgr.GetIndexStats()
-	transactionStats := monitorMgr.GetTransactionStats()
-
 	// 构建诊断数据
 	diagnosticData := gin.H{
 		"timestamp": time.Now().Format(time.RFC3339),
@@ -449,7 +444,6 @@ func (s *Server) handleDiagnostic(c *gin.Context) {
 		"monitor": gin.H{
 			"keyChangeStats":   keyChangeStats,
 			"indexStats":       indexStats,
-			"transactionStats": transactionStats,
 			"monitorRunning":   monitor != nil && s.isMonitorRunning(),
 		},
 		"version": "1.0.0", // 诊断包版本

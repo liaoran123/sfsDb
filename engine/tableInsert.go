@@ -56,8 +56,6 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	if err := insertImpl.CheckType(); err != nil {
 		return -1, err
 	}
-	// 添加初始版本号
-	insertImpl.AddVersion()
 	// 提交事务
 	if err := insertImpl.Commit(); err != nil {
 		return -1, err

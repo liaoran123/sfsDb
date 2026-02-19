@@ -724,121 +724,73 @@ func main() {
 
 ## 11. Advanced Concurrency Control
 
-### 11.1 Lock Timeout Mechanism
+### 11.1 Non-blocking Lock Operations
 
-sfsDb implements a lock timeout mechanism to prevent transactions from holding locks indefinitely, which could lead to deadlocks or performance issues.
+sfsDb implements non-blocking lock operations to avoid deadlocks entirely. Instead of using blocking locks that can lead to deadlocks, all lock operations now use non-blocking try-lock mechanisms.
 
-#### 11.1.1 Setting Lock Timeout
+#### 11.1.1 Non-blocking Read Lock
 
 ```go
-// Set lock timeout for table
-table.SetLockTimeout(30 * time.Second)
+// Non-blocking read lock acquisition
+if !table.TryRLock("primary_key_value") {
+    // Lock acquisition failed, handle accordingly
+    return fmt.Errorf("failed to acquire read lock")
+}
+// Lock acquired successfully
 ```
 
-#### 11.1.2 Acquiring Locks with Timeout
+#### 11.1.2 Non-blocking Write Lock
 
 ```go
-// Acquire read lock with timeout
-err := table.acquireRowReadLock("primary_key_value", 0, 10*time.Second)
-
-// Acquire write lock with timeout
-err := table.acquireRowWriteLock("primary_key_value", 0, 10*time.Second)
+// Non-blocking write lock acquisition
+if !table.TryLock("primary_key_value") {
+    // Lock acquisition failed, handle accordingly
+    return fmt.Errorf("failed to acquire write lock")
+}
+// Lock acquired successfully
 ```
 
-### 11.2 Deadlock Detection
+### 11.2 Lock Management
 
-sfsDb includes a built-in deadlock detector that can identify and handle deadlock situations.
+sfsDb provides comprehensive lock management capabilities for efficient concurrent operations.
 
-#### 11.2.1 Detecting Deadlocks
+#### 11.2.1 Lock Release
 
 ```go
-// Detect deadlocks in the table
-deadlockedTxs := table.DetectDeadlock()
-if len(deadlockedTxs) > 0 {
-    fmt.Printf("Detected deadlocks in transactions: %v\n", deadlockedTxs)
+// Release read lock
+table.RUnlock("primary_key_value")
+
+// Release write lock
+table.Unlock("primary_key_value")
+```
+
+#### 11.2.2 Lock Key Generation
+
+sfsDb optimizes lock key generation using the existing primary key value generation mechanism:
+
+```go
+func (t *Table) generateLockKey(fields *map[string]any) string {
+    fieldsBytes := t.FieldsToBytes(fields)
+    pkKey := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
+    return string(pkKey)
 }
 ```
 
-#### 11.2.2 Transaction Lock Tracking
+### 11.3 Lock Key Cache
 
-```go
-// Begin transaction lock tracking
-table.BeginTransaction(txID)
+to improve performance, sfsDb implements a transaction lock key caching mechanism:
 
-// Record held lock
-table.RecordHeldLock(txID, "primary_key_value")
+- Added `lockKeyCache` field in transaction struct
+- Cache generated lock keys in transaction operations to avoid repeated calculations
+- Automatically clean up cache when transaction commits or rolls back
 
-// Record waiting lock (triggers deadlock detection)
-table.RecordWaitingLock(txID, "another_primary_key_value")
+### 11.4 Concurrency Best Practices
 
-// End transaction lock tracking
-table.EndTransaction(txID)
-```
-
-### 11.3 Lock Upgrade/Downgrade
-
-sfsDb supports lock upgrade (from read to write) and downgrade (from write to read) operations.
-
-#### 11.3.1 Lock Upgrade
-
-```go
-// Upgrade from read lock to write lock
-err := table.UpgradeLock("primary_key_value", txID, 5*time.Second)
-if err != nil {
-    fmt.Printf("Failed to upgrade lock: %v\n", err)
-}
-```
-
-#### 11.3.2 Lock Downgrade
-
-```go
-// Downgrade from write lock to read lock
-err := table.DowngradeLock("primary_key_value", txID)
-if err != nil {
-    fmt.Printf("Failed to downgrade lock: %v\n", err)
-}
-```
-
-### 11.4 Lock Statistics and Monitoring
-
-sfsDb provides comprehensive lock statistics and monitoring capabilities.
-
-#### 11.4.1 Getting Lock Statistics
-
-```go
-// Get lock statistics
-stats := table.GetLockStats()
-fmt.Printf("Total locks: %d\n", stats.TotalLocks)
-fmt.Printf("Read locks: %d\n", stats.ReadLocks)
-fmt.Printf("Write locks: %d\n", stats.WriteLocks)
-fmt.Printf("Average lock wait time: %v\n", stats.LockWaitTime)
-fmt.Printf("Average lock hold time: %v\n", stats.LockHoldTime)
-```
-
-#### 11.4.2 Lock Cleanup
-
-```go
-// Cleanup expired locks
-cleanedCount := table.CleanupExpiredLocks()
-fmt.Printf("Cleaned %d expired locks\n", cleanedCount)
-
-// Start periodic lock cleanup
-// table.StartLockCleanup(1 * time.Minute)
-```
-
-### 11.5 Extending Lock Timeout
-
-sfsDb allows extending lock timeouts for long-running operations.
-
-```go
-// Extend lock timeout
-if table.IsLockAboutToExpire("primary_key_value", 5*time.Second) {
-    err := table.ExtendLockTimeout("primary_key_value", 10*time.Second)
-    if err != nil {
-        fmt.Printf("Failed to extend lock timeout: %v\n", err)
-    }
-}
-```
+- **Use Short Transactions**: Keep transactions short to reduce lock contention
+- **Retry Mechanism**: Implement retry logic for failed lock acquisitions
+- **Proper Lock Release**: Always release locks after use
+- **Avoid Lock Escalation**: Only lock necessary data
+- **Optimize Lock Granularity**: Use appropriate lock granularity for your use case
 
 ## 12. Financial Transaction Example
 
@@ -1032,84 +984,61 @@ For RepeatableRead and Serializable isolation levels, sfsDb uses a snapshot mech
 - **Choose Suitable Isolation Level**: Select appropriate isolation level based on business requirements
 - **Monitor System Performance**: Regularly monitor system performance and adjust optimization strategies in a timely manner
 
-## 15. Automatic Lock Wait Detection and Deadlock Detection
+## 15. Non-blocking Lock Implementation
 
 ### 15.1 Overview
 
-sfsDb implements automatic lock wait detection and deadlock detection functionality, which can automatically detect and prevent deadlocks during transaction execution, improving system reliability and stability.
+sfsDb implements non-blocking lock operations for all lock-related functionality, completely eliminating deadlocks. By using `TryRLock` and `TryLock` instead of blocking lock operations, sfsDb ensures that transactions never wait for locks, thus preventing deadlocks entirely.
 
 ### 15.2 Core Features
 
-- **Automatic Lock Wait Detection**: Automatically detects lock wait situations when acquiring locks
-- **Frequency-Controlled Deadlock Detection**: Limits the frequency of deadlock detection to avoid excessive performance overhead
-- **Local Deadlock Detection**: Only detects paths related to the current transaction, improving detection efficiency
-- **Load-Based Hierarchical Detection**: Selects different detection strategies based on system load
-- **System Load Adaptation**: Dynamically adjusts deadlock detection strategies based on system load
+- **Non-blocking Lock Operations**: Uses `TryRLock`/`TryLock` instead of blocking lock operations
+- **Deadlock Prevention**: Eliminates deadlocks by avoiding lock waits entirely
+- **Simplified Codebase**: Removes complex deadlock detection code
+- **Improved Performance**: Reduces overhead associated with deadlock detection
+- **Predictable Behavior**: Transactions either acquire locks immediately or fail fast
 
 ### 15.3 Implementation Principles
 
-#### 15.3.1 Automatic Lock Wait Detection
+#### 15.3.1 Non-blocking Lock Acquisition
 
-When a transaction attempts to acquire a lock, sfsDb automatically detects lock wait situations:
+All lock acquisition operations now use non-blocking try-lock mechanisms:
 
 ```go
-// Automatically detect lock wait and trigger deadlock detection
-if rl.lockType == LockTypeWrite && rl.lockHolder != txID {
-    // Record waiting status
-    t.RecordWaitingLock(txID, pkValue)
-    // Frequency control: limit the frequency of deadlock detection
-    if time.Since(t.lastDeadlockCheck) > t.deadlockCheckInterval {
-        // Select deadlock detection strategy based on system load level
-        var deadlockedTxs []uint64
-        switch t.currentLoadLevel {
-        case 0: // Low load: use full deadlock detection
-            deadlockedTxs = t.DetectDeadlock()
-        case 1, 2: // Medium-high load: use local deadlock detection
-            deadlockedTxs = t.DetectLocalDeadlock(txID)
-        }
-        t.lastDeadlockCheck = time.Now()
-        for _, deadlockedTxID := range deadlockedTxs {
-            if deadlockedTxID == txID {
-                return fmt.Errorf("Deadlock detected, transaction %d marked as deadlocked", txID)
-            }
-        }
-    }
+// Non-blocking read lock acquisition
+func (t *Table) TryRLock(key string) bool {
+    return t.lockMap.TryRLock(key)
+}
+
+// Non-blocking write lock acquisition
+func (t *Table) TryLock(key string) bool {
+    return t.lockMap.TryLock(key)
 }
 ```
 
-#### 15.3.2 Frequency Control
+#### 15.3.2 Lock Release
 
-To avoid excessive performance impact from deadlock detection, sfsDb implements a frequency control mechanism:
+Lock release operations remain unchanged:
 
-- **Detection Interval**: Controls the frequency of deadlock detection through `deadlockCheckInterval`
-- **Time Window**: Only executes deadlock detection once within a time window
-- **Performance Optimization**: Reduces the impact of high-frequency deadlock detection on system performance
+```go
+// Release read lock
+func (t *Table) RUnlock(key string) {
+    t.lockMap.RUnlock(key)
+}
 
-#### 15.3.3 Local Deadlock Detection
-
-Local deadlock detection only detects paths related to the current transaction, improving detection efficiency:
-
-- **Path Limitation**: Only detects waiting paths starting from the current transaction
-- **Targeted Detection**: Focuses on detecting whether the current transaction is involved in a deadlock
-- **Resource Saving**: Reduces unnecessary calculations and memory usage
-
-#### 15.3.4 Load-Based Hierarchical Detection
-
-Selects different deadlock detection strategies based on system load:
-
-| Load Level | Detection Strategy | Applicable Scenario |
-|------------|-------------------|---------------------|
-| 0 (Low) | Full deadlock detection | Low system load, sufficient resources |
-| 1 (Medium) | Local deadlock detection | Medium system load, need to balance performance and detection effectiveness |
-| 2 (High) | Local deadlock detection | High system load, prioritize performance |
+// Release write lock
+func (t *Table) Unlock(key string) {
+    t.lockMap.Unlock(key)
+}
+```
 
 ### 15.4 Usage Methods
 
-Automatic lock wait detection and deadlock detection are built-in features of sfsDb, enabled by default with no manual configuration required:
+Non-blocking locks are used automatically by the transaction system, requiring no manual configuration:
 
-#### 15.4.1 Automatic Enablement
+#### 15.4.1 Automatic Usage
 
-When using transactions for operations, sfsDb automatically enables lock wait detection and deadlock detection:
+When using transactions, sfsDb automatically uses non-blocking locks:
 
 ```go
 // Start transaction
@@ -1118,10 +1047,10 @@ if err != nil {
     panic(err)
 }
 
-// Execute operation (will automatically trigger lock wait detection and deadlock detection)
+// Execute operation (uses non-blocking locks internally)
 updateFields := map[string]any{"id": 1, "name": "Updated Name"}
 if err := tx.Update(&updateFields); err != nil {
-    // May return deadlock detection error
+    // May return lock acquisition error
     tx.Rollback()
     panic(err)
 }
@@ -1132,33 +1061,9 @@ if err := tx.Commit(); err != nil {
 }
 ```
 
-#### 15.4.2 Disabling Deadlock Detection
+#### 15.4.2 Error Handling
 
-If you need to disable deadlock detection for maximum performance in certain scenarios, you can set the deadlock detection interval to 0:
-
-```go
-// Disable deadlock detection
-table.SetDeadlockCheckInterval(0)
-
-// Execute high-performance operations
-// ...
-
-// Re-enable deadlock detection (set to 100 milliseconds)
-table.SetDeadlockCheckInterval(100 * time.Millisecond)
-```
-
-**Applicable Scenarios**:
-- Low concurrency, low deadlock risk scenarios
-- High-performance batch operations
-- Scenarios where deadlocks are avoided through business logic
-
-**Notes**:
-- Disabling deadlock detection may lead to deadlocks in high-concurrency scenarios
-- Please decide whether to disable based on actual business scenarios and risk assessment
-
-#### 15.4.3 Error Handling
-
-When a deadlock is detected, sfsDb returns an error, and the application needs to handle it properly:
+When lock acquisition fails, sfsDb returns an error, and the application should handle it properly:
 
 ```go
 // Error handling example
@@ -1168,17 +1073,17 @@ if err != nil {
 }
 
 transactionErr := func() error {
-    // Execute operation that may cause deadlock
+    // Execute operation that may fail to acquire lock
     updateFields := map[string]any{"id": 1, "name": "Updated Name"}
     return tx.Update(&updateFields)
 }()
 
 if transactionErr != nil {
     tx.Rollback()
-    // Check if it's a deadlock error
-    if strings.Contains(transactionErr.Error(), "Deadlock detected") {
-        // Handle deadlock situation
-        fmt.Println("Deadlock detected, retrying...")
+    // Check if it's a lock acquisition error
+    if strings.Contains(transactionErr.Error(), "failed to acquire lock") {
+        // Handle lock acquisition failure
+        fmt.Println("Lock acquisition failed, retrying...")
         // Can choose to retry or return error
         return transactionErr
     }
@@ -1188,35 +1093,27 @@ if transactionErr != nil {
 return tx.Commit()
 ```
 
-### 15.5 Performance Optimization
+### 15.5 Best Practices
 
-#### 15.5.1 Frequency Control Optimization
+1. **Implement Retry Logic**: For operations that may fail to acquire locks, implement appropriate retry logic
+2. **Use Short Transactions**: Keep transactions short to reduce lock contention
+3. **Optimize Lock Granularity**: Only lock necessary data to minimize contention
+4. **Handle Lock Failures Gracefully**: Implement proper error handling for lock acquisition failures
+5. **Monitor System Performance**: Regularly monitor system performance and adjust optimization strategies as needed
 
-- **Default Detection Interval**: 100ms
-- **Configurability**: Can adjust detection interval based on system characteristics
-- **Performance Balance**: Balances detection effectiveness and performance overhead
-
-#### 15.5.2 Load Adaptation Optimization
-
-- **Load Detection**: Periodically detects system load
-- **Dynamic Adjustment**: Dynamically adjusts detection strategy based on load conditions
-- **Resource Allocation**: Prioritizes system performance during high load
-
-### 15.6 Best Practices
-
-1. **No Manual Configuration Required**: Automatic lock wait detection and deadlock detection are enabled by default, no manual configuration needed
-2. **Error Handling**: Properly handle errors returned by deadlock detection, consider retry mechanisms
-3. **Transaction Design**: Design reasonable transaction sizes, avoid long transactions
-4. **Concurrency Control**: Reasonably control concurrency to avoid excessive competition
-5. **Monitoring**: Monitor deadlock situations in the system and optimize in a timely manner
-
-### 15.7 Common Issues and Solutions
+### 15.6 Common Issues and Solutions
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| Deadlock error | Cyclic dependencies between transactions | Adjust transaction operation order to avoid cyclic dependencies |
-| Performance degradation | Deadlock detection frequency too high | Adjust `deadlockCheckInterval` parameter |
-| False deadlock alarms | Detection algorithm misjudgment | Check transaction design, avoid complex lock dependencies |
+| Lock acquisition failure | High concurrency and lock contention | Implement exponential backoff retry mechanism |
+| Performance degradation | Too many lock acquisition attempts | Optimize transaction design to reduce lock contention |
+| Application errors | Unhandled lock acquisition failures | Implement proper error handling and retry logic |
+
+### 15.7 Important Notes
+
+- **Application Layer Retry Mechanism**: Since lock operations are now non-blocking, the application layer needs to implement retry logic when lock acquisition fails
+- **Use Exponential Backoff**: Avoid CPU resource consumption from frequent retries
+- **Set Reasonable Retry Timeout**: Avoid affecting user experience when locks cannot be acquired for a long time
 
 ## 16. Built-in Transaction Retry Mechanism
 
@@ -1507,94 +1404,55 @@ if err := parentTx.Commit(); err != nil {
 }
 ```
 
-### 15.3 Transaction Lock Tracking Usage
+### 15.3 Transaction Lock Management
 
-Enable transaction lock tracking and deadlock detection in complex concurrent scenarios:
+Manage locks effectively in complex concurrent scenarios:
 
 ```go
-// 1. Generate transaction ID
-txID := uint64(time.Now().UnixNano())
-
-// 2. Start transaction lock tracking
-table.BeginTransaction(txID)
-
-// 3. Start transaction
+// 1. Start transaction
 tx, err := table.Begin()
 if err != nil {
-    table.EndTransaction(txID) // End lock tracking
     return err
 }
 
-// 4. Execute update operation (may trigger lock competition)
+// 2. Execute update operation (uses non-blocking locks internally)
 updateFields := map[string]any{"id": 1, "name": "Updated Name"}
-
-// Before executing update, record lock that may need to wait
-primaryKey := "1"
-table.RecordWaitingLock(txID, primaryKey)
 
 // Execute update operation
 if err := tx.Update(&updateFields); err != nil {
     tx.Rollback()
-    table.EndTransaction(txID) // End lock tracking
     return err
 }
 
-// 5. Record held lock
-table.RecordHeldLock(txID, primaryKey)
-
-// 6. Commit transaction
+// 3. Commit transaction
 if err := tx.Commit(); err != nil {
-    table.EndTransaction(txID) // End lock tracking
     return err
 }
-
-// 7. End transaction lock tracking
-table.EndTransaction(txID)
 ```
 
-### 15.4 Deadlock Detection in Batch Operations
+### 15.4 Batch Operations with Non-blocking Locks
 
-Use deadlock detection in batch operations:
+Use non-blocking locks in batch operations:
 
 ```go
-// 1. Generate transaction ID
-txID := uint64(time.Now().UnixNano())
-
-// 2. Start transaction lock tracking
-table.BeginTransaction(txID)
-
-// 3. Get batch operation object
+// 1. Get batch operation object
 batch := storage.KVDb.GetBatch()
 if batch == nil {
-    table.EndTransaction(txID) // End lock tracking
     return fmt.Errorf("Failed to get batch operation object")
 }
 
-// 4. Execute batch operations
+// 2. Execute batch operations
 for _, record := range records {
-    primaryKey := fmt.Sprintf("%v", (*record)["id"])
-    
-    // Record waiting lock
-    table.RecordWaitingLock(txID, primaryKey)
-    
-    // Execute update operation
+    // Execute update operation (uses non-blocking locks internally)
     if err := table.Update(record, batch); err != nil {
-        table.EndTransaction(txID) // End lock tracking
         return err
     }
-    
-    // Record held lock
-    table.RecordHeldLock(txID, primaryKey)
 }
 
-// 5. Commit batch
+// 3. Commit batch
 if err := storage.KVDb.WriteBatch(batch); err != nil {
-    table.EndTransaction(txID) // End lock tracking
     return err
 }
-
-// 6. End transaction lock tracking
-table.EndTransaction(txID)
 ```
 
 ### 15.5 Transaction Retry Mechanism

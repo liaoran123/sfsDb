@@ -83,15 +83,7 @@
                             索引统计
                         </div>
                     </li>
-                    <li class="nav-item mb-2">
-                        <div 
-                            class="nav-link menu-item rounded" 
-                            :class="{ active: activePage === 'transactionStats' }"
-                            @click="setActivePage('transactionStats')"
-                        >
-                            事务统计
-                        </div>
-                    </li>
+
                     <!-- 表操作菜单 -->
                     <li class="nav-item mb-2">
                         <div 
@@ -170,11 +162,7 @@
                         <index-stats-component />
                     </div>
                     
-                    <!-- 事务统计 -->
-                    <div v-if="activePage === 'transactionStats'">
-                        <transaction-stats-component />
-                    </div>
-                    
+
                     <!-- 表操作内容 -->
                     <div v-if="activePage === 'crud'">
                         <crud-component />

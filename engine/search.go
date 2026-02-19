@@ -104,20 +104,10 @@ func NewBatchSearchImpl(table *Table, records []*map[string]any, timeout time.Du
 func (s *SearchImpl) Read() ([]byte, error) {
 	// 获取主键值用于行级锁
 	pkField := s.table.GetPrimaryFields()[0]
-	pkValue := (*s.fields)[pkField]
+	_ = (*s.fields)[pkField]
 
 	// 获取行级共享锁（使用默认事务ID）
-	if err := s.table.acquireRowReadLock(pkValue, 0, s.timeout); err != nil {
-		return nil, err
-	}
-	// 直接使用 RUnlock 释放读锁
-	lockKey := fmt.Sprintf("%v", pkValue)
-	defer func() {
-		if rowLock, ok := s.table.rowLocks.Load(lockKey); ok {
-			rl := rowLock.(*RowLock)
-			rl.rwLock.RUnlock()
-		}
-	}()
+
 
 	fieldsBytes := s.table.FieldsToBytes(s.fields)
 	defer func() {

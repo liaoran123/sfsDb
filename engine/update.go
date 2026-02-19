@@ -74,7 +74,7 @@ type UpdateImpl struct {
 	key               []byte
 	timeout           time.Duration
 	// 批量操作相关字段
-	records           []*map[string]any
+	records []*map[string]any
 }
 
 // Reset 重置 UpdateImpl 实例的状态
@@ -141,30 +141,6 @@ func (u *UpdateImpl) PrepareUpdateFields() ([]string, error) {
 	return updateFields, nil
 }
 
-// CheckAndUpdateVersion 检查并更新版本号
-func (u *UpdateImpl) CheckAndUpdateVersion() (string, error) {
-	// 获取当前版本号
-	currentVersionBytes, exists := (*u.fieldsBytes)["v"]
-	if !exists {
-		currentVersionBytes = []byte{1} // 默认版本号
-	}
-	currentVersion := string(currentVersionBytes)
-
-	// 检查版本号是否匹配
-	if updateVersion, hasVersion := (*u.fields)["v"].(string); hasVersion {
-		if updateVersion != currentVersion {
-			return "", fmt.Errorf("optimistic lock conflict: version mismatch, expected %s, got %s", currentVersion, updateVersion)
-		}
-	}
-
-	// 更新版本号为增强版版本号
-	enhancedVersion := generateEnhancedVersion()
-	(*u.fields)["v"] = enhancedVersion
-	(*u.fieldsBytes)["v"] = []byte(enhancedVersion)
-
-	return enhancedVersion, nil
-}
-
 // UpdateFieldsValue 更新字段值
 func (u *UpdateImpl) UpdateFieldsValue() {
 	for field, val := range *u.fields {
@@ -187,12 +163,6 @@ func (u *UpdateImpl) ExecuteUpdateOperation() error {
 	// 删除旧记录
 	batchContainer.Operation(u.fieldsBytes, u.updateFields...)
 
-	// 检查并更新版本号
-	_, err := u.CheckAndUpdateVersion()
-	if err != nil {
-		return err
-	}
-
 	// 更新字段值
 	u.UpdateFieldsValue()
 
@@ -200,7 +170,7 @@ func (u *UpdateImpl) ExecuteUpdateOperation() error {
 	record := u.table.FormatRecord(u.fieldsBytes)
 
 	// 添加新记录
-	batchContainer.SetValue(0, record)                               // 添加主键value=record
+	batchContainer.SetValue(0, record)                                       // 添加主键value=record
 	batchContainer.SetValue(1, u.table.GetPrimaryKey().GetID(u.fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
 	batchContainer.Operation(u.fieldsBytes, u.updateFields...)
 
@@ -255,24 +225,10 @@ func (u *UpdateImpl) BatchUpdate(records []*map[string]any, params ...any) error
 	// 处理记录并批量更新
 	for _, fields := range records {
 		// 验证字段
-		_, pkValue, err := u.table.validateUpdateFields(fields)
+		_, _, err := u.table.validateUpdateFields(fields)
 		if err != nil {
 			return err
 		}
-
-		// 获取行级排他锁
-		lockKey := fmt.Sprintf("%v", pkValue)
-		if err := u.table.acquireRowWriteLock(pkValue, 0, timeout); err != nil {
-			return err
-		}
-
-		// 释放行级锁
-		defer func() {
-			if rowLock, ok := u.table.rowLocks.Load(lockKey); ok {
-				rl := rowLock.(*RowLock)
-				rl.rwLock.Unlock()
-			}
-		}()
 
 		// 读取记录
 		key, err := u.table.readRecordForUpdate(fields)

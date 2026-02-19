@@ -10,6 +10,9 @@ import (
 )
 
 func main() {
+	// 进行相关测试
+	//main20()
+	//return
 	// 初始化数据库
 	dbManager := storage.GetDBManager()
 	// 使用时间戳创建唯一的数据库路径

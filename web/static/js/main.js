@@ -89,7 +89,7 @@ const app = createApp({
                 memory: '内存监控',
                 key: '键值监控',
                 indexStats: '索引统计',
-                transactionStats: '事务统计',
+
                 crud: '表操作',
                 dataQuery: '数据查询',
                 importExport: '数据导入导出'

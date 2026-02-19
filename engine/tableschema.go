@@ -59,18 +59,10 @@ type IndexSchema struct {
 // 用于序列化Table结构体的元数据
 func (t *Table) ToSchema() *TableSchema {
 	// 创建Schema实例
-	// 排除 'v' 字段，因为这是默认的版本号字段，不应该由用户自定义
-	fieldsWithoutV := make(map[string]any, len(t.fields)-1)
-	for k, v := range t.fields {
-		if k != "v" {
-			fieldsWithoutV[k] = v
-		}
-	}
-
 	schema := &TableSchema{
 		ID:            t.id,
 		Name:          t.GetName(),
-		Fields:        fieldsWithoutV,
+		Fields:        t.fields,
 		FieldsID:      t.fieldsid,
 		Indexes:       make([]IndexSchema, 0, len(t.indexs.GetAllIndexes())),
 		TimeFields:    t.timeFields,
