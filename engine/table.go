@@ -477,13 +477,81 @@ func (t *Table) prepareBatch(batchs ...storage.Batch) (storage.Batch, bool, erro
 
 /*
 // commitTransaction 提交事务
-func (t *Table) commitTransaction(batch storage.Batch, userProvidedBatch bool) error {
-	//提交事务
-	if !userProvidedBatch { //如果不是手动事务，则提交默认batch。否则由外部提交。
-		if err := t.kvStore.WriteBatch(batch); err != nil {
+
+	func (t *Table) commitTransaction(batch storage.Batch, userProvidedBatch bool) error {
+		//提交事务
+		if !userProvidedBatch { //如果不是手动事务，则提交默认batch。否则由外部提交。
+			if err := t.kvStore.WriteBatch(batch); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+*/
+// OpenTable 根据表名打开已存在的表并加载其结构信息
+// 参数:
+//   name: 表名
+// 返回:
+//   error: 错误信息
+func (t *Table) OpenTable(name string) error {
+	// 获取 DBManager 实例
+	dbMgr := storage.GetDBManager()
+	// 检查数据库是否已初始化
+	if dbMgr.GetDB() == nil {
+		_, err := dbMgr.OpenDB("./kvdb")
+		if err != nil {
 			return err
 		}
 	}
+
+	// 设置表名
+	t.name = name
+
+	// 初始化字段映射
+	t.fields = make(map[string]any)
+	t.fieldsid = make(map[uint8]string)
+
+	// 设置存储实例
+	t.kvStore = dbMgr.GetDB()
+
+	// 初始化事务和锁管理
+	t.TableTraxn = TableTraxn{
+		lastDeadlockCheck:     time.Now(),
+		deadlockCheckInterval: 100 * time.Millisecond, // 默认100毫秒检测一次
+		transactionCount:      0,
+		lastLoadCheck:         time.Now(),
+		currentLoadLevel:      0, // 默认低负载
+	}
+
+	// 初始化索引集合
+	t.indexs = NewIndexs(&t.fields)
+
+	// 初始化死锁检测器
+	t.deadlockDetector = NewDeadlockDetector(t)
+
+	// 初始化表ID管理器
+	if TableIDManager == nil {
+		TableIDManager = NewIDManager(t.kvStore)
+	}
+
+	// 获取表ID
+	key := TableIDManager.GenerateTableKey(name)
+	id, _, err := TableIDManager.GetOrCreateID(key)
+	if err != nil {
+		return err
+	}
+	t.id = id
+
+	// 尝试加载字段ID映射
+	// 这里可以通过系统管理器获取字段信息
+	// 或者从存储中读取字段ID映射
+
+	// 加载时间字段映射
+	t.timeFields = make(map[string]bool)
+
+	// 重置主键字段缓存
+	t.primaryFields = []string{}
+	t.primaryFieldsLoaded = false
+
 	return nil
 }
-*/

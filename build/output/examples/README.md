@@ -343,6 +343,12 @@ docker run -it --rm -v $(pwd):/app sfsdb-build-env bash -c "./build/build.sh"
 ### API 参考
 - [API 参考文档](./docs/api.md) - 详细的 API 文档
 
+## 联系我们
+
+如果您有任何问题或建议，欢迎通过以下方式联系我们：
+
+- **邮箱**: sfsweb@qq.com
+
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request 来帮助改进 sfsDb！

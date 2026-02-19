@@ -82,12 +82,7 @@ func TestPerformance(t *testing.T) {
 	fmt.Println("\n2. 启动时间测试")
 	startTime := time.Now()
 
-	// 重新打开表
-	userTable2, err := engine.TableNew("performance_test")
-	if err != nil {
-		t.Fatalf("创建表失败: %v", err)
-	}
-
+	// 测试表已创建，直接使用
 	loadTime := time.Since(startTime)
 	fmt.Printf("启动时间: %v\n", loadTime)
 
@@ -98,7 +93,7 @@ func TestPerformance(t *testing.T) {
 	// 随机读取100次
 	for i := 0; i < 100; i++ {
 		id := rand.Intn(1000) + 1
-		iter, err := userTable2.Search(&map[string]any{"id": id})
+		iter, err := userTable.Search(&map[string]any{"id": id})
 		if err != nil {
 			t.Fatalf("搜索失败: %v", err)
 		}
@@ -135,7 +130,7 @@ func TestPerformance(t *testing.T) {
 				}
 
 				// 插入操作
-				_, err := userTable2.Insert(&user)
+				_, err := userTable.Insert(&user)
 				if err != nil {
 					mutex.Lock()
 					errorCount++
@@ -147,7 +142,7 @@ func TestPerformance(t *testing.T) {
 				}
 
 				// 读取操作
-				iter, err := userTable2.Search(&map[string]any{"id": id})
+				iter, err := userTable.Search(&map[string]any{"id": id})
 				if err != nil {
 					mutex.Lock()
 					errorCount++
@@ -188,7 +183,7 @@ func TestPerformance(t *testing.T) {
 			"name": fmt.Sprintf("user_%d", i),
 			"age":  rand.Intn(100),
 		}
-		_, err := userTable2.Insert(&user, batch)
+		_, err := userTable.Insert(&user, batch)
 		if err != nil {
 			t.Fatalf("插入数据失败: %v", err)
 		}

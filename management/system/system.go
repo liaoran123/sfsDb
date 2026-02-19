@@ -22,9 +22,14 @@ type FieldInfo struct {
 
 // IndexInfo 索引信息
 type IndexInfo struct {
-	Name    string // 索引名
-	ID      uint8  // 索引ID
-	TableID uint8  // 所属表ID
+	Name       string            // 索引名
+	ID         uint8             // 索引ID
+	TableID    uint8             // 所属表ID
+	Type       string            // 索引类型（primary, unique, index）
+	Fields     []string          // 索引包含的字段
+	IsUnique   bool              // 是否唯一索引
+	IsPrimary  bool              // 是否主键索引
+	FieldTypes map[string]string // 字段类型映射
 }
 
 // SystemManager 系统信息管理器
@@ -134,10 +139,91 @@ func (sm *SystemManager) GetTableIndexes(tableID uint8) ([]IndexInfo, error) {
 			if len(parts) >= 4 {
 				indexName := strings.Join(parts[3:], "-")
 				indexID := uint8(iter.Value()[0])
+
+				// 解析索引类型和包含的字段
+				indexType := "index" // 默认类型
+				isUnique := false
+				isPrimary := false
+				fields := []string{}
+				fieldTypes := make(map[string]string)
+
+				// 根据索引名判断索引类型
+				if strings.Contains(indexName, "primary") {
+					indexType = "primary"
+					isPrimary = true
+					isUnique = true
+				} else if strings.Contains(indexName, "unique") {
+					indexType = "unique"
+					isUnique = true
+				}
+
+				// 解析索引包含的字段
+				// 尝试从索引名中提取字段名
+				if strings.Contains(indexName, "_") {
+					// 移除前缀（如 index_, primary_, unique_）
+					cleanName := indexName
+					if strings.HasPrefix(cleanName, "index_") {
+						cleanName = cleanName[6:]
+					} else if strings.HasPrefix(cleanName, "primary_") {
+						cleanName = cleanName[8:]
+					} else if strings.HasPrefix(cleanName, "unique_") {
+						cleanName = cleanName[7:]
+					}
+
+					// 尝试分割字段名
+					parts := strings.Split(cleanName, "_")
+					if len(parts) > 0 {
+						// 对于简单的字段名，直接添加
+						if len(parts) == 1 {
+							fields = append(fields, parts[0])
+							fieldTypes[parts[0]] = "string" // 默认类型
+						} else {
+							// 对于组合索引，尝试提取有意义的字段名
+							currentField := ""
+							for i := 0; i < len(parts); i++ {
+								part := parts[i]
+								if part == "id" || part == "type" || part == "name" || part == "time" {
+									// 这些是常见的字段后缀
+									if currentField != "" {
+										fullField := currentField + "_" + part
+										fields = append(fields, fullField)
+										fieldTypes[fullField] = "string" // 默认类型
+										currentField = ""
+									} else {
+										fields = append(fields, part)
+										fieldTypes[part] = "string" // 默认类型
+									}
+								} else {
+									// 累积字段名前缀
+									if currentField != "" {
+										currentField += "_" + part
+									} else {
+										currentField = part
+									}
+								}
+							}
+							// 添加剩余的字段名前缀
+							if currentField != "" && len(currentField) > 2 {
+								fields = append(fields, currentField)
+								fieldTypes[currentField] = "string" // 默认类型
+							}
+						}
+					}
+				} else {
+					// 单个字段索引
+					fields = append(fields, indexName)
+					fieldTypes[indexName] = "string" // 默认类型
+				}
+
 				indexes = append(indexes, IndexInfo{
-					Name:    indexName,
-					ID:      indexID,
-					TableID: tableID,
+					Name:       indexName,
+					ID:         indexID,
+					TableID:    tableID,
+					Type:       indexType,
+					Fields:     fields,
+					IsUnique:   isUnique,
+					IsPrimary:  isPrimary,
+					FieldTypes: fieldTypes,
 				})
 			}
 		}
@@ -243,10 +329,90 @@ func (sm *SystemManager) GetAllSystemInfo() (map[string]interface{}, error) {
 					}
 					indexName := strings.Join(parts[3:], "-")
 					indexID := uint8(value[0])
+					// 解析索引类型和包含的字段
+					indexType := "index" // 默认类型
+					isUnique := false
+					isPrimary := false
+					fields := []string{}
+					fieldTypes := make(map[string]string)
+
+					// 根据索引名判断索引类型
+					if strings.Contains(indexName, "primary") {
+						indexType = "primary"
+						isPrimary = true
+						isUnique = true
+					} else if strings.Contains(indexName, "unique") {
+						indexType = "unique"
+						isUnique = true
+					}
+
+					// 解析索引包含的字段
+					// 尝试从索引名中提取字段名
+					if strings.Contains(indexName, "_") {
+						// 移除前缀（如 index_, primary_, unique_）
+						cleanName := indexName
+						if strings.HasPrefix(cleanName, "index_") {
+							cleanName = cleanName[6:]
+						} else if strings.HasPrefix(cleanName, "primary_") {
+							cleanName = cleanName[8:]
+						} else if strings.HasPrefix(cleanName, "unique_") {
+							cleanName = cleanName[7:]
+						}
+
+						// 尝试分割字段名
+						parts := strings.Split(cleanName, "_")
+						if len(parts) > 0 {
+							// 对于简单的字段名，直接添加
+							if len(parts) == 1 {
+								fields = append(fields, parts[0])
+								fieldTypes[parts[0]] = "string" // 默认类型
+							} else {
+								// 对于组合索引，尝试提取有意义的字段名
+								currentField := ""
+								for i := 0; i < len(parts); i++ {
+									part := parts[i]
+									if part == "id" || part == "type" || part == "name" || part == "time" {
+										// 这些是常见的字段后缀
+										if currentField != "" {
+											fullField := currentField + "_" + part
+											fields = append(fields, fullField)
+											fieldTypes[fullField] = "string" // 默认类型
+											currentField = ""
+										} else {
+											fields = append(fields, part)
+											fieldTypes[part] = "string" // 默认类型
+										}
+									} else {
+										// 累积字段名前缀
+										if currentField != "" {
+											currentField += "_" + part
+										} else {
+											currentField = part
+										}
+									}
+								}
+								// 添加剩余的字段名前缀
+								if currentField != "" && len(currentField) > 2 {
+									fields = append(fields, currentField)
+									fieldTypes[currentField] = "string" // 默认类型
+								}
+							}
+						}
+					} else {
+						// 单个字段索引
+						fields = append(fields, indexName)
+						fieldTypes[indexName] = "string" // 默认类型
+					}
+
 					indexesMap[tableID] = append(indexesMap[tableID], IndexInfo{
-						Name:    indexName,
-						ID:      indexID,
-						TableID: tableID,
+						Name:       indexName,
+						ID:         indexID,
+						TableID:    tableID,
+						Type:       indexType,
+						Fields:     fields,
+						IsUnique:   isUnique,
+						IsPrimary:  isPrimary,
+						FieldTypes: fieldTypes,
 					})
 				}
 			}

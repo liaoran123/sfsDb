@@ -8,6 +8,7 @@ import (
 	"github.com/liaoran123/sfsDb/engine"
 	"github.com/liaoran123/sfsDb/management/backup"
 	"github.com/liaoran123/sfsDb/management/config"
+	"github.com/liaoran123/sfsDb/management/importexport"
 	"github.com/liaoran123/sfsDb/management/monitor"
 
 	"github.com/liaoran123/sfsDb/management/status"
@@ -108,6 +109,14 @@ func (m *Manager) SystemManager() *system.SystemManager {
 
 func (m *Manager) MonitorManager() *monitor.MonitorManager {
 	return monitor.NewMonitorManager()
+}
+
+// ImportExportManager 获取导入导出管理器
+// 返回:
+//   *importexport.ImportExportManager: 导入导出管理器实例
+
+func (m *Manager) ImportExportManager() *importexport.ImportExportManager {
+	return importexport.NewImportExportManager(m.store)
 }
 
 // GetTable 获取表实例

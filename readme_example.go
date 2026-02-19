@@ -7,7 +7,7 @@ import (
 	"github.com/liaoran123/sfsDb/storage"
 )
 
-func main() {
+func main100() {
 	fmt.Println("sfsDb README示例代码测试")
 	fmt.Println("====================")
 

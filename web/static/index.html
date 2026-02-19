@@ -6,47 +6,10 @@
     <title>sfsDb Management Interface</title>
     <!-- Bootstrap v5 CSS -->
     <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <!-- 自定义样式 -->
+    <link href="/static/css/styles.css" rel="stylesheet">
     <!-- Vue.js (Production Build) -->
     <script src="/static/js/vue.global.prod.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            min-height: 100vh;
-        }
-        .sidebar {
-            min-height: 100vh;
-            background-color: #f8f9fa;
-            border-right: 1px solid #dee2e6;
-        }
-        .content {
-            min-height: 100vh;
-        }
-        .menu-item {
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .menu-item:hover {
-            background-color: #e9ecef;
-        }
-        .menu-item.active {
-            background-color: #0d6efd;
-            color: white;
-        }
-        .card {
-            margin-bottom: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        #resultArea {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 0.375rem;
-            min-height: 200px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-    </style>
 </head>
 <body>
     <div id="app" class="container-fluid">
@@ -129,8 +92,8 @@
                             事务统计
                         </div>
                     </li>
-                    <!-- 表操作菜单已屏蔽 -->
-                    <!-- <li class="nav-item mb-2">
+                    <!-- 表操作菜单 -->
+                    <li class="nav-item mb-2">
                         <div 
                             class="nav-link menu-item rounded" 
                             :class="{ active: activePage === 'crud' }"
@@ -138,7 +101,27 @@
                         >
                             表操作
                         </div>
-                    </li> -->
+                    </li>
+                    <!-- 数据查询菜单 -->
+                    <li class="nav-item mb-2">
+                        <div 
+                            class="nav-link menu-item rounded" 
+                            :class="{ active: activePage === 'dataQuery' }"
+                            @click="setActivePage('dataQuery')"
+                        >
+                            数据查询
+                        </div>
+                    </li>
+                    <!-- 导入导出菜单 -->
+                    <li class="nav-item mb-2">
+                        <div 
+                            class="nav-link menu-item rounded" 
+                            :class="{ active: activePage === 'importExport' }"
+                            @click="setActivePage('importExport')"
+                        >
+                            数据导入导出
+                        </div>
+                    </li>
                 </ul>
             </div>
             
@@ -151,550 +134,60 @@
                 <!-- 内容区域 -->
                 <div class="content-area">
                     <!-- 系统状态 -->
-                    <div v-if="activePage === 'status'" class="card">
-                        <div class="card-body">
-                            <h5 class="card-title mb-4">系统状态</h5>
-                            <div v-if="loading" class="text-center">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">加载中...</span>
-                                </div>
-                            </div>
-                            <div v-else-if="error" class="alert alert-danger">
-                                {{ error }}
-                            </div>
-                            <div v-else>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="card bg-light">
-                                            <div class="card-body">
-                                                <h6 class="card-subtitle mb-2 text-muted">内存使用</h6>
-                                                <div v-if="statusData.Memory">
-                                                    <p class="card-text">已分配: {{ (statusData.Memory.Alloc / 1024 / 1024).toFixed(2) }} MB</p>
-                                                    <p class="card-text">总分配: {{ (statusData.Memory.TotalAlloc / 1024 / 1024).toFixed(2) }} MB</p>
-                                                    <p class="card-text">系统内存: {{ (statusData.Memory.Sys / 1024 / 1024).toFixed(2) }} MB</p>
-                                                    <p class="card-text">GC次数: {{ statusData.Memory.NumGC }}</p>
-                                                </div>
-                                                <div v-else class="alert alert-info">
-                                                    内存信息加载中...
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="card bg-light">
-                                            <div class="card-body">
-                                                <h6 class="card-subtitle mb-2 text-muted">存储信息</h6>
-                                                <div v-if="statusData.Storage">
-                                                    <p class="card-text">存储类型: {{ statusData.Storage.StoreType }}</p>
-                                                </div>
-                                                <div v-else class="alert alert-info">
-                                                    存储信息加载中...
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div v-if="activePage === 'status'">
+                        <status-component />
                     </div>
                     
                     <!-- 系统信息 -->
-                    <div v-if="activePage === 'system'" class="card">
-                        <div class="card-body">
-                            <h5 class="card-title mb-4">系统信息</h5>
-                            <div v-if="loading" class="text-center">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">加载中...</span>
-                                </div>
-                            </div>
-                            <div v-else-if="error" class="alert alert-danger">
-                                {{ error }}
-                            </div>
-                            <div v-else>
-                                <h6 class="mb-3">表信息</h6>
-                                <div v-if="systemData.tables && systemData.tables.length > 0">
-                                    <table class="table table-striped">
-                                        <thead>
-                                            <tr>
-                                                <th>表名</th>
-                                                <th>表ID</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr v-for="table in systemData.tables" :key="table.ID">
-                                                <td>{{ table.Name }}</td>
-                                                <td>{{ table.ID }}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                    
-                                    <!-- 表详细信息 -->
-                                    <h6 class="mt-4 mb-3">表详细信息</h6>
-                                    <div v-for="(details, tableID) in systemData.tableDetails" :key="tableID" class="card mb-3">
-                                        <div class="card-header">
-                                            {{ details.name }} (ID: {{ tableID }})
-                                        </div>
-                                        <div class="card-body">
-                                            <!-- 字段信息 -->
-                                            <div class="mb-4">
-                                                <h6>字段信息</h6>
-                                                <div v-if="details.fields && details.fields.length > 0">
-                                                    <table class="table table-sm">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>字段名</th>
-                                                                <th>字段ID</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            <tr v-for="field in details.fields" :key="field.ID">
-                                                                <td>{{ field.Name }}</td>
-                                                                <td>{{ field.ID }}</td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                                <div v-else class="text-muted">
-                                                    无字段信息
-                                                </div>
-                                            </div>
-                                            
-                                            <!-- 索引信息 -->
-                                            <div>
-                                                <h6>索引信息</h6>
-                                                <div v-if="details.indexes && details.indexes.length > 0">
-                                                    <table class="table table-sm">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>索引名</th>
-                                                                <th>索引ID</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            <tr v-for="index in details.indexes" :key="index.ID">
-                                                                <td>{{ index.Name }}</td>
-                                                                <td>{{ index.ID }}</td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                                <div v-else class="text-muted">
-                                                    无索引信息
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div v-else class="alert alert-info">
-                                    未找到表信息
-                                </div>
-                            </div>
-                        </div>
+                    <div v-if="activePage === 'system'">
+                        <system-component />
                     </div>
                     
-                    
-                    
                     <!-- 配置管理 -->
-                    <div v-if="activePage === 'config'" class="card">
-                        <div class="card-body">
-                            <h5 class="card-title mb-4">配置管理</h5>
-                            <div v-if="loading" class="text-center">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">加载中...</span>
-                                </div>
-                            </div>
-                            <div v-else-if="error" class="alert alert-danger">
-                                {{ error }}
-                            </div>
-                            <div v-else>
-                                <div class="mb-4">
-                                    <h6>存储类型</h6>
-                                    <p>{{ configData.StoreType }}</p>
-                                </div>
-                                <div>
-                                    <h6>配置选项</h6>
-                                    <table class="table table-striped">
-                                        <thead>
-                                            <tr>
-                                                <th>选项</th>
-                                                <th>值</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr v-for="(value, key) in configData.Options" :key="key">
-                                                <td>{{ key }}</td>
-                                                <td>{{ value }}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
+                    <div v-if="activePage === 'config'">
+                        <config-component />
                     </div>
                     
                     <!-- 备份管理 -->
-                    <div v-if="activePage === 'backup'" class="card">
-                        <div class="card-body">
-                            <h5 class="card-title mb-4">备份管理</h5>
-                            
-                            <!-- 创建备份部分 -->
-                            <div class="mb-6">
-                                <h6 class="mb-3">创建备份</h6>
-                                <div class="form-group mb-4">
-                                    <label for="backupPath" class="form-label">备份路径</label>
-                                    <input type="text" id="backupPath" v-model="backupPath" class="form-control" placeholder="./backups">
-                                    <div class="form-text text-muted">留空使用默认路径: ./backups</div>
-                                </div>
-                                <button class="btn btn-primary mb-4" @click="createBackup" :disabled="loading">
-                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                    <span v-if="loading"> 创建备份中...</span>
-                                    <span v-else>创建备份</span>
-                                </button>
-                            </div>
-                            
-                            <!-- 恢复备份部分 -->
-                            <div class="mb-6">
-                                <h6 class="mb-3">恢复备份</h6>
-                                <div class="form-group mb-4">
-                                    <label for="restoreFile" class="form-label">备份文件路径</label>
-                                    <input type="text" id="restoreFile" v-model="restoreFile" class="form-control" placeholder="./backups/backup_20260204_165405">
-                                    <div class="form-text text-muted">请输入完整的备份文件路径</div>
-                                </div>
-                                <button class="btn btn-warning mb-4" @click="restoreBackup" :disabled="loading">
-                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                    <span v-if="loading"> 恢复备份中...</span>
-                                    <span v-else>恢复备份</span>
-                                </button>
-                            </div>
-                            
-                            <!-- 操作结果 -->
-                            <div v-if="backupResult" class="alert" :class="backupResult.success ? 'alert-success' : 'alert-danger'">
-                                {{ backupResult.message }}
-                            </div>
-                        </div>
+                    <div v-if="activePage === 'backup'">
+                        <backup-component />
                     </div>
                     
                     
                     
                     <!-- 内存监控 -->
-                    <div v-if="activePage === 'memory'" class="card">
-                        <div class="card-body">
-                            <h5 class="card-title mb-4">内存监控</h5>
-                            <div v-if="loading" class="text-center">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">加载中...</span>
-                                </div>
-                            </div>
-                            <div v-else-if="error" class="alert alert-danger">
-                                {{ error }}
-                            </div>
-                            <div v-else>
-                                <!-- 监控控制 -->
-                                <div class="mb-6">
-                                    <h6 class="mb-3">监控控制</h6>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group mb-4">
-                                                <label for="interval" class="form-label">监控间隔</label>
-                                                <input type="text" id="interval" v-model="monitorConfig.interval" class="form-control" placeholder="5s">
-                                                <div class="form-text text-muted">例如: 5s, 10s, 1m</div>
-                                            </div>
-                                            <div class="form-group mb-4">
-                                                <label for="memoryThreshold" class="form-label">内存使用阈值 (MB)</label>
-                                                <input type="number" id="memoryThreshold" v-model.number="monitorConfig.memoryThreshold" class="form-control" placeholder="100">
-                                            </div>
-                                            <div class="form-group mb-4">
-                                                <label for="gcThreshold" class="form-label">GC次数阈值</label>
-                                                <input type="number" id="gcThreshold" v-model.number="monitorConfig.gcThreshold" class="form-control" placeholder="100">
-                                            </div>
-                                            <div class="mb-4">
-                                                <button v-if="!monitorData.monitorRunning" class="btn btn-primary me-2" @click="startMonitor" :disabled="loading">
-                                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                                    <span v-if="loading"> 启动监控中...</span>
-                                                    <span v-else>启动监控</span>
-                                                </button>
-                                                <button v-else class="btn btn-danger me-2" @click="stopMonitor" :disabled="loading">
-                                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                                    <span v-if="loading"> 停止监控中...</span>
-                                                    <span v-else>停止监控</span>
-                                                </button>
-                                                <button class="btn btn-info" @click="refreshMonitorStatus" :disabled="loading">
-                                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                                    <span v-if="loading"> 刷新中...</span>
-                                                    <span v-else>刷新状态</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="card bg-light">
-                                                <div class="card-body">
-                                                    <h6 class="card-subtitle mb-2 text-muted">监控状态</h6>
-                                                    <div v-if="monitorData.monitorRunning" class="alert alert-success">
-                                                        监控已启动
-                                                    </div>
-                                                    <div v-else class="alert alert-warning">
-                                                        监控未启动
-                                                    </div>
-                                                    <div v-if="monitorStatus.currentStatus" class="mt-4">
-                                                        <h6 class="mb-2">当前状态</h6>
-                                                        <p class="card-text">内存使用: {{ monitorStatus.currentStatus.memoryUsage.toFixed(2) }} MB</p>
-                                                        <p class="card-text">GC次数: {{ monitorStatus.currentStatus.gcCount }}</p>
-                                                        <p class="card-text">存储类型: {{ monitorStatus.currentStatus.storeType }}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- 内存监控数据 -->
-                                <div class="mb-6">
-                                    <h6 class="mb-3">内存监控数据</h6>
-                                    <div v-if="monitorStatus.currentStatus" class="card bg-light">
-                                        <div class="card-body">
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <p class="card-text">内存使用: <strong>{{ monitorStatus.currentStatus.memoryUsage.toFixed(2) }} MB</strong></p>
-                                                    <p class="card-text">GC次数: <strong>{{ monitorStatus.currentStatus.gcCount }}</strong></p>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <p class="card-text">存储类型: {{ monitorStatus.currentStatus.storeType }}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div v-else class="alert alert-info">
-                                        内存监控数据未获取，请刷新状态
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div v-if="activePage === 'memory'">
+                        <memory-component />
                     </div>
                     
                     <!-- 键值监控 -->
-                    <div v-if="activePage === 'key'" class="card">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-4">
-                                <h5 class="card-title mb-0">键值监控</h5>
-                                <button class="btn btn-primary" @click="refreshData" :disabled="loading">
-                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                    <span v-if="loading"> 刷新中...</span>
-                                    <span v-else>刷新数据</span>
-                                </button>
-                            </div>
-                            <div v-if="loading" class="text-center">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">加载中...</span>
-                                </div>
-                            </div>
-                            <div v-else-if="error" class="alert alert-danger">
-                                {{ error }}
-                            </div>
-                            <div v-else>
-                                <!-- 键值变更统计 -->
-                                <div class="mb-6">
-                                    <h6 class="mb-3">键值变更统计</h6>
-                                    <div v-if="monitorData.keyChangeStats" class="table-responsive">
-                                        <table class="table table-striped">
-                                            <thead>
-                                                <tr>
-                                                    <th>表ID</th>
-                                                    <th>索引名</th>
-                                                    <th>Put操作次数</th>
-                                                    <th>Delete操作次数</th>
-                                                    <th>总计</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="(stats, key) in monitorData.keyChangeStats" :key="key">
-                                                    <td>{{ stats.TbId }}</td>
-                                                    <td>{{ stats.IndxName }}</td>
-                                                    <td>{{ stats.PutCount }}</td>
-                                                    <td>{{ stats.DeleteCount }}</td>
-                                                    <td>{{ stats.PutCount - stats.DeleteCount }}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <div v-else class="alert alert-info">
-                                        键值变更统计数据未获取
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div v-if="activePage === 'key'">
+                        <key-component />
                     </div>
                     
                     <!-- 索引统计 -->
-                    <div v-if="activePage === 'indexStats'" class="card">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-4">
-                                <h5 class="card-title mb-0">索引统计</h5>
-                                <button class="btn btn-primary" @click="refreshData" :disabled="loading">
-                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                    <span v-if="loading"> 刷新中...</span>
-                                    <span v-else>刷新数据</span>
-                                </button>
-                            </div>
-                            <div v-if="loading" class="text-center">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">加载中...</span>
-                                </div>
-                            </div>
-                            <div v-else-if="error" class="alert alert-danger">
-                                {{ error }}
-                            </div>
-                            <div v-else>
-                                <!-- 索引统计信息 -->
-                                <div class="mb-6">
-                                    <h6 class="mb-3">索引使用统计</h6>
-                                    <div v-if="monitorData.indexStats" class="table-responsive">
-                                        <table class="table table-striped">
-                                            <thead>
-                                                <tr>
-                                                    <th>表名</th>
-                                                    <th>索引名</th>
-                                                    <th>搜索类型</th>
-                                                    <th>使用次数</th>
-                                                    <th>平均搜索耗时 (ms)</th>
-                                                    <th>总搜索耗时 (ms)</th>
-                                                    <th>最大搜索耗时 (ms)</th>
-                                                    <th>最小搜索耗时 (ms)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="(stats, key) in monitorData.indexStats" :key="key">
-                                                    <td>{{ stats.tblName }}</td>
-                                                    <td>{{ stats.indxName }}</td>
-                                                    <td>{{ stats.searchType }}</td>
-                                                    <td>{{ stats.count }}</td>
-                                                    <td>{{ (stats.avgTime / 1000000).toFixed(2) }}</td>
-                                                    <td>{{ (stats.totalTime / 1000000).toFixed(2) }}</td>
-                                                    <td>{{ (stats.maxTime / 1000000).toFixed(2) }}</td>
-                                                    <td>{{ (stats.minTime / 1000000).toFixed(2) }}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <div v-else class="alert alert-info">
-                                        索引统计数据未获取
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div v-if="activePage === 'indexStats'">
+                        <index-stats-component />
                     </div>
                     
                     <!-- 事务统计 -->
-                    <div v-if="activePage === 'transactionStats'" class="card">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-4">
-                                <h5 class="card-title mb-0">事务统计</h5>
-                                <button class="btn btn-primary" @click="refreshData" :disabled="loading">
-                                    <span v-if="loading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                    <span v-if="loading"> 刷新中...</span>
-                                    <span v-else>刷新数据</span>
-                                </button>
-                            </div>
-                            <div v-if="loading" class="text-center">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">加载中...</span>
-                                </div>
-                            </div>
-                            <div v-else-if="error" class="alert alert-danger">
-                                {{ error }}
-                            </div>
-                            <div v-else>
-                                <!-- 事务统计信息 -->
-                                <div class="mb-6">
-                                    <h6 class="mb-3">事务使用统计</h6>
-                                    <div v-if="monitorData.transactionStats" class="table-responsive">
-                                        <table class="table table-striped">
-                                            <thead>
-                                                <tr>
-                                                    <th>事务ID</th>
-                                                    <th>表名</th>
-                                                    <th>隔离级别</th>
-                                                    <th>是否提交</th>
-                                                    <th>事务次数</th>
-                                                    <th>平均耗时 (ms)</th>
-                                                    <th>总耗时 (ms)</th>
-                                                    <th>最大耗时 (ms)</th>
-                                                    <th>最小耗时 (ms)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr v-for="(stats, key) in monitorData.transactionStats" :key="key">
-                                                    <td>{{ stats.txID }}</td>
-                                                    <td>{{ stats.tableName }}</td>
-                                                    <td>{{ stats.isolationLevel }}</td>
-                                                    <td>{{ stats.isCommitted ? '是' : '否' }}</td>
-                                                    <td>{{ stats.totalCount }}</td>
-                                                    <td>{{ (stats.avgDuration / 1000000).toFixed(2) }}</td>
-                                                    <td>{{ (stats.duration / 1000000).toFixed(2) }}</td>
-                                                    <td>{{ (stats.maxDuration / 1000000).toFixed(2) }}</td>
-                                                    <td>{{ (stats.minDuration / 1000000).toFixed(2) }}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <div v-else class="alert alert-info">
-                                        事务统计数据未获取
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div v-if="activePage === 'transactionStats'">
+                        <transaction-stats-component />
                     </div>
                     
-                    <!-- 表操作内容已屏蔽 -->
-                    <!-- <div v-if="activePage === 'crud'" class="card">
-                        <div class="card-body">
-                            <h5 class="card-title mb-4">表操作</h5>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <h6 class="card-subtitle mb-3">操作表单</h6>
-                                            <div class="form-group">
-                                                <label for="tableName" class="form-label">表名</label>
-                                                <input type="text" id="tableName" v-model="crudForm.tableName" class="form-control" placeholder="输入表名">
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="operation" class="form-label">操作类型</label>
-                                                <select id="operation" v-model="crudForm.operation" class="form-select">
-                                                    <option value="insert">插入</option>
-                                                    <option value="search">查询</option>
-                                                    <option value="update">更新</option>
-                                                    <option value="delete">删除</option>
-                                                    <option value="deleteAll">删除所有数据</option>
-                                                </select>
-                                            </div>
-                                            <div class="form-group" v-if="crudForm.operation !== 'deleteAll'">
-                                                <label for="fields" class="form-label">字段 (JSON格式)</label>
-                                                <textarea id="fields" v-model="crudForm.fields" class="form-control" rows="5" placeholder="{id: 1, name: '测试'}"></textarea>
-                                            </div>
-                                            <div class="form-group" v-if="crudForm.operation === 'deleteAll'">
-                                                <div class="alert alert-warning" role="alert">
-                                                    警告：此操作将删除表中的所有数据，且无法恢复！
-                                                </div>
-                                                <input type="checkbox" id="confirmDeleteAll" v-model="crudForm.confirmDeleteAll">
-                                                <label for="confirmDeleteAll" class="form-label">我确认要删除所有数据</label>
-                                            </div>
-                                            <button class="btn btn-primary" @click="executeCRUD" :disabled="crudForm.operation === 'deleteAll' && !crudForm.confirmDeleteAll">执行操作</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <h6 class="card-subtitle mb-3">执行结果</h6>
-                                            <div id="resultArea">
-                                                <pre>{{ crudResult }}</pre>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div> -->
+                    <!-- 表操作内容 -->
+                    <div v-if="activePage === 'crud'">
+                        <crud-component />
+                    </div>
+
+                    <!-- 数据查询内容 -->
+                    <div v-if="activePage === 'dataQuery'">
+                        <data-query-component />
+                    </div>
+                    <!-- 导入导出内容 -->
+                    <div v-if="activePage === 'importExport'">
+                        <import-export-component />
+                    </div>
                 </div>
             </div>
         </div>
@@ -702,295 +195,13 @@
     
     <!-- Bootstrap v5 JavaScript -->
     <script src="/static/js/bootstrap.bundle.min.js"></script>
-    <script>
-        const { createApp } = Vue;
-        
-        createApp({
-            data() {
-                    return {
-                        activePage: 'status',
-                        loading: false,
-                        error: null,
-                        statusData: {},
-                        systemData: {},
-                        configData: {},
-                        monitorData: {},
-                        monitorConfig: {
-                            interval: '5s',
-                            memoryThreshold: 100,
-                            gcThreshold: 100
-                        },
-                        monitorStatus: {},
-                        backupPath: '',
-                        restoreFile: '',
-                        backupResult: null,
-                        crudForm: {
-                            tableName: '',
-                            operation: 'insert',
-                            fields: '',
-                            confirmDeleteAll: false
-                        },
-                        crudResult: ''
-                    }
-                },
-            computed: {
-                pageTitle() {
-                    const titles = {
-                        status: '系统状态',
-                        system: '系统信息',
-                        config: '配置管理',
-                        backup: '备份管理',
-                        memory: '内存监控',
-                        key: '键值监控',
-                        indexStats: '索引统计',
-                        transactionStats: '事务统计',
-                        crud: '表操作'
-                    };
-                    return titles[this.activePage] || 'sfsDb管理界面';
-                }
-            },
-            methods: {
-                setActivePage(page) {
-                    this.activePage = page;
-                    // 备份管理页面不需要加载数据，因为它是一个操作页面
-                    if (page !== 'backup') {
-                        this.loadData();
-                    } else {
-                        // 重置备份管理页面的状态
-                        this.loading = false;
-                        this.error = null;
-                        this.backupResult = null;
-                    }
-                },
-                async loadData() {
-                    this.loading = true;
-                    this.error = null;
-                    
-                    try {
-                        // 对于内存监控、键值监控、索引统计和事务统计，使用monitor API
-                        let apiEndpoint = this.activePage;
-                        if (this.activePage === 'memory' || this.activePage === 'key' || this.activePage === 'indexStats' || this.activePage === 'transactionStats') {
-                            apiEndpoint = 'monitor';
-                        }
-                        
-                        const response = await fetch(`/api/${apiEndpoint}`);
-                        const data = await response.json();
-                        
-                        if (data.error) {
-                            this.error = data.error;
-                        } else {
-                            switch (this.activePage) {
-                                case 'status':
-                                    this.statusData = data;
-                                    break;
-                                case 'system':
-                                    this.systemData = data;
-                                    break;
-                                
-                                case 'config':
-                                    this.configData = data;
-                                    break;
-                                case 'memory':
-                                case 'key':
-                                case 'indexStats':
-                                case 'transactionStats':
-                                    this.monitorData = data;
-                                    // 对于内存监控，刷新监控状态
-                                    if (this.activePage === 'memory') {
-                                        await this.refreshMonitorStatus();
-                                    }
-                                    break;
-                            }
-                        }
-                    } catch (err) {
-                        this.error = '加载数据失败: ' + err.message;
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-                async createBackup() {
-                    try {
-                        // 设置加载状态
-                        this.loading = true;
-                        
-                        // 构建 API URL，添加操作类型和自定义备份路径参数
-                        let apiUrl = '/api/backup?op=create';
-                        if (this.backupPath) {
-                            apiUrl += '&path=' + encodeURIComponent(this.backupPath);
-                        }
-
-                        const response = await fetch(apiUrl);
-                        const data = await response.json();
-                        
-                        if (data.error) {
-                            this.backupResult = {
-                                success: false,
-                                message: data.message || data.error
-                            };
-                        } else {
-                            this.backupResult = {
-                                success: true,
-                                message: data.message
-                            };
-                        }
-                    } catch (err) {
-                        this.backupResult = {
-                            success: false,
-                            message: '创建备份失败: ' + err.message
-                        };
-                    } finally {
-                        // 取消加载状态
-                        this.loading = false;
-                    }
-                },
-                async restoreBackup() {
-                    try {
-                        // 检查备份文件路径是否为空
-                        if (!this.restoreFile) {
-                            this.backupResult = {
-                                success: false,
-                                message: '错误: 备份文件路径不能为空'
-                            };
-                            return;
-                        }
-
-                        // 设置加载状态
-                        this.loading = true;
-                        
-                        // 构建 API URL，添加恢复操作和备份文件路径参数
-                        const apiUrl = `/api/backup?op=restore&file=${encodeURIComponent(this.restoreFile)}`;
-                        const response = await fetch(apiUrl);
-                        const data = await response.json();
-                        
-                        if (data.error) {
-                            this.backupResult = {
-                                success: false,
-                                message: data.message || data.error
-                            };
-                        } else {
-                            this.backupResult = {
-                                success: true,
-                                message: data.message
-                            };
-                        }
-                    } catch (err) {
-                        this.backupResult = {
-                            success: false,
-                            message: '恢复备份失败: ' + err.message
-                        };
-                    } finally {
-                        // 取消加载状态
-                        this.loading = false;
-                    }
-                },
-                async executeCRUD() {
-                    if (!this.crudForm.tableName) {
-                        this.crudResult = '错误: 表名不能为空';
-                        return;
-                    }
-
-                    try {
-                        let requestBody = {};
-
-                        if (this.crudForm.operation !== 'deleteAll') {
-                            const fields = JSON.parse(this.crudForm.fields);    
-                            requestBody = { fields: fields };
-                        }
-
-                        const response = await fetch(`/api/crud?op=${this.crudForm.operation}&table=${this.crudForm.tableName}`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(requestBody)
-                        });
-
-                        const data = await response.json();
-                        this.crudResult = JSON.stringify(data, null, 2);        
-
-                        // 重置确认删除所有数据的复选框
-                        if (this.crudForm.operation === 'deleteAll') {
-                            this.crudForm.confirmDeleteAll = false;
-                        }
-                    } catch (err) {
-                        this.crudResult = '错误: ' + err.message;
-                    }
-                },
-                async startMonitor() {
-                    try {
-                        this.loading = true;
-
-                        const apiUrl = `/api/monitor?op=start&interval=${encodeURIComponent(this.monitorConfig.interval)}&memoryThreshold=${this.monitorConfig.memoryThreshold}&gcThreshold=${this.monitorConfig.gcThreshold}`;
-                        const response = await fetch(apiUrl);
-                        const data = await response.json();
-
-                        if (data.error) {
-                            this.error = data.message || data.error;
-                        } else {
-                            this.error = null;
-                            await this.loadData();
-                            await this.refreshMonitorStatus();
-                        }
-                    } catch (err) {
-                        this.error = '启动监控失败: ' + err.message;
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-                async stopMonitor() {
-                    try {
-                        this.loading = true;
-
-                        const apiUrl = '/api/monitor?op=stop';
-                        const response = await fetch(apiUrl);
-                        const data = await response.json();
-
-                        if (data.error) {
-                            this.error = data.message || data.error;
-                        } else {
-                            this.error = null;
-                            // 直接更新本地状态，确保页面即时反映变化
-                            this.monitorData.monitorRunning = false;
-                            // 然后重新加载数据以确保状态一致
-                            await this.loadData();
-                            await this.refreshMonitorStatus();
-                        }
-                    } catch (err) {
-                        this.error = '停止监控失败: ' + err.message;
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-                async refreshMonitorStatus() {
-                    try {
-                        this.loading = true;
-
-                        const apiUrl = '/api/monitor?op=status';
-                        const response = await fetch(apiUrl);
-                        const data = await response.json();
-
-                        if (data.error) {
-                            this.error = data.message || data.error;
-                        } else {
-                            this.error = null;
-                            this.monitorStatus = data;
-                        }
-                    } catch (err) {
-                        this.error = '获取监控状态失败: ' + err.message;
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-                async refreshData() {
-                    // 调用现有的 loadData 方法来刷新数据
-                    await this.loadData();
-                },
-                
-            },
-            mounted() {
-                this.loadData();
-            }
-        }).mount('#app');
-    </script>
+    <!-- API调用模块 -->
+    <script src="/static/js/api.js"></script>
+    <!-- 工具函数模块 -->
+    <script src="/static/js/utils.js"></script>
+    <!-- 暴露Vue到全局作用域 -->
+    <script>window.Vue = Vue;</script>
+    <!-- 主应用逻辑 -->
+    <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

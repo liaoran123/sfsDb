@@ -1,0 +1,147 @@
+/* 全局样式 */
+body {
+    font-family: Arial, sans-serif;
+    min-height: 100vh;
+}
+
+/* 侧边栏样式 */
+.sidebar {
+    min-height: 100vh;
+    background-color: #f8f9fa;
+    border-right: 1px solid #dee2e6;
+}
+
+/* 内容区域样式 */
+.content {
+    min-height: 100vh;
+}
+
+/* 菜单项样式 */
+.menu-item {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.menu-item:hover {
+    background-color: #e9ecef;
+}
+
+.menu-item.active {
+    background-color: #0d6efd;
+    color: white;
+}
+
+/* 卡片样式 */
+.card {
+    margin-bottom: 20px;
+}
+
+/* 表单组样式 */
+.form-group {
+    margin-bottom: 15px;
+}
+
+/* 结果区域样式 */
+#resultArea {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 0.375rem;
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* 标签筛选表单样式 */
+.tag-filter-form .form-check {
+    margin-bottom: 10px;
+}
+
+/* 时间轴图表样式 */
+.time-axis-chart {
+    width: 100%;
+    height: 400px;
+}
+
+/* 网络状态指示器样式 */
+.network-status-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+}
+
+.network-status-online {
+    background-color: #28a745;
+}
+
+.network-status-offline {
+    background-color: #ffc107;
+}
+
+.network-status-error {
+    background-color: #dc3545;
+}
+
+/* 加载状态样式 */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+/* 错误消息样式 */
+.error-message {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+/* 成功消息样式 */
+.success-message {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+/* 信息消息样式 */
+.info-message {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+/* 警告消息样式 */
+.warning-message {
+    background-color: #fff3cd;
+    color: #856404;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .sidebar {
+        min-height: auto;
+        border-right: none;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .content {
+        min-height: auto;
+    }
+}

@@ -11,6 +11,92 @@ import (
 	"github.com/liaoran123/sfsDb/util"
 )
 
+// 测试OpenTable方法
+func TestOpenTable(t *testing.T) {
+	// 使用唯一表名，避免测试数据累积
+	tableName := fmt.Sprintf("test_opentable_%d", time.Now().UnixNano())
+
+	// 1. 创建表并插入测试数据
+	table1, err := TableNew(tableName)
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// 设置字段
+	fields := map[string]any{
+		"id":    0,
+		"name":  "",
+		"age":   0,
+		"email": "",
+	}
+
+	err = table1.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
+
+	// 插入测试数据
+	for i := 1; i <= 5; i++ {
+		rec := map[string]any{
+			"id":    i,
+			"name":  fmt.Sprintf("User%d", i),
+			"age":   20 + i,
+			"email": fmt.Sprintf("user%d@example.com", i),
+		}
+		_, err := table1.Insert(&rec)
+		if err != nil {
+			t.Fatalf("Failed to insert record %d: %v", i, err)
+		}
+	}
+
+	// 保存表ID以便后续验证
+	expectedTableID := table1.GetId()
+	t.Logf("Created table %s with ID %d", tableName, expectedTableID)
+
+	// 2. 创建新的Table实例并使用OpenTable方法打开表
+	table2 := &Table{}
+	err = table2.OpenTable(tableName)
+	if err != nil {
+		t.Fatalf("Failed to open table: %v", err)
+	}
+
+	// 3. 验证表是否正确打开
+	if table2.name != tableName {
+		t.Errorf("Table name mismatch: expected %s, got %s", tableName, table2.name)
+	}
+
+	if table2.GetId() != expectedTableID {
+		t.Errorf("Table ID mismatch: expected %d, got %d", expectedTableID, table2.GetId())
+	}
+
+	t.Logf("Opened table %s with ID %d", table2.name, table2.GetId())
+
+	// 4. 验证是否可以继续操作表（查询数据）
+	count := 0
+	// 使用Search方法查询所有数据
+	iter, err := table2.Search(nil)
+	if err != nil {
+		t.Fatalf("Failed to search records: %v", err)
+	}
+	defer iter.Release()
+
+	for iter.First(); iter.Valid(); iter.Next() {
+		count++
+		key := iter.Key()
+		val := iter.Value()
+		t.Logf("Found record: key=%s, value=%s", string(key), string(val))
+	}
+
+	if count != 5 {
+		t.Errorf("Expected 5 records, got %d", count)
+	} else {
+		t.Logf("Successfully retrieved %d records", count)
+	}
+
+	t.Log("OpenTable test passed successfully")
+}
+
+
 // 发现其他测试用例会使用交叉使用相同的表，导致数据不正确。
 // 因此，需要为每个测试生成唯一的表名，避免测试之间的数据冲突。
 // 测试复合主键搜索

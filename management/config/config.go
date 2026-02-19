@@ -1,13 +1,18 @@
 package config
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/liaoran123/sfsDb/storage"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 // ConfigInfo 配置信息
 type ConfigInfo struct {
 	StoreType string            // 存储类型
 	Options   map[string]string // 配置选项
+	Scenarios []string          // 支持的场景
 	// 其他配置信息可以根据需要扩展
 }
 
@@ -34,28 +39,28 @@ func NewConfigManager(store storage.Store) *ConfigManager {
 //   error: 错误信息
 
 func (cm *ConfigManager) GetConfig() (ConfigInfo, error) {
-	// 实现获取配置的逻辑
-	// 先设置默认配置，然后尝试从存储中读取配置
-	config := ConfigInfo{
+	// 获取存储的配置
+	config := storage.GetConfig()
+	
+	// 转换为 ConfigInfo 格式
+	configInfo := ConfigInfo{
 		StoreType: "LevelDB",
 		Options: map[string]string{
-			"block_size":     "4096",
-			"write_buffer":   "64MB", // 与 leveldb.go 中的默认值一致
-			"max_open_files": "200",  // 与 leveldb.go 中的默认值一致
-			"compression":    "snappy",
-			"block_cache":    "128MB", // 与 leveldb.go 中的默认值一致
+			"write_buffer":   strconv.Itoa(config.WriteBuffer),
+			"max_open_files": strconv.Itoa(config.OpenFilesCacheCapacity),
+			"block_cache":    strconv.Itoa(config.BlockCacheCapacity),
+			"compression":    strconv.FormatBool(config.Compression != opt.NoCompression),
+		},
+		Scenarios: []string{
+			storage.ScenarioEmbedded,
+			storage.ScenarioIoT,
+			storage.ScenarioEdge,
+			storage.ScenarioGame,
+			storage.ScenarioDefault,
 		},
 	}
 
-	// 尝试从存储中读取配置
-	configKeys := []string{"write_buffer", "max_open_files", "block_cache"}
-	for _, key := range configKeys {
-		if value, err := cm.store.Get([]byte("config:" + key)); err == nil {
-			config.Options[key] = string(value)
-		}
-	}
-
-	return config, nil
+	return configInfo, nil
 }
 
 // SetConfig 设置配置
@@ -66,10 +71,62 @@ func (cm *ConfigManager) GetConfig() (ConfigInfo, error) {
 //   error: 错误信息
 
 func (cm *ConfigManager) SetConfig(key string, value string) error {
-	// 实现设置配置的逻辑
-	// 使用特定前缀标识配置键值对
-	configKey := []byte("config:" + key)
-	return cm.store.Put(configKey, []byte(value))
+	// 获取当前配置
+	config := storage.GetConfig()
+	
+	// 根据键设置值
+	switch key {
+	case "write_buffer":
+		if size, err := ParseSize(value); err == nil {
+			config.WriteBuffer = size
+		}
+	case "max_open_files":
+		if size, err := strconv.Atoi(value); err == nil {
+			config.OpenFilesCacheCapacity = size
+		}
+	case "block_cache":
+		if size, err := ParseSize(value); err == nil {
+			config.BlockCacheCapacity = size
+		}
+	case "compression":
+		if enabled, err := strconv.ParseBool(value); err == nil {
+			if enabled {
+				config.Compression = opt.DefaultCompression
+			} else {
+				config.Compression = opt.NoCompression
+			}
+		}
+	}
+	
+	// 设置配置
+	storage.SetConfig(config)
+	
+	// 保存到存储
+	return storage.SaveConfigToStore(".")
+}
+
+// SetScenarioConfig 设置场景配置
+// 参数:
+//   scenario: 场景名称
+// 返回:
+//   error: 错误信息
+
+func (cm *ConfigManager) SetScenarioConfig(scenario string) error {
+	// 获取场景配置
+	scenarioOpts := storage.GetScenarioOptions(scenario)
+	
+	// 转换为 Config 格式
+	config := storage.GetConfig()
+	config.WriteBuffer = scenarioOpts.WriteBuffer
+	config.OpenFilesCacheCapacity = scenarioOpts.OpenFilesCacheCapacity
+	config.BlockCacheCapacity = scenarioOpts.BlockCacheCapacity
+	config.Compression = scenarioOpts.Compression
+	
+	// 设置配置
+	storage.SetConfig(config)
+	
+	// 保存到存储
+	return storage.SaveConfigToStore(".")
 }
 
 // GetOptimizationSuggestions 获取优化建议
@@ -78,35 +135,28 @@ func (cm *ConfigManager) SetConfig(key string, value string) error {
 //   error: 错误信息
 
 func (cm *ConfigManager) GetOptimizationSuggestions() ([]string, error) {
-	// 实现获取优化建议的逻辑
-	// 首先获取当前配置
-	config, err := cm.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-
+	// 获取当前配置
+	config := storage.GetConfig()
+	
 	suggestions := []string{}
 
 	// 基于当前配置生成优化建议
-	writeBuffer := config.Options["write_buffer"]
-	if writeBuffer == "4MB" {
-		suggestions = append(suggestions, "考虑增加 write_buffer 大小以提高写入性能，建议设置为 8MB 或 16MB")
+	if config.WriteBuffer < 16*1024*1024 {
+		suggestions = append(suggestions, "考虑增加 write_buffer 大小以提高写入性能，建议设置为 16MB 或更高")
 	}
 
-	maxOpenFiles := config.Options["max_open_files"]
-	if maxOpenFiles == "100" {
-		suggestions = append(suggestions, "根据内存情况调整 max_open_files 参数，内存充足时可设置为 1000 或更高")
+	if config.OpenFilesCacheCapacity < 50 {
+		suggestions = append(suggestions, "根据内存情况调整 max_open_files 参数，内存充足时可设置为 100 或更高")
 	}
 
-	compression := config.Options["compression"]
-	if compression != "snappy" {
-		suggestions = append(suggestions, "考虑使用 snappy 压缩以提高性能和减少存储空间")
+	if config.BlockCacheCapacity < 32*1024*1024 {
+		suggestions = append(suggestions, "考虑增加 block_cache 大小以提高读取性能，建议设置为 32MB 或更高")
 	}
 
-	// 通用建议
-	suggestions = append(suggestions, "对于读密集型应用，考虑启用 bloom filter")
-	suggestions = append(suggestions, "定期进行数据库压缩以提高查询性能")
-	suggestions = append(suggestions, "根据应用场景调整 block_size 参数，默认值为 4096")
+	// 场景特定建议
+	suggestions = append(suggestions, "对于 IoT 场景，建议使用 '"+storage.ScenarioIoT+"' 配置")
+	suggestions = append(suggestions, "对于边缘计算场景，建议使用 '"+storage.ScenarioEdge+"' 配置")
+	suggestions = append(suggestions, "对于嵌入式场景，建议使用 '"+storage.ScenarioEmbedded+"' 配置")
 
 	return suggestions, nil
 }
@@ -119,23 +169,13 @@ func (cm *ConfigManager) GetOptimizationSuggestions() ([]string, error) {
 //   error: 错误信息
 
 func (cm *ConfigManager) ValidateConfig(config ConfigInfo) (bool, error) {
-	// 实现验证配置的逻辑
-
-	// 检查存储类型是否有效
-	if config.StoreType == "" {
-		return false, nil
-	}
-
 	// 检查必要的配置选项是否存在
-	requiredOptions := []string{"block_size", "write_buffer", "max_open_files", "compression"}
+	requiredOptions := []string{"write_buffer", "max_open_files", "block_cache", "compression"}
 	for _, option := range requiredOptions {
 		if _, ok := config.Options[option]; !ok {
 			return false, nil
 		}
 	}
-
-	// 这里可以添加更多的验证逻辑，比如检查配置值的合理性
-	// 例如，检查 block_size 是否为有效的数值，write_buffer 是否为有效的大小等
 
 	return true, nil
 }
@@ -145,15 +185,63 @@ func (cm *ConfigManager) ValidateConfig(config ConfigInfo) (bool, error) {
 //   error: 错误信息
 
 func (cm *ConfigManager) ResetConfig() error {
-	// 实现重置配置的逻辑
-	// 删除存储中的所有配置项，这样下次启动时就会使用默认配置
+	// 重置为默认配置
+	defaultConfig := storage.Config{
+		WriteBuffer:            storage.DefaultWriteBuffer,
+		OpenFilesCacheCapacity: storage.DefaultOpenFilesCacheCapacity,
+		BlockCacheCapacity:     storage.DefaultBlockCacheCapacity,
+		Compression:            opt.DefaultCompression,
+	}
+	
+	storage.SetConfig(defaultConfig)
+	
+	// 保存到存储
+	return storage.SaveConfigToStore(".")
+}
 
-	configKeys := []string{"write_buffer", "max_open_files", "block_cache"}
-	for _, key := range configKeys {
-		if err := cm.store.Delete([]byte("config:" + key)); err != nil {
-			return err
+// ParseSize 解析大小字符串，支持 "64MB" 或 "67108864" 格式
+func ParseSize(s string) (int, error) {
+	s = strings.TrimSpace(s)
+
+	// 检查是否包含单位（支持大小写）
+	sLower := strings.ToLower(s)
+	var multiplier int
+	var valueStr string
+
+	switch {
+	case strings.HasSuffix(sLower, "mb"):
+		multiplier = 1024 * 1024
+		valueStr = strings.TrimSuffix(s, "MB")
+		if valueStr == s {
+			valueStr = strings.TrimSuffix(s, "mb")
 		}
+	case strings.HasSuffix(sLower, "kb"):
+		multiplier = 1024
+		valueStr = strings.TrimSuffix(s, "KB")
+		if valueStr == s {
+			valueStr = strings.TrimSuffix(s, "kb")
+		}
+	case strings.HasSuffix(sLower, "gb"):
+		multiplier = 1024 * 1024 * 1024
+		valueStr = strings.TrimSuffix(s, "GB")
+		if valueStr == s {
+			valueStr = strings.TrimSuffix(s, "gb")
+		}
+	default:
+		// 尝试直接解析为整数
+		size, err := strconv.Atoi(s)
+		if err != nil {
+			return 0, err
+		}
+		return size, nil
 	}
 
-	return nil
+	// 解析数值部分
+	size, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return 0, err
+	}
+
+	// 计算最终大小
+	return size * multiplier, nil
 }
