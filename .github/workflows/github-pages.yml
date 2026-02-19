@@ -28,6 +28,8 @@ jobs:
         run: |
           # Create a simple index.html file for GitHub Pages
           mkdir -p docs/_site
+          
+          # Generate index.html
           cat > docs/_site/index.html << 'EOF'
           <!DOCTYPE html>
           <html lang="zh-CN">
@@ -118,7 +120,11 @@ jobs:
           EOF
           
           # Copy documentation files
+          echo "Copying documentation files..."
+          ls -la docs/
           cp -r docs/* docs/_site/
+          echo "Documentation files copied successfully"
+          ls -la docs/_site/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
