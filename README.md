@@ -311,8 +311,6 @@ docker run -it --rm -v $(pwd):/app sfsdb-build-env bash -c "./build/build.sh"
 - [Basic Operations Guide](./docs/en/basic/) - Includes table creation, field modification and other basic operations
 
 ### 核心功能文档
-- [事务优化指南](./docs/zh/optimization/transaction.md) - 详细的事务性能优化指南（中文）
-- [Transaction Optimization Guide](./docs/en/optimization/transaction.md) - Detailed transaction performance optimization guide (English)
 - [全文索引使用指南](./docs/zh/advanced/full_text_search.md) - 全文索引的高级使用方法（中文）
 - [Full Text Search Guide](./docs/en/advanced/full_text_search.md) - Advanced full text search usage (English)
 - [索引管理指南](./docs/zh/advanced/index_management.md) - 索引的创建、管理和优化（中文）
