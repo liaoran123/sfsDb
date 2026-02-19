@@ -1,0 +1,130 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - sfsdb
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: "pages"
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Build documentation
+        run: |
+          # Create a simple index.html file for GitHub Pages
+          mkdir -p docs/_site
+          cat > docs/_site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="zh-CN">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>sfsDb - 轻量级嵌入式关系型数据库</title>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                margin: 0;
+                padding: 0;
+                background-color: #f4f4f4;
+              }
+              .container {
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #fff;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+              }
+              h1, h2 {
+                color: #333;
+              }
+              a {
+                color: #007bff;
+                text-decoration: none;
+              }
+              a:hover {
+                text-decoration: underline;
+              }
+              .language-selector {
+                margin: 20px 0;
+                padding: 10px;
+                background-color: #f8f9fa;
+                border-radius: 5px;
+              }
+              .feature-list {
+                list-style-type: none;
+                padding: 0;
+              }
+              .feature-list li {
+                padding: 5px 0;
+                border-bottom: 1px solid #eee;
+              }
+              .feature-list li:last-child {
+                border-bottom: none;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>sfsDb 数据库</h1>
+              <p>轻量级嵌入式关系型数据库，专注于提供高性能、灵活的存储解决方案。</p>
+              
+              <div class="language-selector">
+                <h2>语言选择</h2>
+                <ul>
+                  <li><a href="zh/README.html">中文文档</a></li>
+                  <li><a href="en/README.html">English Documentation</a></li>
+                </ul>
+              </div>
+              
+              <h2>主要特性</h2>
+              <ul class="feature-list">
+                <li><strong>轻量级设计</strong> - 资源占用低，适合边缘设备和嵌入式系统</li>
+                <li><strong>灵活的数据模型</strong> - 支持多种字段类型和动态字段</li>
+                <li><strong>强大的索引系统</strong> - 支持单主键、复合主键、普通索引和全文索引</li>
+                <li><strong>丰富的查询功能</strong> - 支持比较操作符、自定义匹配器和全文搜索</li>
+                <li><strong>易于使用的 API</strong> - 简洁的 API 设计，易于集成到各种应用场景</li>
+                <li><strong>高效的性能</strong> - 优化的存储结构和查询算法</li>
+                <li><strong>半结构化数据支持</strong> - 灵活处理复杂数据结构</li>
+                <li><strong>时序数据处理</strong> - 内置时间包，支持时间粒度处理和数据聚合</li>
+              </ul>
+              
+              <h2>快速开始</h2>
+              <pre><code>go get github.com/liaoran123/sfsDb</code></pre>
+              
+              <h2>项目链接</h2>
+              <ul>
+                <li><a href="https://github.com/liaoran123/sfsDb" target="_blank">GitHub 仓库</a></li>
+                <li><a href="https://github.com/liaoran123/sfsDb/releases" target="_blank">发布版本</a></li>
+              </ul>
+            </div>
+          </body>
+          </html>
+          EOF
+          
+          # Copy documentation files
+          cp -r docs/* docs/_site/
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
