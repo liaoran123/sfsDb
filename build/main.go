@@ -141,28 +141,17 @@ func main() {
 	}
 	fmt.Println("删除用户成功")
 
-	// 11. 事务示例
-	fmt.Println("\n11. 事务示例")
-	db := dbManager.GetDB()
-	batch := db.GetBatch()
-	defer batch.Reset()
-
-	// 插入新用户（使用批量操作）
+	// 11. 批量操作示例
+	fmt.Println("\n11. 批量操作示例")
+	
+	// 插入新用户
 	newUser := map[string]any{"id": 4, "name": "赵六", "age": 40, "email": "zhaoliu@example.com", "address": "深圳市"}
-	currentID, err := userTable.Insert(&newUser, batch)
+	currentID, err := userTable.Insert(&newUser)
 	if err != nil {
-		fmt.Printf("事务插入失败: %v\n", err)
+		fmt.Printf("插入失败: %v\n", err)
 		return
 	}
-	fmt.Printf("事务插入用户成功, ID: %d\n", currentID)
-
-	// 提交事务
-	err = db.WriteBatch(batch)
-	if err != nil {
-		fmt.Printf("事务提交失败: %v\n", err)
-		return
-	}
-	fmt.Println("事务提交成功")
+	fmt.Printf("插入用户成功, ID: %d\n", currentID)
 
 	fmt.Println("\n测试完成!")
 }
