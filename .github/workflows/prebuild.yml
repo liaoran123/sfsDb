@@ -2,10 +2,10 @@ name: Prebuild sfsDb
 
 on:
   push:
-    branches: [ main, master, v1.0.3 ]
+    branches: [ main, master ]
     tags: [ v*.*.* ]
   pull_request:
-    branches: [ main, master, v1.0.3 ]
+    branches: [ main, master ]
 
 jobs:
   build:
@@ -113,6 +113,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
+      id-token: write
 
     steps:
     - uses: actions/checkout@v3

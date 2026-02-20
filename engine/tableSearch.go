@@ -2,15 +2,13 @@ package engine
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
 
 // 从按主键数据库读取记录
-func (t *Table) Read(fields *map[string]any, timeout ...time.Duration) ([]byte, error) {
-	
+func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 
 	// 使用 SearchImpl
 	searchImpl := NewSearchImpl(t, fields, nil, nil)
@@ -25,11 +23,6 @@ func (t *Table) Read(fields *map[string]any, timeout ...time.Duration) ([]byte, 
 	GlobalSearchImplPool.Put(searchImpl)
 
 	return record, nil
-}
-
-// ReadWithTimeout 带超时的读取方法
-func (t *Table) ReadWithTimeout(fields *map[string]any, timeout time.Duration) ([]byte, error) {
-	return t.Read(fields, timeout)
 }
 
 // 从按主键数据库读取记录

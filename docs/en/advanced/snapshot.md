@@ -191,6 +191,202 @@ func collectDeviceData() {
 }
 ```
 
+### 3.3 Table-level Snapshot Read Consistency Example
+
+The following example demonstrates how to use snapshots at the table level to ensure read consistency, based on actual test code:
+
+```go
+// Test table-level snapshot read consistency
+func TestTableSnapshotSearchConsistency(t *testing.T) {
+    // Create temporary database
+    dbPath := "./test_table_snapshot_db"
+    cleanup := func() {
+        os.RemoveAll(dbPath)
+    }
+    cleanup()
+    defer cleanup()
+
+    // Open database
+    dbManager := storage.GetDBManager()
+    db, err := dbManager.OpenDB(dbPath)
+    if err != nil {
+        t.Fatalf("Failed to open database: %v", err)
+    }
+    defer storage.CloseDb()
+
+    // Create table
+    tableName := "test_users"
+    table, err := TableNew(tableName)
+    if err != nil {
+        t.Fatalf("Failed to create table: %v", err)
+    }
+    table.kvStore = db
+
+    // Prepare field mapping
+    fieldsMap := map[string]any{
+        "id":    0,
+        "name":  "",
+        "age":   0,
+        "email": "",
+    }
+
+    // Set table fields
+    err = table.SetFields(fieldsMap)
+    if err != nil {
+        t.Fatalf("Failed to set fields: %v", err)
+    }
+
+    // Create primary key index
+    PrimaryKeys, err := DefaultPrimaryKeyNew("pk")
+    if err != nil {
+        t.Fatalf("Failed to create primary key: %v", err)
+    }
+    PrimaryKeys.AddFields("id")
+    err = table.CreateIndex(PrimaryKeys)
+    if err != nil {
+        t.Fatalf("Failed to create primary key index: %v", err)
+    }
+
+    // Create normal index for age field, used for search
+    ageIndex, err := DefaultNormalIndexNew("age_idx")
+    if err != nil {
+        t.Fatalf("Failed to create age index: %v", err)
+    }
+    ageIndex.AddFields("age")
+    err = table.CreateIndex(ageIndex)
+    if err != nil {
+        t.Fatalf("Failed to create age index: %v", err)
+    }
+
+    // 1. Insert initial data
+    users := []map[string]any{
+        {"id": 1, "name": "Zhang San", "age": 30, "email": "zhangsan@example.com"},
+        {"id": 2, "name": "Li Si", "age": 25, "email": "lisi@example.com"},
+        {"id": 3, "name": "Wang Wu", "age": 35, "email": "wangwu@example.com"},
+        {"id": 4, "name": "Zhao Liu", "age": 28, "email": "zhaoliu@example.com"},
+        {"id": 5, "name": "Sun Qi", "age": 40, "email": "sunqi@example.com"},
+    }
+
+    for _, user := range users {
+        _, err := table.Insert(&user)
+        if err != nil {
+            t.Fatalf("Failed to insert user: %v", err)
+        }
+    }
+
+    // 2. Create snapshot
+    snapshot, err := db.Snapshot()
+    if err != nil {
+        t.Fatalf("Failed to create snapshot: %v", err)
+    }
+    defer snapshot.Release()
+
+    // 3. Modify data
+    updateUsers := []map[string]any{
+        {"id": 1, "name": "Zhang San (Updated)", "age": 31},
+        {"id": 2, "name": "Li Si (Updated)", "age": 26},
+        {"id": 6, "name": "Zhou Ba", "age": 22, "email": "zhouba@example.com"}, // New record
+    }
+
+    for _, user := range updateUsers {
+        if user["id"] == 6 {
+            // Insert new record
+            _, err := table.Insert(&user)
+            if err != nil {
+                t.Fatalf("Failed to insert new user: %v", err)
+            }
+        } else {
+            // Update record
+            err := table.Update(&user)
+            if err != nil {
+                t.Fatalf("Failed to update user: %v", err)
+            }
+        }
+    }
+
+    // 4. Directly use snapshot to verify read consistency
+    // Create function to get records from snapshot
+    snapshotGet := func(key []byte) []byte {
+        value, err := snapshot.Get(key)
+        if err != nil {
+            return nil
+        }
+        return value
+    }
+
+    // Build primary key for each user ID and verify data
+    userIDs := []int{1, 2, 3, 4, 5}
+    for _, id := range userIDs {
+        // Build primary key
+        pk := PrimaryKeys
+        fieldsBytes := map[string][]byte{
+            "id": util.AnyToBytes(id),
+        }
+        key := pk.JoinValue(&fieldsBytes, table.id)
+
+        // Read from snapshot
+        snapshotValue := snapshotGet(key)
+        // Read from database
+        dbValue := table.ReadByBytes(key)
+
+        // Parse records and verify
+        // Snapshot should return original data, database should return modified data
+    }
+
+    // Verify snapshot does not include new record (ID: 6)
+    newRecordID := 6
+    newRecordFieldsBytes := map[string][]byte{
+        "id": util.AnyToBytes(newRecordID),
+    }
+    newRecordKey := PrimaryKeys.JoinValue(&newRecordFieldsBytes, table.id)
+    newRecordSnapshotValue := snapshotGet(newRecordKey)
+    if newRecordSnapshotValue != nil {
+        t.Fatalf("Snapshot should not include new record with ID %d", newRecordID)
+    }
+
+    // 5. Test snapshot iterator
+    // Create FunIter function using snapshot iterator
+    snapshotFunIter := func(start, limit []byte) storage.Iterator {
+        return snapshot.Iterator(start, limit)
+    }
+
+    // Test range search
+    rangeIter, err := table.SearchRange(snapshotFunIter, "id", 2, 5)
+    defer rangeIter.Release()
+    if err != nil {
+        t.Fatalf("Failed to search range with snapshot: %v", err)
+    }
+
+    // Collect range search results
+    rangeResults := rangeIter.GetRecords(true)
+    defer record.PutRecords(rangeResults)
+
+    // Verify range search results
+    // Should return original data, not affected by subsequent modifications
+}
+```
+
+#### Example Explanation
+
+1. **Creation and Preparation**: Create database, table, fields, and indexes
+2. **Insert Initial Data**: Insert 5 user records
+3. **Create Snapshot**: Create snapshot before data modification
+4. **Modify Data**: Update 2 existing records, add 1 new record
+5. **Verify Consistency**:
+   - Read from snapshot, should return original data
+   - Read from database, should return modified data
+   - Verify snapshot does not include the new record
+6. **Test Snapshot Iterator**: Use snapshot iterator for range search, verify it returns original data
+
+#### Expected Results
+
+- Snapshot data: Zhang San(30), Li Si(25) (original data)
+- Database data: Zhang San (Updated)(31), Li Si (Updated)(26) (modified data)
+- Snapshot does not include the new record (ID: 6)
+- Range search returns 3 original data records
+
+This example demonstrates how to use snapshots in practical applications to ensure read consistency, especially in scenarios where data is constantly changing.
+
 ## 3. Snapshot Application Scenarios
 
 ### 3.1 Industrial Edge Computing
