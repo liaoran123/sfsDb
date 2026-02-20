@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
@@ -67,6 +66,13 @@ func (t *Table) executeUpdateOperation(batch storage.Batch, fields *map[string]a
 	return nil
 }
 
+/*
+// parseUpdateBatch 解析更新操作的参数，只返回 batch
+func (t *Table) parseUpdateBatch(params ...any) storage.Batch {
+	batch, _ := t.parseParams(params...)
+	return batch
+}
+
 // parseUpdateParams 解析更新操作的参数
 func (t *Table) parseUpdateParams(params ...any) (storage.Batch, time.Duration) {
 	return t.parseParams(params...)
@@ -75,7 +81,7 @@ func (t *Table) parseUpdateParams(params ...any) (storage.Batch, time.Duration) 
 // prepareUpdateBatch 准备更新操作的batch
 func (t *Table) prepareUpdateBatch(batch storage.Batch) (storage.Batch, bool, error) {
 	return t.prepareBatch(batch)
-}
+}*/
 
 // validateUpdateFields 验证更新操作的字段
 func (t *Table) validateUpdateFields(fields *map[string]any) (string, any, error) {
@@ -158,13 +164,10 @@ func (t *Table) commitUpdateTransaction(batch storage.Batch, userProvidedBatch b
 // fields *map[string]any 主键值，可能是组合主键
 // 乐观锁并发控制，允许多个事务同时读取记录，但只有一个事务能成功更新记录，避免了并发更新冲突。
 // 之前Update的缺省参数为batchs ...storage.Batch ，支持乐观锁需要增加一个参数，故而为兼容之前的函数，
-// 使用使用 params ...any 。batch和timeout合并为一个参数组数
-func (t *Table) Update(fields *map[string]any, params ...any) error {
-	// 解析参数
-	batch, timeout := t.parseUpdateParams(params...)
-
+// 使用使用 batchs ...storage.Batch  。batch和timeout合并为一个参数组数
+func (t *Table) Update(fields *map[string]any, batchs ...storage.Batch) error {
 	// 准备batch
-	batch, userProvidedBatch, err := t.prepareUpdateBatch(batch)
+	batch, userProvidedBatch, err := t.prepareBatch(batchs...)
 	if err != nil {
 		return err
 	}
@@ -203,7 +206,7 @@ func (t *Table) Update(fields *map[string]any, params ...any) error {
 	}
 
 	// 使用 UpdateImpl
-	updateImpl := NewUpdateImpl(t, batch, userProvidedBatch, fields, timeout)
+	updateImpl := NewUpdateImpl(t, batch, userProvidedBatch, fields)
 	updateImpl.fieldsBytes = fieldsBytes
 	updateImpl.updateFields = updateFields
 	updateImpl.key = key

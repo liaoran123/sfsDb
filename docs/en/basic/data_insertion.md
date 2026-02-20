@@ -164,4 +164,166 @@ if err != nil {
     panic(fmt.Sprintf("Combined operation commit failed: %v", err))
 }
 fmt.Println("Combined operation completed")
+
+## 3.4 BatchInsert Functions
+
+### 3.4.1 BatchInsert
+Batch insert multiple records
+
+```go
+// Batch insert multiple records
+users := []map[string]any{
+    {"name": "Wang Wu", "age": 35, "email": "wangwu@example.com"},
+    {"name": "Zhao Liu", "age": 28, "email": "zhaoliu@example.com"},
+    {"name": "Sun Qi", "age": 40, "email": "sunqi@example.com"},
+}
+
+// Normal batch insertion
+ids, err := table.BatchInsert(users)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("Batch insertion successful, IDs: %v\n", ids)
+
+// Batch insertion with shared batch (supports eventual consistency)
+batch := storage.KVDb.GetBatch()
+ids2, err := table.BatchInsert(users, batch)
+if err != nil {
+    panic(err)
+}
+
+// Commit batch
+err = storage.KVDb.WriteBatch(batch)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("Batch insertion with shared batch successful, IDs: %v\n", ids2)
 ```
+
+### 3.4.2 BatchInsertWithSize
+Batch insertion with batch size control
+
+```go
+// Batch insertion with batch size control
+largeUsers := []map[string]any{}
+for i := 0; i < 1000; i++ {
+    largeUsers = append(largeUsers, map[string]any{
+        "name": "User" + strconv.Itoa(i),
+        "age":  20 + i%50,
+        "email": "user" + strconv.Itoa(i) + "@example.com",
+    })
+}
+
+// Process 100 records per batch
+ids, err := table.BatchInsertWithSize(largeUsers, 100)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("Batch insertion with size control successful, inserted %d records\n", len(ids))
+```
+
+### 3.4.3 BatchInsertNoInc
+Batch insert records without auto-increment
+
+```go
+// Batch insert records without auto-increment (suitable for time-series data)
+timeSeriesData := []map[string]any{
+    {"id": time.Now().UnixNano(), "device_id": "dev001", "temperature": 25.5, "humidity": 60.0},
+    {"id": time.Now().UnixNano(), "device_id": "dev001", "temperature": 25.6, "humidity": 59.8},
+    {"id": time.Now().UnixNano(), "device_id": "dev002", "temperature": 26.0, "humidity": 58.5},
+}
+
+ids, err := table.BatchInsertNoInc(timeSeriesData)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("Time-series data batch insertion successful, IDs: %v\n", ids)
+```
+
+### 3.4.4 BatchInsertWithSizeNoInc
+Batch insertion with batch size control (without auto-increment)
+
+```go
+// Batch insertion with batch size control (without auto-increment)
+largeTimeSeriesData := []map[string]any{}
+for i := 0; i < 1000; i++ {
+    largeTimeSeriesData = append(largeTimeSeriesData, map[string]any{
+        "id": time.Now().UnixNano() + int64(i),
+        "device_id": "dev" + strconv.Itoa(i%10),
+        "temperature": 20.0 + float64(i%20),
+        "humidity": 50.0 + float64(i%30),
+    })
+}
+
+// Process 200 records per batch
+ids, err := table.BatchInsertWithSizeNoInc(largeTimeSeriesData, 200)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("Time-series data insertion with size control successful, inserted %d records\n", len(ids))
+```
+
+## 3.5 Eventual Consistency Support
+
+### 3.5.1 What is Eventual Consistency
+
+Eventual consistency is a data consistency model in distributed systems that guarantees the system will eventually reach a consistent state if no new update operations are performed. In industrial edge computing scenarios, eventual consistency is often preferred over strong consistency because it provides better performance and availability.
+
+### 3.5.2 How to Implement Eventual Consistency with Shared Batch
+
+In sfsDb, you can implement eventual consistency by using shared batch objects:
+
+```go
+// 1. Create a shared batch object
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    panic("Cannot get batch operation object")
+}
+
+// 2. Add multiple operations to the same batch
+
+// Operation 1: Insert record
+user := map[string]any{
+    "name": "Zhang San",
+    "age":  30,
+    "email": "zhangsan@example.com",
+}
+table1.Insert(&user, batch)
+
+// Operation 2: Update record
+updateData := map[string]any{
+    "id": 1,
+    "age": 31,
+}
+table1.Update(&updateData, batch)
+
+// Operation 3: Delete record
+deleteData := map[string]any{
+    "id": 2,
+}
+table1.Delete(&deleteData, batch)
+
+// Operation 4: Insert record in another table
+deviceData := map[string]any{
+    "id": "dev001",
+    "name": "Temperature Sensor",
+    "status": "online",
+}
+table2.Insert(&deviceData, batch)
+
+// 3. Manually commit batch (all operations executed at once)
+err = storage.KVDb.WriteBatch(batch)
+if err != nil {
+    panic(fmt.Sprintf("Batch commit failed: %v", err))
+}
+fmt.Println("All operations committed, system will eventually reach consistent state")
+```
+
+### 3.5.3 Application Scenarios for Eventual Consistency
+
+1. **Industrial Edge Computing**: Data synchronization between edge devices and cloud, prioritizing performance and availability
+2. **IoT Scenarios**: Collection and processing of large amounts of sensor data, tolerating short-term data inconsistency
+3. **Log Processing**: Batch collection and processing of logs, focusing on throughput rather than real-time consistency
+4. **Cache Updates**: Asynchronous updates between cache and database, improving system response speed
+
+By using BatchInsert functions and shared batch objects, sfsDb provides efficient data operation methods for edge computing and IoT scenarios, while supporting the implementation of eventual consistency.

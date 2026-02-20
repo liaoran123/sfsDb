@@ -43,7 +43,7 @@ func TestBatchInsertWithSizeNoInc(t *testing.T) {
 
 	// 执行BatchInsertWithSizeNoInc（批次大小为5）
 	batchSize := 5
-	ids, err := table.BatchInsertWithSizeNoInc(records, batchSize, false)
+	ids, err := table.BatchInsertWithSizeNoInc(records, batchSize)
 	if err != nil {
 		t.Fatalf("BatchInsertWithSizeNoInc failed: %v", err)
 	}
@@ -122,9 +122,9 @@ func TestBatchInsertWithSizeNoIncSkipVersion(t *testing.T) {
 
 	// 执行BatchInsertWithSizeNoInc并跳过版本号
 	batchSize := 3
-	ids, err := table.BatchInsertWithSizeNoInc(records, batchSize, true)
+	ids, err := table.BatchInsertWithSizeNoInc(records, batchSize)
 	if err != nil {
-		t.Fatalf("BatchInsertWithSizeNoInc with skipVersion failed: %v", err)
+		t.Fatalf("BatchInsertWithSizeNoInc failed: %v", err)
 	}
 
 	// 验证插入结果

@@ -111,21 +111,21 @@ func (t *Table) BatchInsertWithSize(records []*map[string]any, batchSize int, ba
 // skipVersion bool 是否跳过版本号
 // batchs ...storage.Batch 可选的批量操作容器
 // 返回值：插入记录的ID列表和错误信息
-func (t *Table) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize int, skipVersion bool, batchs ...storage.Batch) ([]int, error) {
+func (t *Table) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error) {
 	// 使用 InsertImpl
 	insertImpl := NewBatchInsertImpl(t, nil, false, records)
 	// 执行带批量大小控制的批量插入
-	return insertImpl.BatchInsertWithSizeNoInc(records, batchSize, skipVersion, batchs...)
+	return insertImpl.BatchInsertWithSizeNoInc(records, batchSize, batchs...)
 }
 
 // BatchInsertNoInc 批量插入不需要自动增值的记录
 // records []*map[string]any 要插入的记录列表
-// skipVersion bool 是否跳过版本号
 // batchs ...storage.Batch 可选的批量操作容器
 // 返回值：插入记录的ID列表和错误信息
-func (t *Table) BatchInsertNoInc(records []*map[string]any, skipVersion bool, batchs ...storage.Batch) ([]int, error) {
+// 批量添加时序数据，当表主键为时间戳时，建议使用此方法
+func (t *Table) BatchInsertNoInc(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
 	// 使用 InsertImpl
 	insertImpl := NewBatchInsertImpl(t, nil, false, records)
 	// 执行批量插入
-	return insertImpl.BatchInsertNoInc(records, skipVersion, batchs...)
+	return insertImpl.BatchInsertNoInc(records, batchs...)
 }

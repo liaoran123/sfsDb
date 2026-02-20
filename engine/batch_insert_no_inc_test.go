@@ -31,15 +31,15 @@ func TestBatchInsertNoInc(t *testing.T) {
 
 	// 创建测试记录（包含手动指定的ID）
 	records := []*map[string]any{
-		&map[string]any{"id": 101, "name": "Alice", "age": 25},
-		&map[string]any{"id": 102, "name": "Bob", "age": 30},
-		&map[string]any{"id": 103, "name": "Charlie", "age": 35},
-		&map[string]any{"id": 104, "name": "David", "age": 40},
-		&map[string]any{"id": 105, "name": "Eve", "age": 45},
+		{"id": 101, "name": "Alice", "age": 25},
+		{"id": 102, "name": "Bob", "age": 30},
+		{"id": 103, "name": "Charlie", "age": 35},
+		{"id": 104, "name": "David", "age": 40},
+		{"id": 105, "name": "Eve", "age": 45},
 	}
 
 	// 执行BatchInsertNoInc
-	ids, err := table.BatchInsertNoInc(records, false)
+	ids, err := table.BatchInsertNoInc(records)
 	if err != nil {
 		t.Fatalf("BatchInsertNoInc failed: %v", err)
 	}
@@ -114,9 +114,9 @@ func TestBatchInsertNoIncSkipVersion(t *testing.T) {
 	}
 
 	// 执行BatchInsertNoInc并跳过版本号
-	ids, err := table.BatchInsertNoInc(records, true)
+	ids, err := table.BatchInsertNoInc(records)
 	if err != nil {
-		t.Fatalf("BatchInsertNoInc with skipVersion failed: %v", err)
+		t.Fatalf("BatchInsertNoInc failed: %v", err)
 	}
 
 	// 验证插入结果

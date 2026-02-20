@@ -10,14 +10,10 @@ import (
 
 // 从按主键数据库读取记录
 func (t *Table) Read(fields *map[string]any, timeout ...time.Duration) ([]byte, error) {
-	// 解析超时参数
-	var duration time.Duration
-	if len(timeout) > 0 {
-		duration = timeout[0]
-	}
+	
 
 	// 使用 SearchImpl
-	searchImpl := NewSearchImpl(t, fields, nil, duration, nil)
+	searchImpl := NewSearchImpl(t, fields, nil, nil)
 
 	// 读取记录
 	record, err := searchImpl.Read()
@@ -83,7 +79,7 @@ func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) (
 
 func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...util.ComparisonOperator) (*TableIter, error) {
 	// 使用 SearchImpl
-	searchImpl := NewSearchImpl(t, fields, ops, 0, funIter)
+	searchImpl := NewSearchImpl(t, fields, ops, funIter)
 
 	// 搜索记录
 	tbiter, err := searchImpl.Search()
@@ -104,7 +100,7 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 // funIter 区间迭代器
 func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, Start, Limit any) (*TableIter, error) {
 	// 使用 SearchImpl
-	searchImpl := NewSearchImpl(t, nil, nil, 0, funIter)
+	searchImpl := NewSearchImpl(t, nil, nil, funIter)
 
 	// 范围搜索
 	tbiter, err := searchImpl.SearchRange(fieldname, Start, Limit)

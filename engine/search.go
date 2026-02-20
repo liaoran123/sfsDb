@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
@@ -59,10 +58,9 @@ type SearchImpl struct {
 	fields      *map[string]any
 	fieldsBytes *map[string][]byte
 	ops         []util.ComparisonOperator
-	timeout     time.Duration
 	funIter     storage.FunIter
 	// 批量操作相关字段
-	records     []*map[string]any
+	records []*map[string]any
 }
 
 // Reset 重置 SearchImpl 实例的状态
@@ -71,18 +69,16 @@ func (s *SearchImpl) Reset() {
 	s.fields = nil
 	s.fieldsBytes = nil
 	s.ops = nil
-	s.timeout = 0
 	s.funIter = nil
 	s.records = nil
 }
 
 // NewSearchImpl 创建一个新的 SearchImpl 实例
-func NewSearchImpl(table *Table, fields *map[string]any, ops []util.ComparisonOperator, timeout time.Duration, funIter storage.FunIter) *SearchImpl {
+func NewSearchImpl(table *Table, fields *map[string]any, ops []util.ComparisonOperator, funIter storage.FunIter) *SearchImpl {
 	impl := GlobalSearchImplPool.Get()
 	impl.table = table
 	impl.fields = fields
 	impl.ops = ops
-	impl.timeout = timeout
 	impl.funIter = funIter
 	if impl.funIter == nil {
 		impl.funIter = table.kvStore.Iterator
@@ -91,11 +87,10 @@ func NewSearchImpl(table *Table, fields *map[string]any, ops []util.ComparisonOp
 }
 
 // NewBatchSearchImpl 创建一个新的用于批量搜索的 SearchImpl 实例
-func NewBatchSearchImpl(table *Table, records []*map[string]any, timeout time.Duration) *SearchImpl {
+func NewBatchSearchImpl(table *Table, records []*map[string]any) *SearchImpl {
 	impl := GlobalSearchImplPool.Get()
 	impl.table = table
 	impl.records = records
-	impl.timeout = timeout
 	impl.funIter = table.kvStore.Iterator
 	return impl
 }
@@ -107,7 +102,6 @@ func (s *SearchImpl) Read() ([]byte, error) {
 	_ = (*s.fields)[pkField]
 
 	// 获取行级共享锁（使用默认事务ID）
-
 
 	fieldsBytes := s.table.FieldsToBytes(s.fields)
 	defer func() {
@@ -204,7 +198,7 @@ func (s *SearchImpl) BatchRead(records []*map[string]any) (map[any][]byte, error
 	// 处理记录并批量读取
 	for _, fields := range records {
 		// 创建临时 SearchImpl 实例处理单条记录
-		searchImpl := NewSearchImpl(s.table, fields, nil, s.timeout, s.funIter)
+		searchImpl := NewSearchImpl(s.table, fields, nil, s.funIter)
 
 		// 读取记录
 		record, err := searchImpl.Read()
@@ -243,7 +237,7 @@ func (s *SearchImpl) BatchSearch(records []*map[string]any) (map[any]*TableIter,
 	// 处理记录并批量搜索
 	for _, fields := range records {
 		// 创建临时 SearchImpl 实例处理单条记录
-		searchImpl := NewSearchImpl(s.table, fields, nil, s.timeout, s.funIter)
+		searchImpl := NewSearchImpl(s.table, fields, nil, s.funIter)
 
 		// 搜索记录
 		tbiter, err := searchImpl.Search()

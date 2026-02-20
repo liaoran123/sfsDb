@@ -38,6 +38,9 @@ func TestInsertImpl_CheckType(t *testing.T) {
 	table := &Table{
 		name: "test_table",
 		id:   1, // 使用 uint8 类型
+		fields: map[string]any{
+			"name": "",
+		},
 	}
 
 	// 创建测试字段
@@ -142,32 +145,5 @@ func TestInsertImpl_GetID(t *testing.T) {
 	}
 	if len(id) != 1 || id[0] != 1 {
 		t.Errorf("GetID returned wrong ID: expected '[1]', got '%v'", id)
-	}
-}
-
-// TestInsertImpl_Commit 测试 Commit 方法
-func TestInsertImpl_Commit(t *testing.T) {
-	// 创建一个测试表
-	table := &Table{
-		name: "test_table",
-		id:   1, // 使用 uint8 类型
-		// 暂时不设置 kvStore，因为测试中可能不会实际调用它
-	}
-
-	// 创建测试字段
-	fields := map[string]any{
-		"name": "test",
-	}
-
-	// 创建一个测试 batch
-	batch := &mockBatch{}
-
-	// 创建 InsertImpl 实例
-	insertImpl := NewInsertImpl(table, batch, true, &fields) // 使用 userProvidedBatch=true，避免调用 kvStore
-
-	// 测试 Commit 方法
-	err := insertImpl.Commit()
-	if err != nil {
-		t.Errorf("Commit failed: %v", err)
 	}
 }

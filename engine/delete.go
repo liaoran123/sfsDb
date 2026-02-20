@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
 )
@@ -65,7 +64,6 @@ type DeleteImpl struct {
 	fieldsBytes       *map[string][]byte
 	key               []byte
 	pkValue           any
-	timeout           time.Duration
 	// 批量操作相关字段
 	records []*map[string]any
 }
@@ -79,29 +77,26 @@ func (d *DeleteImpl) Reset() {
 	d.fieldsBytes = nil
 	d.key = nil
 	d.pkValue = nil
-	d.timeout = 0
 	d.records = nil
 }
 
 // NewDeleteImpl 创建一个新的 DeleteImpl 实例
-func NewDeleteImpl(table *Table, batch storage.Batch, userProvidedBatch bool, fields *map[string]any, timeout time.Duration) *DeleteImpl {
+func NewDeleteImpl(table *Table, batch storage.Batch, userProvidedBatch bool, fields *map[string]any) *DeleteImpl {
 	impl := GlobalDeleteImplPool.Get()
 	impl.table = table
 	impl.batch = batch
 	impl.userProvidedBatch = userProvidedBatch
 	impl.fields = fields
-	impl.timeout = timeout
 	return impl
 }
 
 // NewBatchDeleteImpl 创建一个新的用于批量删除的 DeleteImpl 实例
-func NewBatchDeleteImpl(table *Table, batch storage.Batch, userProvidedBatch bool, records []*map[string]any, timeout time.Duration) *DeleteImpl {
+func NewBatchDeleteImpl(table *Table, batch storage.Batch, userProvidedBatch bool, records []*map[string]any) *DeleteImpl {
 	impl := GlobalDeleteImplPool.Get()
 	impl.table = table
 	impl.batch = batch
 	impl.userProvidedBatch = userProvidedBatch
 	impl.records = records
-	impl.timeout = timeout
 	return impl
 }
 
@@ -177,7 +172,7 @@ func (d *DeleteImpl) Commit() error {
 }
 
 // BatchDelete 批量删除多条记录
-func (d *DeleteImpl) BatchDelete(records []*map[string]any, params ...any) error {
+func (d *DeleteImpl) BatchDelete(records []*map[string]any, batchs ...storage.Batch) error {
 	// 检查参数
 	if len(records) == 0 {
 		return nil
@@ -189,22 +184,18 @@ func (d *DeleteImpl) BatchDelete(records []*map[string]any, params ...any) error
 	// 保存记录
 	d.records = records
 
-	// 解析参数
-	batch, timeout := d.table.parseDeleteParams(params...)
-
 	// 准备batch
-	batch, userProvidedBatch, err := d.table.prepareDeleteBatch(batch)
+	batch, userProvidedBatch, err := d.table.prepareBatch(batchs...)
 	if err != nil {
 		return err
 	}
 	d.batch = batch
 	d.userProvidedBatch = userProvidedBatch
-	d.timeout = timeout
 
 	// 处理记录并批量删除
 	for _, fields := range records {
 		// 创建临时 DeleteImpl 实例处理单条记录
-		deleteImpl := NewDeleteImpl(d.table, batch, userProvidedBatch, fields, timeout)
+		deleteImpl := NewDeleteImpl(d.table, batch, userProvidedBatch, fields)
 
 		// 验证字段
 		_, err := deleteImpl.ValidateDeleteFields()
@@ -235,7 +226,7 @@ func (d *DeleteImpl) BatchDelete(records []*map[string]any, params ...any) error
 }
 
 // BatchDeleteWithSize 带批量大小控制的批量删除
-func (d *DeleteImpl) BatchDeleteWithSize(records []*map[string]any, batchSize int, params ...any) error {
+func (d *DeleteImpl) BatchDeleteWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) error {
 	// 检查参数
 	if batchSize <= 0 {
 		batchSize = 100 // 默认批量大小
@@ -256,7 +247,7 @@ func (d *DeleteImpl) BatchDeleteWithSize(records []*map[string]any, batchSize in
 
 		// 处理当前批次
 		batchRecords := records[start:end]
-		if err := d.BatchDelete(batchRecords, params...); err != nil {
+		if err := d.BatchDelete(batchRecords, batchs...); err != nil {
 			return err
 		}
 	}

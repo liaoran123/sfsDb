@@ -2,20 +2,9 @@ package engine
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
 )
-
-// parseDeleteParams 解析删除操作的参数
-func (t *Table) parseDeleteParams(params ...any) (storage.Batch, time.Duration) {
-	return t.parseParams(params...)
-}
-
-// prepareDeleteBatch 准备删除操作的batch
-func (t *Table) prepareDeleteBatch(batch storage.Batch) (storage.Batch, bool, error) {
-	return t.prepareBatch(batch)
-}
 
 /*
 // validateDeleteFields 验证删除操作的字段
@@ -61,27 +50,23 @@ func (t *Table) commitDeleteTransaction(batch storage.Batch, userProvidedBatch b
 // 删除记录
 // fields *map[string]any 主键值，可能是组合主键
 // 之前Delete的缺省参数为batchs ...storage.Batch ，支持乐观锁需要增加一个参数，故而为兼容之前的函数，
-// 使用使用 params ...any 。batch和timeout合并为一个参数组数
-func (t *Table) Delete(fields *map[string]any, params ...any) error {
-	// 解析参数
-	batch, timeout := t.parseDeleteParams(params...)
+// 使用使用 batchs ...storage.Batch 。batch和timeout合并为一个参数组数
+func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
 
 	// 准备batch
-	batch, userProvidedBatch, err := t.prepareDeleteBatch(batch)
+	batch, userProvidedBatch, err := t.prepareBatch(batchs...)
 	if err != nil {
 		return err
 	}
 
 	// 使用 DeleteImpl
-	deleteImpl := NewDeleteImpl(t, batch, userProvidedBatch, fields, timeout)
+	deleteImpl := NewDeleteImpl(t, batch, userProvidedBatch, fields)
 
 	// 验证字段
 	_, err = deleteImpl.ValidateDeleteFields()
 	if err != nil {
 		return err
 	}
-
-
 
 	// 读取记录
 	_, err = deleteImpl.ReadRecordForDelete()

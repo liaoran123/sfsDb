@@ -119,10 +119,10 @@ jobs:
           </html>
           EOF
           
-          # Copy documentation files
+          # Copy documentation files (exclude _site directory to avoid recursion)
           echo "Copying documentation files..."
           ls -la docs/
-          cp -r docs/* docs/_site/
+          find docs -type f -not -path "*/_site/*" | grep -v "docs/_site" | xargs -I {} cp --parents {} docs/_site/
           echo "Documentation files copied successfully"
           ls -la docs/_site/
 

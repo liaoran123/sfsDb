@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
@@ -72,7 +71,6 @@ type UpdateImpl struct {
 	fieldsBytes       *map[string][]byte
 	updateFields      []string
 	key               []byte
-	timeout           time.Duration
 	// 批量操作相关字段
 	records []*map[string]any
 }
@@ -86,29 +84,26 @@ func (u *UpdateImpl) Reset() {
 	u.fieldsBytes = nil
 	u.updateFields = nil
 	u.key = nil
-	u.timeout = 0
 	u.records = nil
 }
 
 // NewUpdateImpl 创建一个新的 UpdateImpl 实例
-func NewUpdateImpl(table *Table, batch storage.Batch, userProvidedBatch bool, fields *map[string]any, timeout time.Duration) *UpdateImpl {
+func NewUpdateImpl(table *Table, batch storage.Batch, userProvidedBatch bool, fields *map[string]any) *UpdateImpl {
 	impl := GlobalUpdateImplPool.Get()
 	impl.table = table
 	impl.batch = batch
 	impl.userProvidedBatch = userProvidedBatch
 	impl.fields = fields
-	impl.timeout = timeout
 	return impl
 }
 
 // NewBatchUpdateImpl 创建一个新的用于批量更新的 UpdateImpl 实例
-func NewBatchUpdateImpl(table *Table, batch storage.Batch, userProvidedBatch bool, records []*map[string]any, timeout time.Duration) *UpdateImpl {
+func NewBatchUpdateImpl(table *Table, batch storage.Batch, userProvidedBatch bool, records []*map[string]any) *UpdateImpl {
 	impl := GlobalUpdateImplPool.Get()
 	impl.table = table
 	impl.batch = batch
 	impl.userProvidedBatch = userProvidedBatch
 	impl.records = records
-	impl.timeout = timeout
 	return impl
 }
 
@@ -198,7 +193,7 @@ func (u *UpdateImpl) Commit() error {
 }
 
 // BatchUpdate 批量更新多条记录
-func (u *UpdateImpl) BatchUpdate(records []*map[string]any, params ...any) error {
+func (u *UpdateImpl) BatchUpdate(records []*map[string]any, batchs ...storage.Batch) error {
 	// 检查参数
 	if len(records) == 0 {
 		return nil
@@ -210,17 +205,13 @@ func (u *UpdateImpl) BatchUpdate(records []*map[string]any, params ...any) error
 	// 保存记录
 	u.records = records
 
-	// 解析参数
-	batch, timeout := u.table.parseUpdateParams(params...)
-
 	// 准备batch
-	batch, userProvidedBatch, err := u.table.prepareUpdateBatch(batch)
+	batch, userProvidedBatch, err := u.table.prepareBatch(batchs...)
 	if err != nil {
 		return err
 	}
 	u.batch = batch
 	u.userProvidedBatch = userProvidedBatch
-	u.timeout = timeout
 
 	// 处理记录并批量更新
 	for _, fields := range records {
@@ -259,7 +250,7 @@ func (u *UpdateImpl) BatchUpdate(records []*map[string]any, params ...any) error
 		defer PutStringSlice(updateFields)
 
 		// 创建临时 UpdateImpl 实例处理单条记录
-		updateImpl := NewUpdateImpl(u.table, batch, userProvidedBatch, fields, timeout)
+		updateImpl := NewUpdateImpl(u.table, batch, userProvidedBatch, fields)
 		updateImpl.fieldsBytes = fieldsBytes
 		updateImpl.updateFields = updateFields
 		updateImpl.key = key
@@ -279,7 +270,7 @@ func (u *UpdateImpl) BatchUpdate(records []*map[string]any, params ...any) error
 }
 
 // BatchUpdateWithSize 带批量大小控制的批量更新
-func (u *UpdateImpl) BatchUpdateWithSize(records []*map[string]any, batchSize int, params ...any) error {
+func (u *UpdateImpl) BatchUpdateWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) error {
 	// 检查参数
 	if batchSize <= 0 {
 		batchSize = 100 // 默认批量大小
@@ -300,7 +291,7 @@ func (u *UpdateImpl) BatchUpdateWithSize(records []*map[string]any, batchSize in
 
 		// 处理当前批次
 		batchRecords := records[start:end]
-		if err := u.BatchUpdate(batchRecords, params...); err != nil {
+		if err := u.BatchUpdate(batchRecords, batchs...); err != nil {
 			return err
 		}
 	}

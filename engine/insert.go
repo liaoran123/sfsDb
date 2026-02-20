@@ -358,7 +358,7 @@ func (i *InsertImpl) BatchInsertWithSize(records []*map[string]any, batchSize in
 }
 
 // BatchInsertWithSizeNoInc 带批量大小控制的批量插入（不需要自动增值）
-func (i *InsertImpl) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize int, skipVersion bool, batchs ...storage.Batch) ([]int, error) {
+func (i *InsertImpl) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error) {
 	// 检查参数
 	if batchSize <= 0 {
 		batchSize = 100 // 默认批量大小
@@ -385,7 +385,7 @@ func (i *InsertImpl) BatchInsertWithSizeNoInc(records []*map[string]any, batchSi
 
 		// 创建新的InsertImpl实例处理每一批
 		batchImpl := NewBatchInsertImpl(i.table, nil, i.userProvidedBatch, batchRecords)
-		batchIds, err := batchImpl.BatchInsertNoInc(batchRecords, skipVersion, batchs...)
+		batchIds, err := batchImpl.BatchInsertNoInc(batchRecords, batchs...)
 		if err != nil {
 			return nil, err
 		}
@@ -415,7 +415,7 @@ func (i *InsertImpl) BatchCommit() error {
 // 批量添加不需要自动增值的记录，并且全部记录规则相同。
 // skipVersion 是否跳过版本号，用于不需要更新的记录
 // 可用于批量插入时序数据，当表主键为时间戳时，建议使用此方法
-func (i *InsertImpl) BatchInsertNoInc(records []*map[string]any, skipVersion bool, batchs ...storage.Batch) ([]int, error) {
+func (i *InsertImpl) BatchInsertNoInc(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
 	// 检查参数
 	if i.table.fields == nil {
 		return nil, fmt.Errorf("表 '%s' 未设置字段和类型", i.table.name)

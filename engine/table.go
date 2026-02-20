@@ -364,6 +364,8 @@ func (t *Table) GetAllIndexNameIdMap() map[string]uint8 {
 
 // parseParams 解析操作的参数
 // 解析可变参数，返回batch和timeout。这2个参考都可能不需要提供。
+
+/*
 func (t *Table) parseParams(params ...any) (storage.Batch, time.Duration) {
 	var batch storage.Batch
 	var timeout time.Duration
@@ -380,8 +382,6 @@ func (t *Table) parseParams(params ...any) (storage.Batch, time.Duration) {
 
 	return batch, timeout
 }
-
-/*
 // prepareBatch 准备批量操作的batch
 // 如果不是手动事务从外部传入batch，则使用创建一个batch，如果是手动事务，则使用外部传入的batch。
 func (t *Table) prepareBatch1(batch storage.Batch) (storage.Batch, bool, error) {

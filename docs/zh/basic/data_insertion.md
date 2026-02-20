@@ -162,4 +162,166 @@ if err != nil {
     panic(fmt.Sprintf("组合操作提交失败: %v", err))
 }
 fmt.Println("组合操作完成")
+
+## 3.4 BatchInsert 系列函数
+
+### 3.4.1 BatchInsert
+批量插入多条记录
+
+```go
+// 批量插入多条记录
+users := []map[string]any{
+    {"name": "王五", "age": 35, "email": "wangwu@example.com"},
+    {"name": "赵六", "age": 28, "email": "zhaoliu@example.com"},
+    {"name": "孙七", "age": 40, "email": "sunqi@example.com"},
+}
+
+// 普通批量插入
+ids, err := table.BatchInsert(users)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("批量插入成功，IDs: %v\n", ids)
+
+// 使用共享 batch 进行批量插入（支持最终一致性）
+batch := storage.KVDb.GetBatch()
+ids2, err := table.BatchInsert(users, batch)
+if err != nil {
+    panic(err)
+}
+
+// 提交批处理
+err = storage.KVDb.WriteBatch(batch)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("使用共享 batch 批量插入成功，IDs: %v\n", ids2)
 ```
+
+### 3.4.2 BatchInsertWithSize
+带批量大小控制的批量插入
+
+```go
+// 带批量大小控制的批量插入
+largeUsers := []map[string]any{}
+for i := 0; i < 1000; i++ {
+    largeUsers = append(largeUsers, map[string]any{
+        "name": "用户" + strconv.Itoa(i),
+        "age":  20 + i%50,
+        "email": "user" + strconv.Itoa(i) + "@example.com",
+    })
+}
+
+// 每批处理 100 条记录
+ids, err := table.BatchInsertWithSize(largeUsers, 100)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("带批量大小控制的批量插入成功，共插入 %d 条记录\n", len(ids))
+```
+
+### 3.4.3 BatchInsertNoInc
+批量插入不需要自动增值的记录
+
+```go
+// 批量插入不需要自动增值的记录（适用于时序数据）
+timeSeriesData := []map[string]any{
+    {"id": time.Now().UnixNano(), "device_id": "dev001", "temperature": 25.5, "humidity": 60.0},
+    {"id": time.Now().UnixNano(), "device_id": "dev001", "temperature": 25.6, "humidity": 59.8},
+    {"id": time.Now().UnixNano(), "device_id": "dev002", "temperature": 26.0, "humidity": 58.5},
+}
+
+ids, err := table.BatchInsertNoInc(timeSeriesData)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("时序数据批量插入成功，IDs: %v\n", ids)
+```
+
+### 3.4.4 BatchInsertWithSizeNoInc
+带批量大小控制的批量插入（不需要自动增值）
+
+```go
+// 带批量大小控制的批量插入（不需要自动增值）
+largeTimeSeriesData := []map[string]any{}
+for i := 0; i < 1000; i++ {
+    largeTimeSeriesData = append(largeTimeSeriesData, map[string]any{
+        "id": time.Now().UnixNano() + int64(i),
+        "device_id": "dev" + strconv.Itoa(i%10),
+        "temperature": 20.0 + float64(i%20),
+        "humidity": 50.0 + float64(i%30),
+    })
+}
+
+// 每批处理 200 条记录
+ids, err := table.BatchInsertWithSizeNoInc(largeTimeSeriesData, 200)
+if err != nil {
+    panic(err)
+}
+fmt.Printf("带批量大小控制的时序数据插入成功，共插入 %d 条记录\n", len(ids))
+```
+
+## 3.5 最终一致性支持
+
+### 3.5.1 什么是最终一致性
+
+最终一致性是分布式系统中一种数据一致性模型，它保证在没有新的更新操作的情况下，系统最终会达到一致的状态。在工业边缘计算场景中，最终一致性通常比强一致性更受欢迎，因为它提供了更好的性能和可用性。
+
+### 3.5.2 如何通过共享 Batch 实现最终一致性
+
+在 sfsDb 中，通过使用共享的 batch 对象，可以实现最终一致性：
+
+```go
+// 1. 创建一个共享的 batch 对象
+batch := storage.KVDb.GetBatch()
+if batch == nil {
+    panic("无法获取批量操作对象")
+}
+
+// 2. 添加多个操作到同一个 batch 中
+
+// 操作1: 插入记录
+user := map[string]any{
+    "name": "张三",
+    "age":  30,
+    "email": "zhangsan@example.com",
+}
+table1.Insert(&user, batch)
+
+// 操作2: 更新记录
+updateData := map[string]any{
+    "id": 1,
+    "age": 31,
+}
+table1.Update(&updateData, batch)
+
+// 操作3: 删除记录
+deleteData := map[string]any{
+    "id": 2,
+}
+table1.Delete(&deleteData, batch)
+
+// 操作4: 在另一个表中插入记录
+deviceData := map[string]any{
+    "id": "dev001",
+    "name": "温度传感器",
+    "status": "online",
+}
+table2.Insert(&deviceData, batch)
+
+// 3. 手动提交 batch（所有操作一次性执行）
+err = storage.KVDb.WriteBatch(batch)
+if err != nil {
+    panic(fmt.Sprintf("批量提交失败: %v", err))
+}
+fmt.Println("所有操作已提交，系统最终会达到一致状态")
+```
+
+### 3.5.3 最终一致性的应用场景
+
+1. **工业边缘计算**：边缘设备与云端的数据同步，优先保证性能和可用性
+2. **物联网场景**：大量传感器数据的采集和处理，容忍短期的数据不一致
+3. **日志处理**：日志的批量收集和处理，注重吞吐量而非实时一致性
+4. **缓存更新**：缓存与数据库的异步更新，提高系统响应速度
+
+通过使用 BatchInsert 系列函数和共享 batch 对象，sfsDb 为边缘计算和物联网场景提供了高效的数据操作方式，同时支持最终一致性的实现。
