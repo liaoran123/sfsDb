@@ -24,6 +24,7 @@ sfsDb is a lightweight, high-performance embedded database library for Go. This 
 - [Jump Ranges](advanced/jump_ranges.md) - Skipping specific data ranges during iteration
 - [Management Tool Library](advanced/management.md) - Database monitoring, configuration management, backup/restore, and performance analysis
 - [Time Series Processing](advanced/time_series.md) - Time granularity handling, time window calculations, data aggregation, and timestamp conversion
+- [Service Support](advanced/service_support.md) - Service levels, support packages and service processes
 
 ### Optimization & Best Practices
 
@@ -139,3 +140,63 @@ For bug reports, feature requests, or contributions, please visit the [GitHub re
 ## License
 
 sfsDb is released under the MIT License. See the LICENSE file for details.
+
+## Privacy Policy
+
+### Data Collection and Usage
+
+1. **Data Collection**:
+   - As an embedded database, all data is stored locally in the user's environment. sfsDb does not automatically collect or transmit any user data to external servers.
+   - When users choose to use our service support, they may need to provide necessary contact information and problem descriptions, which are only used to solve user issues.
+
+2. **Data Usage**:
+   - Locally stored data is completely controlled by the user, and sfsDb does not access or use this data.
+   - Information collected during service support is only used to provide technical support and improve service quality.
+
+3. **Data Protection**:
+   - sfsDb provides encryption storage functionality, and users can choose to encrypt sensitive data.
+   - We take strict security measures to protect information collected during service support.
+
+### User Rights
+
+- **Data Access**: Users have the right to access all data stored locally.
+- **Data Modification**: Users have the right to modify or delete locally stored data.
+- **Data Export**: Users can export stored data at any time.
+
+## GDPR Compliance Statement
+
+### Scope of Application
+
+This GDPR compliance statement applies to users using sfsDb in the European Union region.
+
+### Data Processing Principles
+
+1. **Lawfulness, Fairness, and Transparency**: sfsDb processes data only with the user's explicit consent, and the processing process is transparent.
+
+2. **Data Minimization**: sfsDb only processes necessary data, and locally stored data is completely controlled by the user.
+
+3. **Purpose Limitation**: sfsDb processes data only for purposes explicitly authorized by the user.
+
+4. **Accuracy**: sfsDb ensures that users can update and correct their data at any time.
+
+5. **Storage Limitation**: Users can control the storage period of data, and sfsDb does not permanently store user data.
+
+6. **Integrity and Confidentiality**: sfsDb takes appropriate technical and organizational measures to protect user data.
+
+### User Rights (GDPR)
+
+Under GDPR, EU users have the following rights:
+
+- **Right to be Informed**: The right to understand how sfsDb processes their data.
+- **Right of Access**: The right to obtain their personal data stored by sfsDb.
+- **Right to be Forgotten**: The right to request deletion of their personal data.
+- **Right to Data Portability**: The right to receive their personal data in a structured, commonly used format.
+- **Right to Restrict Processing**: The right to restrict sfsDb's processing of their personal data.
+- **Right to Object**: The right to object to sfsDb's processing of their personal data.
+- **Rights Related to Automated Decision-Making and Profiling**: The right not to be subject to decisions based solely on automated processing.
+
+### Data Protection Contact
+
+If you have any questions about data protection, please contact us through:
+
+- Email: sfsweb@qq.com

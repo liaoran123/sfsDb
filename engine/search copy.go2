@@ -162,12 +162,7 @@ func (s *SearchImpl) Searchs(funIter storage.FunIter, fields *map[string]any, op
 // SearchRange 范围搜索
 // fieldname 对应索引字段名，单主键或组合主键，单索引或组合索引字段。
 // 组合主键或索引时，Start, Limit any为最后一个字段的范围值。第一个字段必须全量匹配，也就是后缀匹配。
-//  5. 当Limit的最后一个字段值为nil时，表示搜索到该前缀的最大值
-//  6. 搜索基于索引进行，必须存在匹配的索引
 func (s *SearchImpl) SearchRange(funIter storage.FunIter, Start, Limit *map[string]any) (*TableIter, error) {
-	if Start == nil || Limit == nil {
-		return nil, fmt.Errorf("Start, Limit 不能为空")
-	}
 	if funIter == nil {
 		funIter = s.table.kvStore.Iterator
 	}
@@ -189,30 +184,26 @@ func (s *SearchImpl) SearchRange(funIter storage.FunIter, Start, Limit *map[stri
 	var Startkey []byte
 	var Limitkey []byte
 	var fieldsBytes *map[string][]byte
-
-	fieldsBytes = s.table.FieldsToBytesNil(Start)
-	Startkey = idx.JoinValue(fieldsBytes, s.table.id)
-	fieldsBytes = s.table.FieldsToBytesNil(Limit)
-	Limitkey = idx.JoinValue(fieldsBytes, s.table.id)
-	// 使用完后将 fieldsBytes 放回对象池
-	defer func() {
-		if fieldsBytes != nil && *fieldsBytes != nil {
-			GlobalFieldsBytesPool.Put(*fieldsBytes)
-		}
-	}()
-
+	if idx != nil {
+		fieldsBytes = s.table.FieldsToBytesNil(Start)
+		Startkey = idx.JoinValue(fieldsBytes, s.table.id)
+		fieldsBytes = s.table.FieldsToBytesNil(Limit)
+		Limitkey = idx.JoinValue(fieldsBytes, s.table.id)
+		// 使用完后将 fieldsBytes 放回对象池
+		defer func() {
+			if fieldsBytes != nil && *fieldsBytes != nil {
+				GlobalFieldsBytesPool.Put(*fieldsBytes)
+			}
+		}()
+	}
 	pfx := idx.Prefix(s.table.id)
 	pfx = append(pfx, SPLIT[0])
 	rangeHelper := util.NewRangeHelper(pfx)
-
 	Startslice := rangeHelper.FromComparison(util.Equal, Startkey)
 	LimitSlice := rangeHelper.FromComparison(util.Equal, Limitkey)
 	slice := &util.Range{
 		Start: Startslice.Start,
 		Limit: LimitSlice.Limit,
-	}
-	if (*Limit)[fieldname[len(fieldname)-1]] == nil { //// 当Limit最后一个字段值为nil时，使用前缀的下一个字节作为上限，表示到无穷大
-		slice.Limit = util.BytesPrefix(pfx).Limit
 	}
 	iter := funIter(slice.Start, slice.Limit)
 	tbiter := GlobalTableIterPool.Get(s.table, iter, idx)

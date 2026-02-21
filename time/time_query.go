@@ -8,21 +8,21 @@ import (
 
 // TimeRangeQueryOptions 时间范围查询选项
 type TimeRangeQueryOptions struct {
-	FieldName     string
-	StartTime     time.Time
-	EndTime       time.Time
+	FieldName       string
+	StartTime       time.Time
+	EndTime         time.Time
 	TimeGranularity TimeGranularity
-	Inclusive     bool // 是否包含边界值
+	Inclusive       bool // 是否包含边界值
 }
 
 // NewTimeRangeQueryOptions 创建时间范围查询选项
 func NewTimeRangeQueryOptions(fieldName string, startTime, endTime time.Time, granularity TimeGranularity) *TimeRangeQueryOptions {
 	return &TimeRangeQueryOptions{
-		FieldName:     fieldName,
-		StartTime:     startTime,
-		EndTime:       endTime,
+		FieldName:       fieldName,
+		StartTime:       startTime,
+		EndTime:         endTime,
 		TimeGranularity: granularity,
-		Inclusive:     true,
+		Inclusive:       true,
 	}
 }
 
@@ -32,7 +32,7 @@ func NewTimeRangeQueryOptions(fieldName string, startTime, endTime time.Time, gr
 // 返回值: 表迭代器和错误
 func SearchTimeRange(table *engine.Table, options *TimeRangeQueryOptions) (*engine.TableIter, error) {
 	// 执行范围查询，使用nil作为迭代器函数，让table.SearchRange使用默认迭代器
-	iter, err := table.SearchRange(nil, options.FieldName, options.StartTime, options.EndTime)
+	iter, err := table.SearchRange(nil, &map[string]any{options.FieldName: options.StartTime}, &map[string]any{options.FieldName: options.EndTime})
 	if err != nil {
 		return nil, err
 	}

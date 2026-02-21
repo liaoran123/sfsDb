@@ -160,6 +160,11 @@ func (t *Table) GetName() string {
 	return t.name
 }
 
+// GetStore 获取存储实例
+func (t *Table) GetStore() storage.Store {
+	return t.kvStore
+}
+
 // GetPrimary 获取主键字段名
 func (t *Table) GetPrimary() []string {
 	primaryFields := make([]string, len(t.GetPrimaryFields()))

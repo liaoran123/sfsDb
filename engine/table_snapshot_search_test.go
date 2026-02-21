@@ -239,7 +239,7 @@ func TestTableSnapshotSearchConsistency(t *testing.T) {
 	}
 
 	// 测试范围搜索
-	rangeIter, err := table.SearchRange(snapshotFunIter, "id", 2, 5)
+	rangeIter, err := table.SearchRange(snapshotFunIter, &map[string]any{"id": 2}, &map[string]any{"id": 5})
 	defer rangeIter.Release()
 	if err != nil {
 		t.Fatalf("Failed to search range with snapshot: %v", err)

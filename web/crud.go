@@ -1030,7 +1030,10 @@ func (s *Server) handleSearchRange(c *gin.Context) {
 
 	// 执行范围查询
 	// 使用SearchRange方法，funIter=nil时会使用默认的kvStore.Iterator
-	tableIter, err := table.SearchRange(nil, field, start, end)
+	// 构建Start和Limit参数
+	startMap := map[string]any{field: start}
+	endMap := map[string]any{field: end}
+	tableIter, err := table.SearchRange(nil, &startMap, &endMap)
 	if err != nil {
 		s.sendError(c, http.StatusInternalServerError, "range search failed", "Failed to perform range search", err.Error())
 		return

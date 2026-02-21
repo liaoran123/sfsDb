@@ -11,12 +11,11 @@ import (
 func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 
 	// 使用 SearchImpl
-	searchImpl := NewSearchImpl(t)
+	searchImpl := NewSearchImpl(t, fields, nil, nil)
 
 	// 读取记录
-	record, err := searchImpl.Read(fields)
+	record, err := searchImpl.Read()
 	if err != nil {
-		GlobalSearchImplPool.Put(searchImpl)
 		return nil, err
 	}
 
@@ -68,17 +67,16 @@ func (t *Table) FieldsToBytesNil(fields *map[string]any) *map[string][]byte {
 
 // 默认ComparisonOperator是like，前缀匹配功能
 func (t *Table) Search(fields *map[string]any, ops ...util.ComparisonOperator) (*TableIter, error) {
-	return t.Searchs(nil, fields, ops...)
+	return t.Searchs(t.kvStore.Iterator, fields, ops...)
 }
 
 func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...util.ComparisonOperator) (*TableIter, error) {
 	// 使用 SearchImpl
-	searchImpl := NewSearchImpl(t)
+	searchImpl := NewSearchImpl(t, fields, ops, funIter)
 
 	// 搜索记录
-	tbiter, err := searchImpl.Searchs(funIter, fields, ops...)
+	tbiter, err := searchImpl.Search()
 	if err != nil {
-		GlobalSearchImplPool.Put(searchImpl)
 		return nil, err
 	}
 
@@ -93,17 +91,13 @@ func (t *Table) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...
 // Start, Limit 区间开始值和结束值。Start=nil表示从索引最小值开始，Limit=nil表示到索引最大值结束。同时为nil即表示遍历索引。
 // 索引为主键时，Start=nil表示从表的主键值最小值开始，Limit=nil表示到表的主键值最大值结束。同时为nil即表示遍历全表。
 // funIter 区间迭代器
-func (t *Table) SearchRange(funIter storage.FunIter, Start, Limit *map[string]any) (*TableIter, error) {
+func (t *Table) SearchRange(funIter storage.FunIter, fieldname string, Start, Limit any) (*TableIter, error) {
 	// 使用 SearchImpl
-	searchImpl := NewSearchImpl(t)
+	searchImpl := NewSearchImpl(t, nil, nil, funIter)
 
-	if funIter == nil { //默认是原始数据库的迭代器
-		funIter = t.kvStore.Iterator
-	}
 	// 范围搜索
-	tbiter, err := searchImpl.SearchRange(funIter, Start, Limit)
+	tbiter, err := searchImpl.SearchRange(fieldname, Start, Limit)
 	if err != nil {
-		GlobalSearchImplPool.Put(searchImpl)
 		return nil, err
 	}
 
@@ -113,7 +107,6 @@ func (t *Table) SearchRange(funIter storage.FunIter, Start, Limit *map[string]an
 	return tbiter, nil
 }
 
-/*
 // 区间迭代器,用于范围搜索和跳跃区间
 func (t *Table) RangeForAny(funIter storage.FunIter, fieldname string, Start, Limit any) (storage.Iterator, Index, error) {
 	if funIter == nil {
@@ -155,4 +148,3 @@ func (t *Table) RangeForAny(funIter storage.FunIter, fieldname string, Start, Li
 	}
 	return iter, idx, nil
 }
-*/

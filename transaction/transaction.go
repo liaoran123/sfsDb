@@ -113,13 +113,13 @@ type TableTransactionInterface interface {
 	// Delete 在事务中删除记录
 	Delete(fields *map[string]interface{}) error
 	// Read 在事务中读取单条记录（支持读一致性）
-	Read(fields *map[string]interface{}) ([]byte, error)
+	Read(fields *map[string]any) ([]byte, error)
 	// Search 在事务中搜索记录（支持读一致性）
-	Search(fields *map[string]interface{}, ops ...util.ComparisonOperator) (*engine.TableIter, error)
+	Search(fields *map[string]any, ops ...util.ComparisonOperator) (*engine.TableIter, error)
 	// Searchs 在事务中搜索记录（通过funIter支持原数据库或快照查询）
-	Searchs(funIter storage.FunIter, fields *map[string]interface{}, ops ...util.ComparisonOperator) (*engine.TableIter, error)
+	Searchs(funIter storage.FunIter, fields *map[string]any, ops ...util.ComparisonOperator) (*engine.TableIter, error)
 	// SearchRange 在事务中进行区间搜索（支持读一致性）
-	SearchRange(funIter storage.FunIter, fieldname string, Start, Limit interface{}) (*engine.TableIter, error)
+	SearchRange(funIter storage.FunIter, Start, Limit *map[string]any) (*engine.TableIter, error)
 	// Commit 提交事务
 	Commit() error
 	// Rollback 回滚事务
@@ -810,38 +810,12 @@ func (tx *TableTransaction) Read(fields *map[string]interface{}) ([]byte, error)
 }
 
 // Search 在事务中搜索记录（支持读一致性）
-func (tx *TableTransaction) Search(fields *map[string]interface{}, ops ...util.ComparisonOperator) (*engine.TableIter, error) {
-	if err := tx.CheckCommitted(); err != nil {
-		return nil, err
-	}
-
-	// 创建一个函数，根据隔离级别选择不同的存储获取迭代器
-	funIter := func(start, limit []byte) storage.Iterator {
-		switch tx.Options.IsolationLevel {
-		case ReadUncommitted:
-			// 对于ReadUncommitted，直接使用原始存储
-			return tx.OriginalStore.Iterator(start, limit)
-		case ReadCommitted:
-			// 对于ReadCommitted，每次读取都使用原始存储
-			return tx.OriginalStore.Iterator(start, limit)
-		case RepeatableRead, Serializable:
-			// 对于RepeatableRead和Serializable，使用事务开始时创建的快照
-			if tx.Snapshot != nil {
-				return tx.Snapshot.Iterator(start, limit)
-			}
-			return tx.OriginalStore.Iterator(start, limit)
-		default:
-			// 默认使用原始存储
-			return tx.OriginalStore.Iterator(start, limit)
-		}
-	}
-
-	// 调用table.Searchs方法，传入funIter函数
-	return tx.Table.Searchs(funIter, fields, ops...)
+func (tx *TableTransaction) Search(fields *map[string]any, ops ...util.ComparisonOperator) (*engine.TableIter, error) {
+	return tx.Searchs(nil, fields, ops...)
 }
 
 // Searchs 在事务中搜索记录（通过funIter支持原数据库或快照查询）
-func (tx *TableTransaction) Searchs(funIter storage.FunIter, fields *map[string]interface{}, ops ...util.ComparisonOperator) (*engine.TableIter, error) {
+func (tx *TableTransaction) Searchs(funIter storage.FunIter, fields *map[string]any, ops ...util.ComparisonOperator) (*engine.TableIter, error) {
 	if err := tx.CheckCommitted(); err != nil {
 		return nil, err
 	}
@@ -878,7 +852,7 @@ func (tx *TableTransaction) Searchs(funIter storage.FunIter, fields *map[string]
 }
 
 // SearchRange 在事务中进行区间搜索（支持读一致性）
-func (tx *TableTransaction) SearchRange(funIter storage.FunIter, fieldname string, Start, Limit interface{}) (*engine.TableIter, error) {
+func (tx *TableTransaction) SearchRange(funIter storage.FunIter, Start, Limit *map[string]any) (*engine.TableIter, error) {
 	if err := tx.CheckCommitted(); err != nil {
 		return nil, err
 	}
@@ -911,7 +885,7 @@ func (tx *TableTransaction) SearchRange(funIter storage.FunIter, fieldname strin
 	}
 
 	// 调用table.SearchRange方法，传入事务的funIter函数
-	return tx.Table.SearchRange(transactionFunIter, fieldname, Start, Limit)
+	return tx.Table.SearchRange(transactionFunIter, Start, Limit)
 }
 
 // GetOptions 获取事务选项

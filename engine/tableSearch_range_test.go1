@@ -105,11 +105,10 @@ func TestTable_SearchRange(t *testing.T) {
 		}
 	})
 
-	// 测试2: 空范围搜索
-	t.Run("EmptyRangeSearch", func(t *testing.T) {
-		// 创建范围
-		rangeStart := now + 200
-		rangeEnd := now + 210
+	// 测试2: 相同值的范围查询
+	t.Run("SameValueRangeSearch", func(t *testing.T) {
+		// 创建测试点
+		testPoint := now + 20
 
 		// 定义迭代器函数
 		funIter := storage.FunIter(func(start, limit []byte) storage.Iterator {
@@ -117,8 +116,8 @@ func TestTable_SearchRange(t *testing.T) {
 			return table.kvStore.Iterator(start, limit)
 		})
 
-		// 执行区间搜索
-		iter, err := table.SearchRange(funIter, &map[string]any{"timestamp": rangeStart}, &map[string]any{"timestamp": rangeEnd})
+		// 执行相同值的范围查询
+		iter, err := table.SearchRange(funIter, &map[string]any{"timestamp": testPoint}, &map[string]any{"timestamp": testPoint})
 		if err != nil {
 			t.Fatalf("SearchRange 失败: %v", err)
 		}
@@ -128,9 +127,12 @@ func TestTable_SearchRange(t *testing.T) {
 		records := iter.GetRecords(true)
 		defer records.Release()
 
-		// 验证结果为空
-		if len(records) != 0 {
-			t.Errorf("期望空结果，实际得到 %d 条记录", len(records))
+		// 验证结果
+		for _, record := range records {
+			timestamp := record["timestamp"].(int)
+			if timestamp != testPoint {
+				t.Errorf("记录时间戳 %d 不是期望的值 %d", timestamp, testPoint)
+			}
 		}
 	})
 
@@ -161,8 +163,7 @@ func TestTable_SearchRange(t *testing.T) {
 }
 
 // TestTable_SearchRange_PrimaryKey 测试当索引为主键时，SearchRange 函数的行为是否符合预期
-// Start和Limit是 map[string]any类型
-// 验证：Start的值=nil表示从表的主键值最小值开始，Limit的值=nil表示到表的主键值最大值结束，Start和Limit的值同时为nil即表示遍历全表
+// 验证：Start 和 Limit 必须包含相同的 key 值，并且只支持完全匹配的范围查询
 func TestTable_SearchRange_PrimaryKey(t *testing.T) {
 	// 清理旧数据
 	tableName := "test_search_range_pk_" + t.Name()
@@ -224,13 +225,13 @@ func TestTable_SearchRange_PrimaryKey(t *testing.T) {
 		return table.kvStore.Iterator(start, limit)
 	})
 
-	// 测试1: Start的值=nil 表示从表的主键值最小值开始
-	t.Run("StartNilFromMinPrimaryKey", func(t *testing.T) {
-		// 设置搜索范围：Start的值=nil, Limit的值=50
-		rangeEnd := 50
+	// 测试1: 完全匹配的主键查询
+	t.Run("ExactMatchPrimaryKey", func(t *testing.T) {
+		// 设置测试点
+		testID := 50
 
-		// 执行区间搜索
-		iter, err := table.SearchRange(funIter, &map[string]any{"id": nil}, &map[string]any{"id": rangeEnd})
+		// 执行完全匹配的范围查询
+		iter, err := table.SearchRange(funIter, &map[string]any{"id": testID}, &map[string]any{"id": testID})
 		if err != nil {
 			t.Fatalf("SearchRange 失败: %v", err)
 		}
@@ -240,42 +241,37 @@ func TestTable_SearchRange_PrimaryKey(t *testing.T) {
 		records := iter.GetRecords(true)
 		defer records.Release()
 
+		// 验证结果数量
+		expectedCount := 1 // 只返回完全匹配的记录
+		if len(records) != expectedCount {
+			t.Errorf("期望 %d 条记录，实际得到 %d 条", expectedCount, len(records))
+		}
+
 		// 验证结果
-		t.Logf("Start的值=nil 测试返回 %d 条记录", len(records))
 		if len(records) > 0 {
-			firstID := records[0]["id"].(int)
-			t.Logf("第一条记录的id: %d", firstID)
+			id := records[0]["id"].(int)
+			if id != testID {
+				t.Errorf("期望 ID 为 %d，实际为 %d", testID, id)
+			}
 		}
 	})
 
-	// 测试2: Limit的值=nil 表示到表的主键值最大值结束
-	t.Run("LimitNilToMaxPrimaryKey", func(t *testing.T) {
-		// 设置搜索范围：Start的值=50, Limit的值=nil
-		rangeStart := 50
-
-		// 执行区间搜索
-		iter, err := table.SearchRange(funIter, &map[string]any{"id": rangeStart}, &map[string]any{"id": nil})
-		if err != nil {
-			t.Fatalf("SearchRange 失败: %v", err)
-		}
-		defer iter.Release()
-
-		// 获取结果
-		records := iter.GetRecords(true)
-		defer records.Release()
-
-		// 验证结果
-		t.Logf("Limit的值=nil 测试返回 %d 条记录", len(records))
-		if len(records) > 0 {
-			lastID := records[len(records)-1]["id"].(int)
-			t.Logf("最后一条记录的id: %d", lastID)
+	// 测试2: 不同 key 值的错误处理
+	t.Run("DifferentKeysError", func(t *testing.T) {
+		// 执行不同 key 值的范围查询
+		_, err := table.SearchRange(funIter, &map[string]any{"id": 10}, &map[string]any{"name": "item_10"})
+		if err == nil {
+			t.Errorf("期望不同 key 值时返回错误，实际没有返回错误")
 		}
 	})
 
-	// 测试3: 值同时为nil 即表示遍历全表
-	t.Run("BothNilFullTableScan", func(t *testing.T) {
-		// 执行区间搜索
-		iter, err := table.SearchRange(funIter, &map[string]any{"id": nil}, &map[string]any{"id": nil})
+	// 测试3: 使用默认迭代器的完全匹配查询
+	t.Run("DefaultIteratorExactMatch", func(t *testing.T) {
+		// 设置测试点
+		testID := 75
+
+		// 执行完全匹配的范围查询，使用默认迭代器
+		iter, err := table.SearchRange(nil, &map[string]any{"id": testID}, &map[string]any{"id": testID})
 		if err != nil {
 			t.Fatalf("SearchRange 失败: %v", err)
 		}
@@ -285,41 +281,24 @@ func TestTable_SearchRange_PrimaryKey(t *testing.T) {
 		records := iter.GetRecords(true)
 		defer records.Release()
 
+		// 验证结果数量
+		expectedCount := 1 // 只返回完全匹配的记录
+		if len(records) != expectedCount {
+			t.Errorf("期望 %d 条记录，实际得到 %d 条", expectedCount, len(records))
+		}
+
 		// 验证结果
-		t.Logf("Start和Limit的值同时为nil 测试返回 %d 条记录", len(records))
 		if len(records) > 0 {
-			firstID := records[0]["id"].(int)
-			lastID := records[len(records)-1]["id"].(int)
-			t.Logf("全表扫描包含数据 [%d, %d]", firstID, lastID)
+			id := records[0]["id"].(int)
+			if id != testID {
+				t.Errorf("期望 ID 为 %d，实际为 %d", testID, id)
+			}
 		}
-	})
-
-	// 测试4: 正常范围查询（对比测试）
-	t.Run("NormalRangeQuery", func(t *testing.T) {
-		// 设置搜索范围：Start=30, Limit=70
-		rangeStart := 30
-		rangeEnd := 70
-
-		// 执行区间搜索
-		iter, err := table.SearchRange(funIter, &map[string]any{"id": rangeStart}, &map[string]any{"id": rangeEnd})
-		if err != nil {
-			t.Fatalf("SearchRange 失败: %v", err)
-		}
-		defer iter.Release()
-
-		// 获取结果
-		records := iter.GetRecords(true)
-		defer records.Release()
-
-		// 验证结果
-		t.Logf("正常范围查询返回 %d 条记录", len(records))
 	})
 }
 
-// TestTable_SearchRange_CommentValidation 测试 SearchRange 函数的行为是否符合注释中描述的预期
-// Start和Limit是 map[string]any类型
-//
-//	验证：Start的值=nil表示从索引最小值开始，Limit的值=nil表示到索引最大值结束，值同时为nil即表示遍历索引
+// TestTable_SearchRange_CommentValidation 测试 SearchRange 函数的行为是否符合当前实现
+// 验证：Start 和 Limit 必须包含相同的 key 值，并且只支持完全匹配的范围查询
 func TestTable_SearchRange_CommentValidation(t *testing.T) {
 	// 清理旧数据
 	tableName := "test_search_range_comment_" + t.Name()
@@ -381,13 +360,13 @@ func TestTable_SearchRange_CommentValidation(t *testing.T) {
 		return table.kvStore.Iterator(start, limit)
 	})
 
-	// 测试1: Start的值=nil 表示从索引最小值开始
-	t.Run("StartNilFromMin", func(t *testing.T) {
-		// 设置搜索范围：Start的值=nil, Limit的值=50
-		rangeEnd := 50
+	// 测试1: 完全匹配的索引查询
+	t.Run("ExactMatchIndexQuery", func(t *testing.T) {
+		// 设置测试点
+		testID := 30
 
-		// 执行区间搜索
-		iter, err := table.SearchRange(funIter, &map[string]any{"id": nil}, &map[string]any{"id": rangeEnd})
+		// 执行完全匹配的范围查询
+		iter, err := table.SearchRange(funIter, &map[string]any{"id": testID}, &map[string]any{"id": testID})
 		if err != nil {
 			t.Fatalf("SearchRange 失败: %v", err)
 		}
@@ -397,22 +376,25 @@ func TestTable_SearchRange_CommentValidation(t *testing.T) {
 		records := iter.GetRecords(true)
 		defer records.Release()
 
-		// 验证结果从最小值开始
+		// 验证结果数量
+		expectedCount := 1 // 只返回完全匹配的记录
+		if len(records) != expectedCount {
+			t.Errorf("期望 %d 条记录，实际得到 %d 条", expectedCount, len(records))
+		}
+
+		// 验证结果
 		if len(records) > 0 {
-			firstID := records[0]["id"].(int)
-			if firstID != 0 {
-				t.Errorf("期望从最小值 0 开始，实际从 %d 开始", firstID)
+			id := records[0]["id"].(int)
+			if id != testID {
+				t.Errorf("期望 ID 为 %d，实际为 %d", testID, id)
 			}
 		}
 	})
 
-	// 测试2: Limit的值=nil 表示到索引最大值结束
-	t.Run("LimitNilToMax", func(t *testing.T) {
-		// 设置搜索范围：Start的值=50, Limit的值=nil
-		rangeStart := 50
-
-		// 执行区间搜索
-		iter, err := table.SearchRange(funIter, &map[string]any{"id": rangeStart}, &map[string]any{"id": nil})
+	// 测试2: 相同 key 值的验证
+	t.Run("SameKeysValidation", func(t *testing.T) {
+		// 执行相同 key 值的范围查询
+		iter, err := table.SearchRange(funIter, &map[string]any{"id": 20}, &map[string]any{"id": 20})
 		if err != nil {
 			t.Fatalf("SearchRange 失败: %v", err)
 		}
@@ -422,19 +404,39 @@ func TestTable_SearchRange_CommentValidation(t *testing.T) {
 		records := iter.GetRecords(true)
 		defer records.Release()
 
-		// 验证结果到最大值结束
+		// 验证结果
 		if len(records) > 0 {
-			lastID := records[len(records)-1]["id"].(int)
-			if lastID != 99 {
-				t.Errorf("期望到最大值 99 结束，实际到 %d 结束", lastID)
+			id := records[0]["id"].(int)
+			if id != 20 {
+				t.Errorf("期望 ID 为 20，实际为 %d", id)
 			}
 		}
 	})
 
-	// 测试3: 值同时为nil 即表示遍历索引
-	t.Run("BothNilScanIndex", func(t *testing.T) {
-		// 执行区间搜索
-		iter, err := table.SearchRange(funIter, &map[string]any{"id": 0}, &map[string]any{"id": nil})
+	// 测试3: 多字段相同 key 值的查询
+	t.Run("MultiFieldSameKeys", func(t *testing.T) {
+		// 创建复合索引
+		idx, _ := DefaultNormalIndexNew("idx_name_value")
+		idx.AddFields("name")
+		idx.AddFields("value")
+		err := table.CreateIndex(idx)
+		if err != nil {
+			t.Fatalf("创建复合索引失败: %v", err)
+		}
+
+		// 插入测试数据
+		testData := map[string]any{
+			"id":    100,
+			"name":  "test",
+			"value": 50.5,
+		}
+		_, err = table.Insert(&testData)
+		if err != nil {
+			t.Fatalf("插入测试数据失败: %v", err)
+		}
+
+		// 执行复合字段的完全匹配查询
+		iter, err := table.SearchRange(funIter, &map[string]any{"name": "test", "value": 50.5}, &map[string]any{"name": "test", "value": 50.5})
 		if err != nil {
 			t.Fatalf("SearchRange 失败: %v", err)
 		}
@@ -444,19 +446,18 @@ func TestTable_SearchRange_CommentValidation(t *testing.T) {
 		records := iter.GetRecords(true)
 		defer records.Release()
 
-		// 验证结果包含所有数据
-		if len(records) > 0 {
-			firstID := records[0]["id"].(int)
-			lastID := records[len(records)-1]["id"].(int)
-			if firstID != 0 || lastID != 99 {
-				t.Errorf("期望遍历索引包含所有数据 [0, 99]，实际包含 [%d, %d]",
-					firstID, lastID)
+		// 验证结果
+		for _, record := range records {
+			name := record["name"].(string)
+			value := record["value"].(float64)
+			if name != "test" || value != 50.5 {
+				t.Errorf("期望 name='test', value=50.5，实际 name='%s', value=%f", name, value)
 			}
 		}
 	})
 }
 
-// TestTable_SearchRange_Performance 测试时序数据区间搜索的性能
+// TestTable_SearchRange_Performance 测试完全匹配范围查询的性能
 func TestTable_SearchRange_Performance(t *testing.T) {
 	// 跳过性能测试，除非明确指定
 	if testing.Short() {
@@ -525,9 +526,8 @@ func TestTable_SearchRange_Performance(t *testing.T) {
 
 	// 测试性能
 	t.Run("PerformanceTest", func(t *testing.T) {
-		// 创建范围
-		rangeStart := now + 1000
-		rangeEnd := now + 2000
+		// 创建测试点
+		testPoint := now + 5000
 
 		// 定义迭代器函数
 		funIter := storage.FunIter(func(start, limit []byte) storage.Iterator {
@@ -542,8 +542,8 @@ func TestTable_SearchRange_Performance(t *testing.T) {
 		for i := 0; i < iterations; i++ {
 			startTime := time.Now()
 
-			// 执行区间搜索
-			iter, err := table.SearchRange(funIter, &map[string]any{"timestamp": rangeStart}, &map[string]any{"timestamp": rangeEnd})
+			// 执行完全匹配的范围查询
+			iter, err := table.SearchRange(funIter, &map[string]any{"timestamp": testPoint}, &map[string]any{"timestamp": testPoint})
 			if err != nil {
 				t.Fatalf("SearchRange 失败: %v", err)
 			}
