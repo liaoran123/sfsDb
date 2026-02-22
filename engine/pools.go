@@ -60,6 +60,9 @@ func GetStringSlice() []string {
 
 // PutStringSlice 将 []string 切片归还到对象池
 func PutStringSlice(s []string) {
+	if s == nil {
+		return
+	}
 	// 清空切片，确保归还的切片是空的
 	s = s[:0]
 	stringSlicePool.Put(s)

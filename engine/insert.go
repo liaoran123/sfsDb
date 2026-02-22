@@ -137,17 +137,6 @@ func (i *InsertImpl) AutoIncrement() (int, error) {
 		}
 	}
 	currentID = util.AnyToInt((*i.fields)[primaryFields[0]])
-	/*// 检查字段类型是否匹配
-	if err := i.table.CheckType(i.fields); err != nil {
-		return -1, err
-	}
-
-
-		// 添加初始版本号
-		if _, hasVersion := (*i.fields)["v"]; !hasVersion || (*i.fields)["v"] == "" {
-			(*i.fields)["v"] = generateEnhancedVersion() // 使用增强版版本号
-		}
-	*/
 	return currentID, nil
 }
 

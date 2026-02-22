@@ -74,6 +74,10 @@ type UpdateImpl struct {
 	updateFields      []string
 	record            []byte
 }
+type BatchUpdateImpl struct {
+	UpdateImpl
+	records []*map[string]any
+}
 
 // Reset 重置 UpdateImpl 实例的状态
 func (u *UpdateImpl) Reset() {
@@ -95,6 +99,19 @@ func NewUpdateImpl(table *Table, fields *map[string]any) *UpdateImpl {
 	//impl.userProvidedBatch = userProvidedBatch
 	impl.fields = fields
 	return impl
+}
+
+// NewBatchUpdateImpl 创建一个新的用于批量更新的 UpdateImpl 实例
+func NewBatchUpdateImpl(table *Table, fields *map[string]any, records []*map[string]any) *BatchUpdateImpl {
+	impl := GlobalUpdateImplPool.Get()
+	impl.table = table
+	//impl.batch = batch
+	//impl.userProvidedBatch = userProvidedBatch
+	//impl.records = records
+	return &BatchUpdateImpl{
+		UpdateImpl: *impl,
+		records:    records,
+	}
 }
 
 // CheckParams 检查参数是否正确
@@ -209,29 +226,20 @@ func (u *UpdateImpl) Commit() error {
 	return nil
 }
 
-// --------------------------以下是BatchUpdateImpl-------------------------------------------
-
-type BatchUpdateImpl struct {
-	UpdateImpl
-	records []*map[string]any
-}
-
-// NewBatchUpdateImpl 创建一个新的用于批量更新的 BatchUpdateImpl 实例
-func NewBatchUpdateImpl(table *Table, records []*map[string]any) *BatchUpdateImpl {
-	impl := GlobalUpdateImplPool.Get()
-	impl.table = table
-	return &BatchUpdateImpl{
-		UpdateImpl: *impl,
-		records:    records,
-	}
-}
+// --------------------------以下是旧文件-------------------------------------------
 
 // BatchUpdate 批量更新多条记录
-func (u *BatchUpdateImpl) BatchUpdate(batchs ...storage.Batch) error {
+func (u *UpdateImpl) BatchUpdate(records []*map[string]any, batchs ...storage.Batch) error {
 	// 检查参数
-	if len(u.records) == 0 {
+	if len(records) == 0 {
 		return nil
 	}
+	if records == nil {
+		return fmt.Errorf("records cannot be nil")
+	}
+
+	// 保存记录
+	//u.records = records
 
 	// 准备batch
 	batch, userProvidedBatch, err := u.table.prepareBatch(batchs...)
@@ -242,50 +250,52 @@ func (u *BatchUpdateImpl) BatchUpdate(batchs ...storage.Batch) error {
 	u.userProvidedBatch = userProvidedBatch
 
 	// 处理记录并批量更新
-	for _, fields := range u.records {
-		// 创建临时 UpdateImpl 实例处理单条记录
-		updateImpl := NewUpdateImpl(u.table, fields)
-		defer GlobalUpdateImplPool.Put(updateImpl)
-
-		// 检查参数
-		if err := updateImpl.CheckParams(); err != nil {
+	for _, fields := range records {
+		// 验证字段
+		_, _, err := u.table.validateUpdateFields(fields)
+		if err != nil {
 			return err
 		}
-
-		// 准备batch（使用同一个batch）
-		updateImpl.batch = batch
-		updateImpl.userProvidedBatch = userProvidedBatch
 
 		// 读取记录
-		if err := updateImpl.ReadRecord(); err != nil {
+		key, err := u.table.readRecordForUpdate(fields)
+		if err != nil {
 			return err
 		}
+
+		// 读取原始记录
+		record := u.table.ReadByBytes(key)
+		if record == nil {
+			return fmt.Errorf("主键值 '%v' 的记录不存在", fields)
+		}
+
+		// 反序列化记录
+		fieldsBytes, err := u.table.deserializeRecord(record)
+		if err != nil {
+			return err
+		}
+		defer GlobalFieldsBytesPool.Put(*fieldsBytes)
 
 		// 准备更新字段列表
-		if err := updateImpl.PrepareUpdateFields(); err != nil {
+		updateFields, err := u.table.prepareUpdateFieldsList(fields)
+		if err != nil {
 			return err
 		}
+		if updateFields == nil {
+			continue
+		}
+		defer PutStringSlice(updateFields)
 
-		// 获取字段字节
-		if err := updateImpl.GetFieldsBytes(); err != nil {
+		// 创建临时 UpdateImpl 实例处理单条记录
+		updateImpl := NewUpdateImpl(u.table, fields)
+		updateImpl.fieldsBytes = fieldsBytes
+		updateImpl.updateFields = updateFields
+		updateImpl.record = record
+
+		// 执行更新操作
+		if err := updateImpl.ExecuteUpdateOperation(); err != nil {
 			return err
 		}
-
-		// 删除旧记录
-		updateImpl.DeleteOldRecord()
-
-		// 添加新记录
-		updateImpl.AddNewRecord()
-
-		// 释放资源
-		if updateImpl.fieldsBytes != nil {
-			GlobalFieldsBytesPool.Put(*updateImpl.fieldsBytes)
-		}
-		if updateImpl.updateFields != nil {
-			PutStringSlice(updateImpl.updateFields)
-		}
-
-		// 注意：这里不调用 updateImpl.Commit()，因为我们要批量提交
 	}
 
 	// 提交批量操作
@@ -297,14 +307,14 @@ func (u *BatchUpdateImpl) BatchUpdate(batchs ...storage.Batch) error {
 }
 
 // BatchUpdateWithSize 带批量大小控制的批量更新
-func (u *BatchUpdateImpl) BatchUpdateWithSize(batchSize int, batchs ...storage.Batch) error {
+func (u *UpdateImpl) BatchUpdateWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) error {
 	// 检查参数
 	if batchSize <= 0 {
 		batchSize = 100 // 默认批量大小
 	}
 
 	// 计算总批次
-	totalRecords := len(u.records)
+	totalRecords := len(records)
 	if totalRecords == 0 {
 		return nil
 	}
@@ -316,10 +326,9 @@ func (u *BatchUpdateImpl) BatchUpdateWithSize(batchSize int, batchs ...storage.B
 			end = totalRecords
 		}
 
-		// 创建临时 BatchUpdateImpl 处理当前批次
-		batchRecords := u.records[start:end]
-		batchUpdateImpl := NewBatchUpdateImpl(u.table, batchRecords)
-		if err := batchUpdateImpl.BatchUpdate(batchs...); err != nil {
+		// 处理当前批次
+		batchRecords := records[start:end]
+		if err := u.BatchUpdate(batchRecords, batchs...); err != nil {
 			return err
 		}
 	}
@@ -328,7 +337,7 @@ func (u *BatchUpdateImpl) BatchUpdateWithSize(batchSize int, batchs ...storage.B
 }
 
 // BatchCommit 批量提交事务
-func (u *BatchUpdateImpl) BatchCommit() error {
+func (u *UpdateImpl) BatchCommit() error {
 	// 提交事务
 	if !u.userProvidedBatch {
 		if err := u.table.kvStore.WriteBatch(u.batch); err != nil {
@@ -337,7 +346,7 @@ func (u *BatchUpdateImpl) BatchCommit() error {
 	}
 
 	// 归还对象池
-	defer GlobalUpdateImplPool.Put(&u.UpdateImpl)
+	defer GlobalUpdateImplPool.Put(u)
 
 	return nil
 }

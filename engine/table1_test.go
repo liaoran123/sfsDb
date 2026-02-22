@@ -486,7 +486,7 @@ func TestTableCRUD1(t *testing.T) {
 	}
 
 	records := dataIter.GetRecords(true)
-	defer record.PutRecords(records)
+	defer records.Release()
 	if len(records) == 0 {
 		t.Error("Record not found after adding")
 	} else {
@@ -556,11 +556,162 @@ func TestTableCRUD1(t *testing.T) {
 
 	t.Log("所有CRUD测试通过")
 
-	// 测试4: 带有索引和全文索引的表CRUD操作
-	t.Log("\n测试4: 带有索引和全文索引的表CRUD操作")
+}
+
+// 测试添加Table.Insert，删除Table.Delete，修改Table.Update，添加一条记录，通过主键进行修改和删除
+func TestTableCRUD2(t *testing.T) {
+	// 创建带索引的表
+	tableWithIndex, err := TableNew("test_table_CRUD2")
+	if err != nil {
+		t.Fatalf("Failed to create table with index: %v", err)
+	}
+
+	// 定义带索引的表字段
+	indexFields := map[string]any{
+		"id":      0,
+		"title":   "",
+		"content": "",
+		"author":  "",
+		"views":   0,
+	}
+
+	// 设置表字段 - 使用正确的SetFields方法
+	err = tableWithIndex.SetFields(indexFields)
+	if err != nil {
+		t.Fatalf("Failed to set fields for table with index: %v", err)
+	}
+
+	// 创建普通索引
+	// 创建标题索引
+	titleIndex, err := DefaultNormalIndexNew("title_index")
+	if err != nil {
+		t.Fatalf("Failed to create title index instance: %v", err)
+	}
+	titleIndex.AddFields("title")
+	err = tableWithIndex.CreateIndex(titleIndex)
+	//err = tableWithIndex.indexs.CreateIndex(titleIndex)
+	if err != nil {
+		t.Fatalf("Failed to create title index: %v", err)
+	}
+
+	// 创建复合索引（作者-浏览量）
+	authorViewsIndex, err := DefaultNormalIndexNew("author_views_index")
+	if err != nil {
+		t.Fatalf("Failed to create author_views index instance: %v", err)
+	}
+	authorViewsIndex.AddFields("author", "views")
+	err = tableWithIndex.CreateIndex(authorViewsIndex)
+	if err != nil {
+		t.Fatalf("Failed to create author_views index: %v", err)
+	}
+	// 添加多条记录
+	indexRecords := []map[string]any{
+		{
+			"id":      1,
+			"title":   "Go语言入门",
+			"content": "Go语言是一种开源的编程语言，它具有高效、简洁、并发等特点。",
+			"author":  "张三",
+			"views":   100,
+		},
+
+		{
+			"id":      2,
+			"title":   "Go语言进阶",
+			"content": "Go语言的并发模型是其一大特色，使用goroutine和channel可以轻松实现高效的并发编程。",
+			"author":  "李四",
+			"views":   200,
+		},
+		{
+			"id":      3,
+			"title":   "Go语言实战",
+			"content": "通过实际项目学习Go语言，可以更好地掌握其特性和最佳实践。",
+			"author":  "张三",
+			"views":   150,
+		},
+	}
+
+	for _, record := range indexRecords {
+		_, err = tableWithIndex.Insert(&record)
+		if err != nil {
+			t.Fatalf("Failed to add record to indexed table: %v", err)
+		}
+	}
+
+	// 测试通过普通索引查询
+	t.Log("测试通过普通索引查询")
+	searchByTitle := map[string]any{"title": "Go语言入门"}
+	dataIter, _ := tableWithIndex.Search(&searchByTitle)
+	defer dataIter.Release()
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
+	}
+
+	titleRecords := dataIter.GetRecords(true)
+	defer record.PutRecords(titleRecords)
+	if len(titleRecords) != 1 {
+		t.Errorf("Expected 1 record for title 'Go语言入门', got %d", len(titleRecords))
+	} else {
+		t.Logf("通过标题索引查询成功: %v", titleRecords[0])
+	}
+
+	// 测试通过复合索引查询
+	t.Log("测试通过复合索引查询")
+	searchByAuthor := map[string]any{"author": "张三"}
+	dataIter, _ = tableWithIndex.Search(&searchByAuthor)
+	defer GlobalTableIterPool.Put(dataIter)
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
+	}
+
+	authorRecords := dataIter.GetRecords(true)
+	if len(authorRecords) != 2 {
+		t.Errorf("Expected 2 records for author '张三', got %d", len(authorRecords))
+	} else {
+		t.Logf("通过作者索引查询成功，找到 %d 条记录", len(authorRecords))
+	}
+	defer record.PutRecords(authorRecords)
+
+	// 测试修改记录
+	t.Log("测试修改带索引的记录")
+	updateRecord := map[string]any{
+		"id":    1,
+		"title": "Go语言入门教程",
+		"views": 120,
+	}
+
+	err = tableWithIndex.Update(&updateRecord)
+	if err != nil {
+		t.Fatalf("Failed to update indexed record: %v", err)
+	}
+
+	// 验证修改成功
+	searchUpdated := map[string]any{"id": 1}
+	dataIter, _ = tableWithIndex.Search(&searchUpdated)
+	defer dataIter.Release()
+	if dataIter.iter == nil {
+		t.Fatalf("Search 失败")
+	}
+
+	updatedRecords := dataIter.GetRecords(true)
+	defer updatedRecords.Release()
+	//defer record.PutRecords(updatedRecords)
+	if len(updatedRecords) == 0 {
+		t.Error("Updated record not found")
+	} else {
+		if updatedRecords[0]["title"] != "Go语言入门教程" || updatedRecords[0]["views"] != 120 {
+			t.Errorf("Record update failed: got %v, expected title=Go语言入门教程, views=120", updatedRecords[0])
+		} else {
+			t.Logf("修改带索引记录成功: %v", updatedRecords[0])
+		}
+	}
+
+}
+
+// 测试添加Table.Insert，删除Table.Delete，修改Table.Update，添加一条记录，通过主键进行修改和删除
+func TestTableCRUD3(t *testing.T) {
 
 	// 创建带索引的表
-	tableWithIndex, err := TableNew("test_table_with_index")
+	tableWithIndex, err := TableNew("test_table_with_index3")
 	if err != nil {
 		t.Fatalf("Failed to create table with index: %v", err)
 	}
@@ -658,8 +809,8 @@ func TestTableCRUD1(t *testing.T) {
 	// 测试通过普通索引查询
 	t.Log("测试通过普通索引查询")
 	searchByTitle := map[string]any{"title": "Go语言入门"}
-	dataIter, _ = tableWithIndex.Search(&searchByTitle)
-	defer GlobalTableIterPool.Put(dataIter)
+	dataIter, _ := tableWithIndex.Search(&searchByTitle)
+	defer dataIter.Release()
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}
@@ -671,19 +822,12 @@ func TestTableCRUD1(t *testing.T) {
 	} else {
 		t.Logf("通过标题索引查询成功: %v", titleRecords[0])
 	}
-	/*
-		// -----------------------------------------
-		tb := tableWithIndex
-		tb.Search(&searchByTitle).GetRecords(true).Select("id", "title", "content", "author", "views")
-		tb.Search(&searchByTitle).GetRecords(true).Delete()
-		tb.Search(&searchByTitle).GerRecords(true).Update(&updateRecord)
-		//-----------------------------------------
-	*/
+
 	// 测试通过复合索引查询
 	t.Log("测试通过复合索引查询")
 	searchByAuthor := map[string]any{"author": "张三"}
 	dataIter, _ = tableWithIndex.Search(&searchByAuthor)
-	defer GlobalTableIterPool.Put(dataIter)
+	defer dataIter.Release()
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}
@@ -698,7 +842,7 @@ func TestTableCRUD1(t *testing.T) {
 
 	// 测试修改记录
 	t.Log("测试修改带索引的记录")
-	updateRecord = map[string]any{
+	updateRecord := map[string]any{
 		"id":    1,
 		"title": "Go语言入门教程",
 		"views": 120,
@@ -711,28 +855,28 @@ func TestTableCRUD1(t *testing.T) {
 
 	// 验证修改成功
 	searchUpdated := map[string]any{"id": 1}
-	dataIter, _ = tableWithIndex.Search(&searchUpdated)
-	defer GlobalTableIterPool.Put(dataIter)
-	if dataIter.iter == nil {
+	dataIter1, _ := tableWithIndex.Search(&searchUpdated)
+	defer dataIter1.Release()
+	if dataIter1.iter == nil {
 		t.Fatalf("Search 失败")
 	}
 
-	updatedRecords = dataIter.GetRecords(true)
-	defer updatedRecords.Release()
-	//defer record.PutRecords(updatedRecords)
-	if len(updatedRecords) == 0 {
+	updatedRecords1 := dataIter1.GetRecords(true)
+	defer updatedRecords1.Release()
+	//defer record.PutRecords(updatedRecords1)
+	if len(updatedRecords1) == 0 {
 		t.Error("Updated record not found")
 	} else {
-		if updatedRecords[0]["title"] != "Go语言入门教程" || updatedRecords[0]["views"] != 120 {
-			t.Errorf("Record update failed: got %v, expected title=Go语言入门教程, views=120", updatedRecords[0])
+		if updatedRecords1[0]["title"] != "Go语言入门教程" || updatedRecords1[0]["views"] != 120 {
+			t.Errorf("Record update failed: got %v, expected title=Go语言入门教程, views=120", updatedRecords1[0])
 		} else {
-			t.Logf("修改带索引记录成功: %v", updatedRecords[0])
+			t.Logf("修改带索引记录成功: %v", updatedRecords1[0])
 		}
 	}
 
 	// 测试删除记录
 	t.Log("测试删除带索引的记录")
-	deleteFields = map[string]any{"id": 3}
+	deleteFields := map[string]any{"id": 3}
 	err = tableWithIndex.Delete(&deleteFields)
 	if err != nil {
 		t.Fatalf("Failed to delete indexed record: %v", err)
@@ -741,13 +885,13 @@ func TestTableCRUD1(t *testing.T) {
 	// 验证记录已删除
 	searchDeleted := map[string]any{"id": 3}
 	dataIter, _ = tableWithIndex.Search(&searchDeleted)
-	defer GlobalTableIterPool.Put(dataIter)
+	defer dataIter.Release()
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}
 
-	deletedRecords = dataIter.GetRecords(true)
-	defer record.PutRecords(deletedRecords)
+	deletedRecords := dataIter.GetRecords(true)
+	defer deletedRecords.Release()
 	if len(deletedRecords) == 0 {
 		t.Log("删除带索引记录成功")
 	} else {
@@ -757,13 +901,13 @@ func TestTableCRUD1(t *testing.T) {
 	// 验证索引仍然有效
 	searchByAuthorAfterDelete := map[string]any{"author": "张三"}
 	dataIter, _ = tableWithIndex.Search(&searchByAuthorAfterDelete)
-	defer GlobalTableIterPool.Put(dataIter)
+	defer dataIter.Release()
 	if dataIter.iter == nil {
 		t.Fatalf("Search 失败")
 	}
 
 	authorRecordsAfterDelete := dataIter.GetRecords(true)
-	defer record.PutRecords(authorRecordsAfterDelete)
+	defer authorRecordsAfterDelete.Release()
 	if len(authorRecordsAfterDelete) != 1 {
 		t.Errorf("Expected 1 record for author '张三' after delete, got %d", len(authorRecordsAfterDelete))
 	} else {

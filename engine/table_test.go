@@ -96,7 +96,6 @@ func TestOpenTable(t *testing.T) {
 	t.Log("OpenTable test passed successfully")
 }
 
-
 // 发现其他测试用例会使用交叉使用相同的表，导致数据不正确。
 // 因此，需要为每个测试生成唯一的表名，避免测试之间的数据冲突。
 // 测试复合主键搜索
@@ -197,7 +196,7 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 	if iter == nil {
 		t.Fatalf("Failed to search composite primary key after update")
 	}
-	defer GlobalTableIterPool.Put(iter)
+	defer iter.Release()
 
 	resultRecords = iter.GetRecords(true)
 	if len(resultRecords) != 1 {

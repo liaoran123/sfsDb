@@ -1,0 +1,316 @@
+package engine
+
+import (
+	"fmt"
+	"sync"
+
+	"github.com/liaoran123/sfsDb/storage"
+	"github.com/liaoran123/sfsDb/util"
+)
+
+// UpdateImplPool 是 UpdateImpl 的对象池
+type UpdateImplPool struct {
+	pool sync.Pool
+}
+
+// 全局 UpdateImpl 对象池
+var GlobalUpdateImplPool = &UpdateImplPool{
+	pool: sync.Pool{
+		New: func() interface{} {
+			return &UpdateImpl{}
+		},
+	},
+}
+
+// Get 从对象池中获取一个 UpdateImpl 实例
+func (p *UpdateImplPool) Get() *UpdateImpl {
+	return p.pool.Get().(*UpdateImpl)
+}
+
+// Put 将 UpdateImpl 实例放回对象池
+func (p *UpdateImplPool) Put(impl *UpdateImpl) {
+	// 重置实例状态
+	impl.Reset()
+	p.pool.Put(impl)
+}
+
+// 提供了一个统一的更新流程接口
+type Update interface {
+	// 检查主键字段
+	CheckPrimaryFields() error
+	// 检查字段类型
+	CheckType() error
+	// 准备更新字段列表
+	PrepareUpdateFields() ([]string, error)
+	// 检查并更新版本号
+	CheckAndUpdateVersion() (string, error)
+	// 更新字段值
+	UpdateFieldsValue()
+	// 执行更新操作
+	ExecuteUpdateOperation() error
+	// 提交事务
+	Commit() error
+}
+
+// 批量更新接口
+type BatchUpdate interface {
+	Update
+	// 批量更新多条记录
+	BatchUpdate(records []*map[string]any, params ...any) error
+	// 带批量大小控制的批量更新
+	BatchUpdateWithSize(records []*map[string]any, batchSize int, params ...any) error
+	// 批量提交事务
+	BatchCommit() error
+}
+
+type UpdateImpl struct {
+	table             *Table
+	batch             storage.Batch
+	userProvidedBatch bool
+	fields            *map[string]any
+	fieldsBytes       *map[string][]byte
+	updateFields      []string
+	key               []byte
+	// 批量操作相关字段
+	records []*map[string]any
+}
+
+// Reset 重置 UpdateImpl 实例的状态
+func (u *UpdateImpl) Reset() {
+	u.table = nil
+	u.batch = nil
+	u.userProvidedBatch = false
+	u.fields = nil
+	u.fieldsBytes = nil
+	u.updateFields = nil
+	u.key = nil
+	u.records = nil
+}
+
+// NewUpdateImpl 创建一个新的 UpdateImpl 实例
+func NewUpdateImpl(table *Table, batch storage.Batch, userProvidedBatch bool, fields *map[string]any) *UpdateImpl {
+	impl := GlobalUpdateImplPool.Get()
+	impl.table = table
+	impl.batch = batch
+	impl.userProvidedBatch = userProvidedBatch
+	impl.fields = fields
+	return impl
+}
+
+// NewBatchUpdateImpl 创建一个新的用于批量更新的 UpdateImpl 实例
+func NewBatchUpdateImpl(table *Table, batch storage.Batch, userProvidedBatch bool, records []*map[string]any) *UpdateImpl {
+	impl := GlobalUpdateImplPool.Get()
+	impl.table = table
+	impl.batch = batch
+	impl.userProvidedBatch = userProvidedBatch
+	impl.records = records
+	return impl
+}
+
+// CheckPrimaryFields 检查是否提供了所有主键字段
+func (u *UpdateImpl) CheckPrimaryFields() error {
+	for _, field := range u.table.GetPrimaryFields() {
+		if _, ok := (*u.fields)[field]; !ok {
+			return fmt.Errorf("必须提供主键字段 '%s'", field)
+		}
+	}
+	return nil
+}
+
+// CheckType 检查字段类型是否匹配
+func (u *UpdateImpl) CheckType() error {
+	return u.table.CheckType(u.fields)
+}
+
+// PrepareUpdateFields 准备更新字段列表
+func (u *UpdateImpl) PrepareUpdateFields() ([]string, error) {
+	updateFields := GetStringSlice()
+	for field := range *u.fields {
+		// 排除主键字段
+		if u.table.GetPrimaryKey().MatchFields(field) {
+			continue
+		}
+		updateFields = append(updateFields, field)
+	}
+	u.updateFields = updateFields
+	return updateFields, nil
+}
+
+// UpdateFieldsValue 更新字段值
+func (u *UpdateImpl) UpdateFieldsValue() {
+	for field, val := range *u.fields {
+		// 排除主键字段，主键字段不能更新
+		if u.table.GetPrimaryKey().MatchFields(field) {
+			continue
+		}
+		if _, ok := u.table.fields[field]; ok {
+			(*u.fieldsBytes)[field] = util.AnyToBytes(val)
+		}
+	}
+}
+
+// ExecuteUpdateOperation 执行更新操作
+func (u *UpdateImpl) ExecuteUpdateOperation() error {
+	// 从对象池中获取一个 batchContainer
+	batchContainer := GetBatchContainer(u.batch, u.table.indexs, u.table.id, u.table.kvStore)
+	defer PutBatchContainer(batchContainer)
+
+	// 删除旧记录
+	batchContainer.Operation(u.fieldsBytes, u.updateFields...)
+
+	// 更新字段值
+	u.UpdateFieldsValue()
+
+	// 格式化记录
+	record := u.table.FormatRecord(u.fieldsBytes)
+
+	// 添加新记录
+	batchContainer.SetValue(0, record)                                       // 添加主键value=record
+	batchContainer.SetValue(1, u.table.GetPrimaryKey().GetID(u.fieldsBytes)) // 添加普通索引value=GetPrimaryKey().GetID()
+	batchContainer.Operation(u.fieldsBytes, u.updateFields...)
+
+	return nil
+}
+
+// Commit 提交事务
+func (u *UpdateImpl) Commit() error {
+	// 提交事务
+	if !u.userProvidedBatch {
+		if err := u.table.kvStore.WriteBatch(u.batch); err != nil {
+			return err
+		}
+	}
+
+	// 释放资源
+	if u.updateFields != nil {
+		PutStringSlice(u.updateFields)
+	}
+
+	// 归还对象池
+	defer GlobalUpdateImplPool.Put(u)
+
+	return nil
+}
+
+// BatchUpdate 批量更新多条记录
+func (u *UpdateImpl) BatchUpdate(records []*map[string]any, batchs ...storage.Batch) error {
+	// 检查参数
+	if len(records) == 0 {
+		return nil
+	}
+	if records == nil {
+		return fmt.Errorf("records cannot be nil")
+	}
+
+	// 保存记录
+	u.records = records
+
+	// 准备batch
+	batch, userProvidedBatch, err := u.table.prepareBatch(batchs...)
+	if err != nil {
+		return err
+	}
+	u.batch = batch
+	u.userProvidedBatch = userProvidedBatch
+
+	// 处理记录并批量更新
+	for _, fields := range records {
+		// 验证字段
+		_, _, err := u.table.validateUpdateFields(fields)
+		if err != nil {
+			return err
+		}
+
+		// 读取记录
+		key, err := u.table.readRecordForUpdate(fields)
+		if err != nil {
+			return err
+		}
+
+		// 读取原始记录
+		record := u.table.ReadByBytes(key)
+		if record == nil {
+			return fmt.Errorf("主键值 '%v' 的记录不存在", fields)
+		}
+
+		// 反序列化记录
+		fieldsBytes, err := u.table.deserializeRecord(record)
+		if err != nil {
+			return err
+		}
+		defer GlobalFieldsBytesPool.Put(*fieldsBytes)
+
+		// 准备更新字段列表
+		updateFields, err := u.table.prepareUpdateFieldsList(fields)
+		if err != nil {
+			return err
+		}
+		if updateFields == nil {
+			continue
+		}
+		defer PutStringSlice(updateFields)
+
+		// 创建临时 UpdateImpl 实例处理单条记录
+		updateImpl := NewUpdateImpl(u.table, batch, userProvidedBatch, fields)
+		updateImpl.fieldsBytes = fieldsBytes
+		updateImpl.updateFields = updateFields
+		updateImpl.key = key
+
+		// 执行更新操作
+		if err := updateImpl.ExecuteUpdateOperation(); err != nil {
+			return err
+		}
+	}
+
+	// 提交批量操作
+	if err := u.BatchCommit(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// BatchUpdateWithSize 带批量大小控制的批量更新
+func (u *UpdateImpl) BatchUpdateWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) error {
+	// 检查参数
+	if batchSize <= 0 {
+		batchSize = 100 // 默认批量大小
+	}
+
+	// 计算总批次
+	totalRecords := len(records)
+	if totalRecords == 0 {
+		return nil
+	}
+
+	// 分批处理
+	for start := 0; start < totalRecords; start += batchSize {
+		end := start + batchSize
+		if end > totalRecords {
+			end = totalRecords
+		}
+
+		// 处理当前批次
+		batchRecords := records[start:end]
+		if err := u.BatchUpdate(batchRecords, batchs...); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// BatchCommit 批量提交事务
+func (u *UpdateImpl) BatchCommit() error {
+	// 提交事务
+	if !u.userProvidedBatch {
+		if err := u.table.kvStore.WriteBatch(u.batch); err != nil {
+			return err
+		}
+	}
+
+	// 归还对象池
+	defer GlobalUpdateImplPool.Put(u)
+
+	return nil
+}
