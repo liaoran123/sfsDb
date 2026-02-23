@@ -32,3 +32,8 @@ func (a *AutoInt) Reset() {
 func (a *AutoInt) IncrementBy(n int) int {
 	return int(atomic.AddInt64((*int64)(a), int64(n)))
 }
+
+// GetAndIncrementBy 原子地获取当前值并增加指定的数量，返回增加前的值
+func (a *AutoInt) GetAndIncrementBy(n int) int {
+	return int(atomic.AddInt64((*int64)(a), int64(n)) - int64(n))
+}

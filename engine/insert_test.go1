@@ -49,10 +49,10 @@ func TestInsertImpl_CheckType(t *testing.T) {
 	}
 
 	// 创建一个测试 batch
-	batch := &mockBatch{}
+	//batch := &mockBatch{}
 
 	// 创建 InsertImpl 实例
-	insertImpl := NewInsertImpl(table, batch, false, &fields)
+	insertImpl := NewInsertImpl(table, &fields)
 
 	// 测试 CheckType 方法
 	err := insertImpl.CheckType()
@@ -75,10 +75,10 @@ func TestInsertImpl_FieldsToBytes(t *testing.T) {
 	}
 
 	// 创建一个测试 batch
-	batch := &mockBatch{}
+	//batch := &mockBatch{}
 
 	// 创建 InsertImpl 实例
-	insertImpl := NewInsertImpl(table, batch, false, &fields)
+	insertImpl := NewInsertImpl(table, &fields)
 
 	// 测试 FieldsToBytes 方法
 	fieldsBytes := insertImpl.FieldsToBytes(&fields)
@@ -101,10 +101,10 @@ func TestInsertImpl_FormatRecord(t *testing.T) {
 	}
 
 	// 创建一个测试 batch
-	batch := &mockBatch{}
+	//batch := &mockBatch{}
 
 	// 创建 InsertImpl 实例
-	insertImpl := NewInsertImpl(table, batch, false, &fields)
+	insertImpl := NewInsertImpl(table, &fields)
 
 	// 测试 FieldsToBytes 方法
 	fieldsBytes := insertImpl.FieldsToBytes(&fields)
@@ -116,34 +116,5 @@ func TestInsertImpl_FormatRecord(t *testing.T) {
 	record := insertImpl.FormatRecord(fieldsBytes)
 	if record == nil {
 		t.Error("FormatRecord returned nil")
-	}
-}
-
-// TestInsertImpl_GetID 测试 GetID 方法
-func TestInsertImpl_GetID(t *testing.T) {
-	// 创建一个测试表
-	table := &Table{
-		name: "test_table",
-		id:   1, // 使用 uint8 类型
-	}
-
-	// 创建测试字段
-	fields := map[string]any{
-		"name": "test",
-	}
-
-	// 创建一个测试 batch
-	batch := &mockBatch{}
-
-	// 创建 InsertImpl 实例
-	insertImpl := NewInsertImpl(table, batch, false, &fields)
-
-	// 测试 GetID 方法
-	id := insertImpl.GetID()
-	if id == nil {
-		t.Error("GetID returned nil")
-	}
-	if len(id) != 1 || id[0] != 1 {
-		t.Errorf("GetID returned wrong ID: expected '[1]', got '%v'", id)
 	}
 }

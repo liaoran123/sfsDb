@@ -1,66 +1,27 @@
 package engine
 
 import (
-	"fmt"
-
 	"github.com/liaoran123/sfsDb/storage"
 )
 
-/*
-// prepareInsertBatch 准备插入操作的batch
-func (t *Table) prepareInsertBatch1(batchs ...storage.Batch) (storage.Batch, bool, error) {
-	var batch storage.Batch
-	userProvidedBatch := len(batchs) > 0
-
-	//是否用户手动控制事务
-	if userProvidedBatch { //用户手动控制事务
-		batch = batchs[0]
-		if batch == nil {
-			return nil, false, fmt.Errorf("batch cannot be nil")
-		}
-	} else {
-		batch = t.kvStore.GetBatch()
-		if batch == nil {
-			return nil, false, fmt.Errorf("failed to get batch")
-		}
-	}
-
-	return batch, userProvidedBatch, nil
-}
-*/
 // 插入记录
 func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (currentID int, err error) {
-	// 检查参数
-	if t.fields == nil {
-		return 0, fmt.Errorf("表 '%s' 未设置字段和类型", t.name)
-	}
-	if fields == nil {
-		return 0, fmt.Errorf("fields cannot be nil")
-	}
-
-	// 准备批量操作
-	batch, userProvidedBatch, err := t.prepareBatch(batchs...)
-	if err != nil {
+	// 使用 InsertImpl
+	insertImpl := NewInsertImpl(t, fields)
+	if err := insertImpl.CheckParams(); err != nil {
 		return -1, err
 	}
-
-	// 使用 InsertImpl
-	insertImpl := NewInsertImpl(t, batch, userProvidedBatch, fields)
-
 	// 处理自动增值主键
 	currentID, err = insertImpl.AutoIncrement()
 	if err != nil {
 		return -1, err
 	}
-	// 检查字段类型是否匹配
-	if err := insertImpl.CheckType(); err != nil {
-		return -1, err
-	}
+	insertImpl.PrepareBatch(batchs...)
+	insertImpl.AddRecord()
 	// 提交事务
 	if err := insertImpl.Commit(); err != nil {
 		return -1, err
 	}
-
 	return currentID, nil
 }
 
@@ -80,7 +41,7 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 // 返回值：插入记录的ID列表和错误信息
 func (t *Table) BatchInsert(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
 	// 使用 InsertImpl
-	insertImpl := NewBatchInsertImpl(t, nil, false, records)
+	insertImpl := NewBatchInsertImpl(t, records)
 
 	// 执行批量插入
 	return insertImpl.BatchInsert(records, batchs...)
@@ -93,13 +54,13 @@ func (t *Table) BatchInsert(records []*map[string]any, batchs ...storage.Batch) 
 // 返回值：插入记录的ID列表和错误信息
 func (t *Table) BatchInsertWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error) {
 	// 准备批量操作
-	_, userProvidedBatch, err := t.prepareBatch(batchs...)
+	_, _, err := t.prepareBatch(batchs...)
 	if err != nil {
 		return nil, err
 	}
 
 	// 使用 InsertImpl
-	insertImpl := NewBatchInsertImpl(t, nil, userProvidedBatch, records)
+	insertImpl := NewBatchInsertImpl(t, records)
 
 	// 执行带批量大小控制的批量插入
 	return insertImpl.BatchInsertWithSize(records, batchSize, batchs...)
@@ -113,7 +74,7 @@ func (t *Table) BatchInsertWithSize(records []*map[string]any, batchSize int, ba
 // 返回值：插入记录的ID列表和错误信息
 func (t *Table) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error) {
 	// 使用 InsertImpl
-	insertImpl := NewBatchInsertImpl(t, nil, false, records)
+	insertImpl := NewBatchInsertImpl(t, records)
 	// 执行带批量大小控制的批量插入
 	return insertImpl.BatchInsertWithSizeNoInc(records, batchSize, batchs...)
 }
@@ -125,7 +86,7 @@ func (t *Table) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize in
 // 批量添加时序数据，当表主键为时间戳时，建议使用此方法
 func (t *Table) BatchInsertNoInc(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
 	// 使用 InsertImpl
-	insertImpl := NewBatchInsertImpl(t, nil, false, records)
+	insertImpl := NewBatchInsertImpl(t, records)
 	// 执行批量插入
-	return insertImpl.BatchInsertNoInc(records, batchs...)
+	return insertImpl.BatchInsertNoInc(batchs...)
 }

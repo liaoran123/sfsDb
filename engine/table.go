@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/liaoran123/sfsDb/storage"
@@ -27,16 +28,22 @@ type Table struct {
 		底层支持泛型，业务上则由自己定义规则。
 		默认固定一个id字段为自动增值，当值为nil时，使用counter自动增值。
 	*/
-	fields              map[string]any   // 字段映射，string为字段名，any为字段值
-	fieldsid            map[uint8]string // id到字段名的映射
-	indexs              *Indexs          // 索引集合
-	counter             AutoInt          // 自动增值计数器，使用自定义的AutoInt
-	kvStore             storage.Store
-	fieldIDManager      *IDManager      // 字段ID管理器
-	indexIDManager      *IDManager      // 索引ID管理器
+	fields         map[string]any   // 字段映射，string为字段名，any为字段值
+	fieldsid       map[uint8]string // id到字段名的映射
+	indexs         *Indexs          // 索引集合
+	counter        AutoInt          // 自动增值计数器，使用自定义的AutoInt
+	kvStore        storage.Store
+	fieldIDManager *IDManager // 字段ID管理器
+	indexIDManager *IDManager // 索引ID管理器
+	TableCache
+}
+
+// 缓存结构体
+type TableCache struct {
 	timeFields          map[string]bool // 标记字段是否为时间类型
 	primaryFields       []string        // 缓存的主键字段列表
 	primaryFieldsLoaded bool            // 主键字段列表是否已加载
+	initMutex           *sync.Mutex     // 表级别的初始化锁，避免全局锁导致的并发瓶颈
 }
 
 // 创建或获取一个表
@@ -56,6 +63,10 @@ func TableNew(name string) (*Table, error) {
 		fieldsid: make(map[uint8]string),
 		kvStore:  dbMgr.GetDB(),
 	}
+	// 初始化 initMutex 字段
+	tb.initMutex = &sync.Mutex{}
+	tb.timeFields = make(map[string]bool)
+
 	tb.indexs = NewIndexs(&tb.fields)
 	if TableIDManager == nil {
 		TableIDManager = NewIDManager(tb.kvStore)

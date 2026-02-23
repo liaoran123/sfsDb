@@ -22,32 +22,6 @@ var GlobalInsertImplPool = &InsertImplPool{
 	},
 }
 
-// BatchInsertImplPool 是 BatchInsertImpl 的对象池
-type BatchInsertImplPool struct {
-	pool sync.Pool
-}
-
-// 全局 BatchInsertImpl 对象池
-var GlobalBatchInsertImplPool = &BatchInsertImplPool{
-	pool: sync.Pool{
-		New: func() interface{} {
-			return &BatchInsertImpl{}
-		},
-	},
-}
-
-// Get 从对象池中获取一个 BatchInsertImpl 实例
-func (p *BatchInsertImplPool) Get() *BatchInsertImpl {
-	return p.pool.Get().(*BatchInsertImpl)
-}
-
-// Put 将 BatchInsertImpl 实例放回对象池
-func (p *BatchInsertImplPool) Put(impl *BatchInsertImpl) {
-	// 重置实例状态
-	impl.Reset()
-	p.pool.Put(impl)
-}
-
 // Get 从对象池中获取一个 InsertImpl 实例
 func (p *InsertImplPool) Get() *InsertImpl {
 	return p.pool.Get().(*InsertImpl)
@@ -100,17 +74,6 @@ func (i *InsertImpl) Reset() {
 	//i.fieldsBytesList = nil
 	//i.recordsList = nil
 	//i.ids = nil
-}
-
-// Reset 重置 BatchInsertImpl 实例的状态
-func (i *BatchInsertImpl) Reset() {
-	// 重置嵌入的 InsertImpl 实例
-	i.InsertImpl.Reset()
-	// 重置 BatchInsertImpl 特有的字段
-	i.records = nil
-	i.fieldsBytesList = nil
-	i.recordsList = nil
-	i.ids = nil
 }
 
 // NewInsertImpl 创建一个新的 InsertImpl 实例
@@ -229,17 +192,15 @@ type BatchInsertImpl struct {
 
 // NewBatchInsertImpl 创建一个新的用于批量插入的 BatchInsertImpl 实例
 func NewBatchInsertImpl(table *Table, records []*map[string]any) *BatchInsertImpl {
-	impl := GlobalBatchInsertImplPool.Get()
-	impl.table = table
-	impl.records = records
-	return impl
+	impl := GlobalInsertImplPool.Get()
+	return &BatchInsertImpl{
+		InsertImpl: *impl,
+		records:    records,
+	}
 }
 
 // BatchInsert 批量插入多条记录
 func (i *BatchInsertImpl) BatchInsert(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
-	// 使用 defer 确保实例在方法结束后被放回对象池
-	defer GlobalBatchInsertImplPool.Put(i)
-
 	// 检查参数
 	if i.table.fields == nil {
 		return nil, fmt.Errorf("表 '%s' 未设置字段和类型", i.table.name)
@@ -355,9 +316,6 @@ func (i *BatchInsertImpl) BatchInsert(records []*map[string]any, batchs ...stora
 
 // BatchInsertWithSize 带批量大小控制的批量插入
 func (i *BatchInsertImpl) BatchInsertWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error) {
-	// 使用 defer 确保实例在方法结束后被放回对象池
-	defer GlobalBatchInsertImplPool.Put(i)
-
 	// 检查参数
 	if batchSize <= 0 {
 		batchSize = 100 // 默认批量大小
@@ -414,15 +372,16 @@ func (i *BatchInsertImpl) BatchCommit() error {
 	i.records = nil
 	i.recordsList = nil
 	i.ids = nil
+
+	// 归还对象池
+	//defer GlobalInsertImplPool.Put(i)
+
 	return nil
 }
 
 // 批量添加不需要自动增值的记录，并且全部记录规则相同。
 // 可用于批量插入时序数据，当表主键为时间戳时，建议使用此方法
 func (i *BatchInsertImpl) BatchInsertNoInc(batchs ...storage.Batch) ([]int, error) {
-	// 使用 defer 确保实例在方法结束后被放回对象池
-	defer GlobalBatchInsertImplPool.Put(i)
-
 	// 检查参数
 	if i.table.fields == nil {
 		return nil, fmt.Errorf("表 '%s' 未设置字段和类型", i.table.name)
@@ -496,9 +455,6 @@ func (i *BatchInsertImpl) BatchInsertNoInc(batchs ...storage.Batch) ([]int, erro
 
 // BatchInsertWithSizeNoInc 带批量大小控制的批量插入（不需要自动增值）
 func (i *BatchInsertImpl) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error) {
-	// 使用 defer 确保实例在方法结束后被放回对象池
-	defer GlobalBatchInsertImplPool.Put(i)
-
 	// 检查参数
 	if batchSize <= 0 {
 		batchSize = 100 // 默认批量大小

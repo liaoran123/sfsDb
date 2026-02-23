@@ -148,8 +148,8 @@ func TestBackupWithoutDatabase(t *testing.T) {
 		os.RemoveAll(backupDir)
 	}()
 
-	// 确保KVDb为nil
-	storage.KVDb = nil
+	// 确保数据库实例为nil
+	storage.GetDBManager().SetDB(nil)
 
 	// 创建备份管理器
 	backupManager := NewBackupManager(nil)
@@ -161,6 +161,84 @@ func TestBackupWithoutDatabase(t *testing.T) {
 	}
 
 	t.Logf("Backup without database test passed successfully")
+}
+
+// TestBatchBackupDb 测试批量备份功能
+func TestBatchBackupDb(t *testing.T) {
+	// 测试目录设置
+	testDir := filepath.Join(os.TempDir(), "sfsdb_test_batch")
+	backupDir := filepath.Join(testDir, "backups")
+	testDbPath := filepath.Join(testDir, "test_db")
+	restoreDbPath := filepath.Join(testDir, "restore_db")
+
+	// 清理测试目录
+	defer func() {
+		os.RemoveAll(testDir)
+	}()
+
+	// 创建测试数据库
+	testDb, err := storage.OpenDefaultDb(testDbPath)
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+	defer testDb.Close()
+
+	// 写入测试数据
+	testData := map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+		"key3": "value3",
+		"key4": "value4",
+		"key5": "value5",
+	}
+	for k, v := range testData {
+		if err := testDb.Put([]byte(k), []byte(v)); err != nil {
+			t.Fatalf("Failed to write test data: %v", err)
+		}
+	}
+
+	// 测试批量备份功能
+	batchBackupPath := filepath.Join(backupDir, "batch_backup")
+	err = storage.BatchBackupDb(batchBackupPath, 2) // 使用批量大小为2
+	if err != nil {
+		t.Fatalf("Failed to batch backup database: %v", err)
+	}
+
+	// 验证备份文件是否存在
+	if _, err := os.Stat(batchBackupPath); os.IsNotExist(err) {
+		t.Fatalf("Batch backup directory not created: %s", batchBackupPath)
+	}
+
+	// 关闭测试数据库
+	testDb.Close()
+	storage.GetDBManager().SetDB(nil)
+
+	// 创建恢复目标数据库
+	restoreDb, err := storage.OpenDefaultDb(restoreDbPath)
+	if err != nil {
+		t.Fatalf("Failed to open restore database: %v", err)
+	}
+	defer restoreDb.Close()
+
+	// 测试恢复功能（使用备份管理器）
+	backupManager := NewBackupManager(restoreDb)
+	error := backupManager.Restore(batchBackupPath)
+	if error != nil {
+		t.Fatalf("Failed to restore database: %v", error)
+	}
+
+	// 验证恢复后的数据
+	for k, expectedV := range testData {
+		v, err := restoreDb.Get([]byte(k))
+		if err != nil {
+			t.Fatalf("Failed to get restored data for key %s: %v", k, err)
+		}
+		if string(v) != expectedV {
+			t.Fatalf("Restored data mismatch for key %s: expected %s, got %s", k, expectedV, string(v))
+		}
+	}
+
+	t.Logf("Batch backup test passed successfully")
 }
 
 // TestRestoreNonExistentBackup 测试备份文件不存在时的恢复操作

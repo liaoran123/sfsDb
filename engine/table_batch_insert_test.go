@@ -218,3 +218,100 @@ func TestBatchInsertConcurrent(t *testing.T) {
 
 	t.Logf("Concurrent batch insert test passed, inserted %d records", totalRecords)
 }
+
+// TestBatchAndSingleInsertConcurrent 测试批量添加和单个添加交叉进行
+func TestBatchAndSingleInsertConcurrent(t *testing.T) {
+	// 初始化数据库
+	_, err := storage.OpenDefaultDb("./batch_single_test_db")
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+
+	// 创建测试表
+	table, err := TableNew("test_batch_single_concurrent")
+	if err != nil {
+		t.Fatalf("TableNew failed: %v", err)
+	}
+
+	// 设置字段
+	fields := map[string]any{"id": 0, "name": "", "age": 0}
+	table.SetFields(fields)
+
+	// 创建主键
+	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk.AddFields("id")
+	table.CreateIndex(pk)
+
+	// 并发插入
+	var wg sync.WaitGroup
+	batchCount := 3     // 批量插入的批次数量
+	singleCount := 20   // 单个插入的数量
+	batchSize := 5      // 每批的记录数量
+	var mu sync.Mutex
+	allIDs := make(map[int]bool)
+
+	// 执行批量插入
+	for i := 0; i < batchCount; i++ {
+		wg.Add(1)
+		go func(batchID int) {
+			defer wg.Done()
+			records := make([]*map[string]any, batchSize)
+			for j := 0; j < batchSize; j++ {
+				records[j] = &map[string]any{
+					"name": fmt.Sprintf("Batch%d_Record%d", batchID, j),
+					"age":  20 + j,
+				}
+			}
+			ids, err := table.BatchInsert(records)
+			if err != nil {
+				t.Errorf("BatchInsert failed: %v", err)
+				return
+			}
+			// 收集ID，检查重复
+			mu.Lock()
+			for _, id := range ids {
+				if allIDs[id] {
+					t.Errorf("Duplicate ID found: %d", id)
+				}
+				allIDs[id] = true
+			}
+			mu.Unlock()
+			t.Logf("Batch %d inserted IDs: %v", batchID, ids)
+		}(i)
+	}
+
+	// 执行单个插入
+	for i := 0; i < singleCount; i++ {
+		wg.Add(1)
+		go func(singleID int) {
+			defer wg.Done()
+			record := map[string]any{
+				"name": fmt.Sprintf("Single_Record%d", singleID),
+				"age":  30 + singleID,
+			}
+			id, err := table.Insert(&record)
+			if err != nil {
+				t.Errorf("Insert failed: %v", err)
+				return
+			}
+			// 收集ID，检查重复
+			mu.Lock()
+			if allIDs[id] {
+				t.Errorf("Duplicate ID found: %d", id)
+			}
+			allIDs[id] = true
+			mu.Unlock()
+			t.Logf("Single %d inserted ID: %d", singleID, id)
+		}(i)
+	}
+
+	wg.Wait()
+
+	// 验证总记录数
+	totalRecords := batchCount*batchSize + singleCount
+	if len(allIDs) != totalRecords {
+		t.Errorf("Expected %d records, got %d", totalRecords, len(allIDs))
+	}
+
+	t.Logf("Batch and single insert concurrent test passed, inserted %d records", totalRecords)
+}

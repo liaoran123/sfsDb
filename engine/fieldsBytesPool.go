@@ -65,7 +65,6 @@ func (p *FieldsBytesPool) PutMapPointer(mp *map[string][]byte) {
 	if mp == nil || *mp == nil {
 		return
 	}
-
 	p.Put(*mp)
 	// 注意：这里不释放指针本身，因为指针是局部变量，会由编译器自动处理
 }

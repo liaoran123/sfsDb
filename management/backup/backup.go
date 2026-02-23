@@ -203,13 +203,13 @@ func (bm *BackupManager) Backup(path string) (string, error) {
 	backupFile := filepath.Join(path, "backup_"+timestamp)
 	log.Printf("Backup file: %s", backupFile)
 
-	// 执行备份
-	log.Println("Executing backup...")
-	if err := storage.BackupDb(backupFile); err != nil {
-		log.Printf("Failed to backup database: %v", err)
-		return "", fmt.Errorf("failed to backup database: %v", err)
+	// 执行批量备份
+	log.Println("Executing batch backup...")
+	if err := storage.BatchBackupDb(backupFile); err != nil {
+		log.Printf("Failed to batch backup database: %v", err)
+		return "", fmt.Errorf("failed to batch backup database: %v", err)
 	}
-	log.Println("Backup executed successfully")
+	log.Println("Batch backup executed successfully")
 
 	log.Printf("Backup completed successfully. Backup file: %s", backupFile)
 	return backupFile, nil
@@ -240,13 +240,13 @@ func (bm *BackupManager) BackupWithOptions(path string, options BackupOptions) (
 	backupFile := filepath.Join(path, "backup_"+timestamp)
 	log.Printf("Backup file: %s", backupFile)
 
-	// 执行备份
-	log.Println("Executing backup...")
-	if err := storage.BackupDb(backupFile); err != nil {
-		log.Printf("Failed to backup database: %v", err)
-		return "", fmt.Errorf("failed to backup database: %v", err)
+	// 执行批量备份
+	log.Println("Executing batch backup...")
+	if err := storage.BatchBackupDb(backupFile); err != nil {
+		log.Printf("Failed to batch backup database: %v", err)
+		return "", fmt.Errorf("failed to batch backup database: %v", err)
 	}
-	log.Println("Backup executed successfully")
+	log.Println("Batch backup executed successfully")
 
 	// 根据 options 执行额外的操作，如压缩
 	if options.Compress {

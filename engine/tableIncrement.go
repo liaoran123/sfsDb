@@ -1,12 +1,25 @@
 package engine
 
-import "github.com/liaoran123/sfsDb/util"
+import (
+	"github.com/liaoran123/sfsDb/util"
+)
+
+// 初始化自动增值计数器（如果需要）可能存在并发问题，需要使用锁保护
+func (t *Table) initAutoCounterIfNeeded() {
+	if t.counter.Get() == 0 {
+		// 使用表级别的锁，避免全局锁导致的并发瓶颈
+		t.initMutex.Lock()
+		// 再次检查计数器是否为 0，避免重复初始化
+		if t.counter.Get() == 0 {
+			t.InitAuto()
+		}
+		t.initMutex.Unlock()
+	}
+}
 
 // 获取自动增值的值
 func (t *Table) GetAutoInc() int {
-	if t.counter.Get() == 0 {
-		t.InitAuto()
-	}
+	t.initAutoCounterIfNeeded()
 	return int(t.counter.Increment())
 }
 
@@ -17,12 +30,9 @@ func (t *Table) GetAutoIncBatch(count int) int {
 	if count <= 0 {
 		return 0
 	}
-	if t.counter.Get() == 0 {
-		t.InitAuto()
-	}
-	// 先获取当前值，然后增加count
-	current := t.counter.Get()
-	t.counter.IncrementBy(count)
+	t.initAutoCounterIfNeeded()
+	// 使用原子操作获取当前值并增加指定的数量
+	current := t.counter.GetAndIncrementBy(count)
 	return current + 1 // 返回第一个可用的ID
 }
 
