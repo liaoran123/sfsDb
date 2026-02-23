@@ -105,7 +105,7 @@ func (i *InsertImpl) Reset() {
 // Reset 重置 BatchInsertImpl 实例的状态
 func (i *BatchInsertImpl) Reset() {
 	// 重置嵌入的 InsertImpl 实例
-	i.InsertImpl.Reset()
+	//i.InsertImpl.Reset()
 	// 重置 BatchInsertImpl 特有的字段
 	i.records = nil
 	i.fieldsBytesList = nil
@@ -219,7 +219,7 @@ type BatchInsert interface {
 }
 
 type BatchInsertImpl struct {
-	InsertImpl
+	//InsertImpl
 	// 批量操作相关字段
 	records         []*map[string]any
 	fieldsBytesList []*map[string][]byte
@@ -496,5 +496,43 @@ func (i *BatchInsertImpl) BatchInsertWithSizeNoInc(records []*map[string]any, ba
 	return allIds, nil
 }
 
+
+// BatchInsertWithSize 带批量大小控制的批量插入
+func (i *BatchInsertImpl) BatchInsertWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error) {
+
+	// 检查参数
+	if batchSize <= 0 {
+		batchSize = 100 // 默认批量大小
+	}
+
+	// 计算总批次
+	totalRecords := len(records)
+	if totalRecords == 0 {
+		return []int{}, nil
+	}
+
+	// 预分配ID列表
+	allIds := make([]int, totalRecords)
+
+	// 分批处理
+	for start := 0; start < totalRecords; start += batchSize {
+		end := start + batchSize
+		if end > totalRecords {
+			end = totalRecords
+		}
+
+		// 处理当前批次
+		batchRecords := records[start:end]
+		batchIds, err := i.BatchInsert(batchRecords, batchs...)
+		if err != nil {
+			return nil, err
+		}
+
+		// 复制ID到结果列表
+		copy(allIds[start:end], batchIds)
+	}
+
+	return allIds, nil
+}
 
 */

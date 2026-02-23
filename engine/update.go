@@ -54,17 +54,6 @@ type Update interface {
 	Commit() error
 }
 
-// 批量更新接口
-type BatchUpdate interface {
-	Update
-	// 批量更新多条记录
-	BatchUpdate(records []*map[string]any, params ...any) error
-	// 带批量大小控制的批量更新
-	BatchUpdateWithSize(records []*map[string]any, batchSize int, params ...any) error
-	// 批量提交事务
-	BatchCommit() error
-}
-
 type UpdateImpl struct {
 	table             *Table
 	batch             storage.Batch
@@ -189,7 +178,6 @@ func (u *UpdateImpl) AddNewRecord() {
 	batchContainer.SetValue(1, u.table.GetPrimaryKey().GetID(u.fieldsBytes)) //添加普通索引value=GetPrimaryKey().GetID()
 	//添加全文索引key=joinValue,value=nil
 	batchContainer.Operation(u.fieldsBytes, u.updateFields...)
-
 }
 
 // Commit 提交事务
@@ -209,7 +197,18 @@ func (u *UpdateImpl) Commit() error {
 	return nil
 }
 
-// --------------------------以下是BatchUpdateImpl-------------------------------------------
+// -----以下功能函数，并无实质用处，以防万一，保留一下。-------------------------------------------------
+
+// 批量更新接口
+type BatchUpdate interface {
+	Update
+	// 批量更新多条记录
+	BatchUpdate(records []*map[string]any, params ...any) error
+	// 带批量大小控制的批量更新
+	BatchUpdateWithSize(records []*map[string]any, batchSize int, params ...any) error
+	// 批量提交事务
+	BatchCommit() error
+}
 
 type BatchUpdateImpl struct {
 	UpdateImpl

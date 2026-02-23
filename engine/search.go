@@ -44,15 +44,6 @@ type Search interface {
 	SearchRange(funIter storage.FunIter, Start, Limit *map[string]any) (*TableIter, error)
 }
 
-// 批量搜索接口
-type BatchSearch interface {
-	Search
-	// 批量读取记录
-	BatchRead(records []*map[string]any) (map[any][]byte, error)
-	// 批量搜索记录
-	BatchSearch(records []*map[string]any) (map[any]*TableIter, error)
-}
-
 type SearchImpl struct {
 	table *Table
 	// 批量操作相关字段
@@ -69,14 +60,6 @@ func (s *SearchImpl) Reset() {
 func NewSearchImpl(table *Table) *SearchImpl {
 	impl := GlobalSearchImplPool.Get()
 	impl.table = table
-	return impl
-}
-
-// NewBatchSearchImpl 创建一个新的用于批量搜索的 SearchImpl 实例
-func NewBatchSearchImpl(table *Table, records []*map[string]any) *SearchImpl {
-	impl := GlobalSearchImplPool.Get()
-	impl.table = table
-	impl.records = records
 	return impl
 }
 
@@ -164,6 +147,8 @@ func (s *SearchImpl) Searchs(funIter storage.FunIter, fields *map[string]any, op
 // 组合主键或索引时，Start, Limit any为最后一个字段的范围值。第一个字段必须全量匹配，也就是后缀匹配。
 //  5. 当Limit的最后一个字段值为nil时，表示搜索到该前缀的最大值
 //  6. 搜索基于索引进行，必须存在匹配的索引
+//
+// 该功能实现了比sql的between查询更高效强大的范围搜索
 func (s *SearchImpl) SearchRange(funIter storage.FunIter, Start, Limit *map[string]any) (*TableIter, error) {
 	if Start == nil || Limit == nil {
 		return nil, fmt.Errorf("Start, Limit 不能为空")
@@ -219,6 +204,25 @@ func (s *SearchImpl) SearchRange(funIter storage.FunIter, Start, Limit *map[stri
 	return tbiter, nil
 }
 
+//---------以下功能函数，并无实质用处，以防万一，保留一下。------------------------------------------------
+
+// 批量搜索接口
+type BatchSearch interface {
+	Search
+	// 批量读取记录
+	BatchRead(records []*map[string]any) (map[any][]byte, error)
+	// 批量搜索记录
+	BatchSearch(records []*map[string]any) (map[any]*TableIter, error)
+}
+
+// NewBatchSearchImpl 创建一个新的用于批量搜索的 SearchImpl 实例
+func NewBatchSearchImpl(table *Table, records []*map[string]any) *SearchImpl {
+	impl := GlobalSearchImplPool.Get()
+	impl.table = table
+	impl.records = records
+	return impl
+}
+
 // BatchRead 批量读取记录
 func (s *SearchImpl) BatchRead(records []*map[string]any) (map[any][]byte, error) {
 	// 检查参数
@@ -271,10 +275,10 @@ func (s *SearchImpl) BatchSearch(records []*map[string]any) (map[any]*TableIter,
 
 	// 保存记录
 	s.records = records
-
 	// 预分配结果映射
+	pkField := s.table.GetPrimaryFields()[0]
+	var pkValue any
 	results := make(map[any]*TableIter, len(records))
-
 	// 处理记录并批量搜索
 	for _, fields := range records {
 		// 创建临时 SearchImpl 实例处理单条记录
@@ -286,15 +290,12 @@ func (s *SearchImpl) BatchSearch(records []*map[string]any) (map[any]*TableIter,
 			GlobalSearchImplPool.Put(searchImpl)
 			return nil, err
 		}
-
 		// 获取主键值作为结果映射的键
-		pkField := s.table.GetPrimaryFields()[0]
-		pkValue := (*fields)[pkField]
+		pkValue = (*fields)[pkField]
 		results[pkValue] = tbiter
 
 		// 归还临时实例
 		GlobalSearchImplPool.Put(searchImpl)
 	}
-
 	return results, nil
 }

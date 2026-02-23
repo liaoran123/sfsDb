@@ -47,6 +47,36 @@ func (t *Table) BatchInsert(records []*map[string]any, batchs ...storage.Batch) 
 	return insertImpl.BatchInsert(records, batchs...)
 }
 
+// BatchInsertNoInc 批量插入不需要自动增值的记录
+// records []*map[string]any 要插入的记录列表
+// batchs ...storage.Batch 可选的批量操作容器
+// 返回值：插入记录的ID列表和错误信息
+// 批量添加时序数据，当表主键为时间戳时，建议使用此方法
+func (t *Table) BatchInsertNoInc(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
+	// 使用 InsertImpl
+	insertImpl := NewBatchInsertImpl(t, records)
+	// 执行批量插入
+	return insertImpl.BatchInsertNoInc(batchs...)
+}
+
+/*
+在外部实现分批逻辑非常简单，例如：
+batchSize := 100
+for start := 0; start < len(records); start += batchSize {
+    end := start + batchSize
+    if end > len(records) {
+        end = len(records)
+    }
+    batchRecords := records[start:end]
+    batchIds, err := insertImpl.BatchInsert(batchRecords, batchs...)
+    // 处理结果...
+}
+减少维护成本 ：
+
+- 移除不必要的函数可以减少代码量，降低维护成本
+- 集中精力优化核心的 BatchInsert 函数
+
+
 // BatchInsertWithSize 带批量大小控制的批量插入
 // records []*map[string]any 要插入的记录列表
 // batchSize int 每批处理的记录数量
@@ -78,15 +108,4 @@ func (t *Table) BatchInsertWithSizeNoInc(records []*map[string]any, batchSize in
 	// 执行带批量大小控制的批量插入
 	return insertImpl.BatchInsertWithSizeNoInc(records, batchSize, batchs...)
 }
-
-// BatchInsertNoInc 批量插入不需要自动增值的记录
-// records []*map[string]any 要插入的记录列表
-// batchs ...storage.Batch 可选的批量操作容器
-// 返回值：插入记录的ID列表和错误信息
-// 批量添加时序数据，当表主键为时间戳时，建议使用此方法
-func (t *Table) BatchInsertNoInc(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
-	// 使用 InsertImpl
-	insertImpl := NewBatchInsertImpl(t, records)
-	// 执行批量插入
-	return insertImpl.BatchInsertNoInc(batchs...)
-}
+*/

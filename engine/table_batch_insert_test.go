@@ -127,26 +127,6 @@ func TestBatchInsertWithSize(t *testing.T) {
 		}
 	}
 
-	// 带批量大小控制的批量插入
-	batchSize := 50
-	ids, err := table.BatchInsertWithSize(records, batchSize)
-	if err != nil {
-		t.Fatalf("BatchInsertWithSize failed: %v", err)
-	}
-
-	// 验证插入结果
-	if len(ids) != recordCount {
-		t.Errorf("Expected %d IDs, got %d", recordCount, len(ids))
-	}
-
-	// 验证ID是否连续
-	for i := 1; i < len(ids); i++ {
-		if ids[i] != ids[i-1]+1 {
-			t.Errorf("IDs should be consecutive, got %d and %d", ids[i-1], ids[i])
-		}
-	}
-
-	t.Logf("BatchInsertWithSize test passed, inserted %d records with batch size %d", recordCount, batchSize)
 }
 
 // TestBatchInsertConcurrent 测试并发批量插入
@@ -244,9 +224,9 @@ func TestBatchAndSingleInsertConcurrent(t *testing.T) {
 
 	// 并发插入
 	var wg sync.WaitGroup
-	batchCount := 3     // 批量插入的批次数量
-	singleCount := 20   // 单个插入的数量
-	batchSize := 5      // 每批的记录数量
+	batchCount := 3   // 批量插入的批次数量
+	singleCount := 20 // 单个插入的数量
+	batchSize := 5    // 每批的记录数量
 	var mu sync.Mutex
 	allIDs := make(map[int]bool)
 
