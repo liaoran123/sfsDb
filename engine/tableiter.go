@@ -229,33 +229,6 @@ func (t *TableIter) Match(rd *map[string]any, match []match.Match) bool {
 	return true
 }
 
-// 遍历迭代器返回解析后的记录，不包含版本号字段。
-// 用于外部调用，不包含版本号字段。
-func (t *TableIter) GetRecordSet(esc bool, limit ...int) (r record.Records) {
-	startTime := time.Now()
-	Count := PageNew(limit...).Count
-	if Count > 0 {
-		r = record.GetRecordsWithCapacity(Count)
-	} else {
-		r = record.GetRecords()
-	}
-	r = r[:0]
-	t.ExportRecord(func(rd *record.Record) bool {
-		if len(*rd) == 0 { //删除记录后，数据为空，但是迭代器依然存在，只是返回空。
-			return true
-		}
-		ird := rd.Select(t.selects...)
-		//删除版本号字段
-		delete(ird, "v")
-		r = append(r, ird)
-		return true
-	}, esc, limit...)
-
-	// 记录查询耗时
-	t.RecordIndexTime(startTime, "GetRecordSet")
-	return r
-}
-
 // 跟踪索引耗时
 func (t *TableIter) RecordIndexTime(startTime time.Time, searchType string) {
 	endTime := time.Now()
@@ -302,51 +275,31 @@ func (t *TableIter) hasPrimaryKey(rd record.Record) bool {
 }
 
 // 删除迭代器中的记录
+// 未来可以扩展，错误的情况下可以全部回滚或忽略。
 func (t *TableIter) Delete(limit ...int) error {
 	var err error
 	var batch storage.Batch
 	deleteCount := 0
-	maxLimit := -1
-	if len(limit) > 0 {
-		maxLimit = limit[0]
-	}
-
-	// 批量大小限制，当达到此大小时，执行一次写入
-	const batchSizeLimit = 1000
-
 	// 获取批量操作对象
 	batch = t.table.kvStore.GetBatch()
 	if batch == nil {
 		return fmt.Errorf("创建批量操作对象失败")
 	}
-
-	// 批量删除处理
-	t.ExportRecord(func(rd *record.Record) bool {
-		// 判断是否达到删除限制
-		if maxLimit > 0 && deleteCount >= maxLimit {
-			return false
-		}
-
-		// 检查批量操作大小，如果达到限制，执行写入并创建新的批量操作
-		if batch != nil && batch.Len() >= batchSizeLimit {
-			// 执行当前批量操作
-			if writeErr := t.table.kvStore.WriteBatch(batch); writeErr != nil {
+	defer func() {
+		// 确保在发生错误时也能释放batch资源
+		// 如果有删除操作，执行批量写入
+		if deleteCount > 0 && batch != nil {
+			if writeErr := t.table.kvStore.WriteBatch(batch); writeErr != nil && err == nil {
 				err = fmt.Errorf("执行批量操作失败: %v", writeErr)
-				return false
-			}
-
-			// 创建新的批量操作对象
-			batch = t.table.kvStore.GetBatch()
-			if batch == nil {
-				err = fmt.Errorf("创建新的批量操作对象失败")
-				return false
 			}
 		}
-
+	}()
+	// 批量删除处理
+	var rdMap map[string]any
+	t.ExportRecord(func(rd *record.Record) bool {
 		// 转换记录为map[string]any并调用Table.Delete
-		rdMap := map[string]any(*rd)
+		rdMap = map[string]any(*rd) //rd通过查询得到的旧记录
 		if deleteErr := t.table.Delete(&rdMap, batch); deleteErr != nil {
-			// 记录不存在的错误可以忽略，继续删除其他记录
 			if !strings.Contains(deleteErr.Error(), "记录不存在") {
 				err = deleteErr
 				return false
@@ -359,13 +312,6 @@ func (t *TableIter) Delete(limit ...int) error {
 		return true
 	}, true, limit...)
 
-	// 如果有删除操作，执行批量写入
-	if deleteCount > 0 && batch != nil {
-		if writeErr := t.table.kvStore.WriteBatch(batch); writeErr != nil && err == nil {
-			err = fmt.Errorf("执行批量操作失败: %v", writeErr)
-		}
-	}
-
 	return err
 }
 
@@ -375,28 +321,20 @@ func (t *TableIter) Update(fields *map[string]any, limit ...int) error {
 	var err error
 	var batch storage.Batch
 	updateCount := 0
-	maxLimit := -1
-	if len(limit) > 0 {
-		maxLimit = limit[0]
-	}
-	// 批量大小限制，当达到此大小时，执行一次写入
-	const batchSizeLimit = 1000
 	// 获取批量操作对象
 	batch = t.table.kvStore.GetBatch()
 	defer func() {
 		// 确保在发生错误时也能释放batch资源
 		if batch != nil && updateCount > 0 {
 			// 只有在有更新操作时才写入batch
-			t.table.kvStore.WriteBatch(batch)
+			if writeErr := t.table.kvStore.WriteBatch(batch); writeErr != nil && err == nil {
+				err = fmt.Errorf("执行批量操作失败: %v", writeErr)
+			}
 		}
 	}()
 	// 批量更新处理
+	var rdMap map[string]any
 	t.ExportRecord(func(rd *record.Record) bool {
-		// 判断是否达到更新限制
-		if maxLimit > 0 && updateCount >= maxLimit {
-			return false
-		}
-
 		// 判断是否存在主键字段
 		if !existpk { //只需要判断一次，因为所有的记录字段是一样。
 			existpk = t.hasPrimaryKey(*rd)
@@ -405,22 +343,8 @@ func (t *TableIter) Update(fields *map[string]any, limit ...int) error {
 				return false
 			}
 		}
-		// 检查批量操作大小，如果达到限制，执行写入并创建新的批量操作
-		if batch != nil && batch.Len() >= batchSizeLimit {
-			// 执行当前批量操作
-			if err = t.table.kvStore.WriteBatch(batch); err != nil {
-				err = fmt.Errorf("执行批量操作失败: %v", err)
-				return false
-			}
-			// 创建新的批量操作对象
-			batch = t.table.kvStore.GetBatch()
-			if batch == nil {
-				err = fmt.Errorf("创建新的批量操作对象失败")
-				return false
-			}
-		}
 		// 从记录中提取主键值并合并更新字段
-		rdMap := map[string]any(*rd)
+		rdMap = map[string]any(*rd) //rd通过查询得到的旧记录
 		// 更新记录
 		for field, value := range *fields {
 			rdMap[field] = value
@@ -435,9 +359,6 @@ func (t *TableIter) Update(fields *map[string]any, limit ...int) error {
 		return true
 	}, true, limit...)
 	// 如果没有错误且有更新操作，执行批量写入
-	if err == nil && updateCount > 0 && batch != nil {
-		t.table.kvStore.WriteBatch(batch)
-	}
 	return err
 }
 

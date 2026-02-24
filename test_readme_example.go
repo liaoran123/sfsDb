@@ -98,7 +98,7 @@ func main5() {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
-		records := iter.GetRecordSet(true)
+		records := iter.GetRecords(true)
 		defer record.PutRecords(records)
 
 		if len(records) > 0 {
@@ -115,7 +115,7 @@ func main5() {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
-		nameRecords := nameIter.GetRecordSet(true)
+		nameRecords := nameIter.GetRecords(true)
 		defer record.PutRecords(nameRecords)
 
 		if len(nameRecords) > 0 {
@@ -145,7 +145,7 @@ func main5() {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
-		records := iter.GetRecordSet(true)
+		records := iter.GetRecords(true)
 		defer record.PutRecords(records)
 		if len(records) > 0 {
 			fmt.Printf("更新后的数据: %v\n", records[0])
@@ -172,7 +172,7 @@ func main5() {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
-		records := iter.GetRecordSet(true)
+		records := iter.GetRecords(true)
 		defer record.PutRecords(records)
 		fmt.Printf("删除后查询结果数: %d\n", len(records))
 	}
@@ -186,7 +186,7 @@ func main5() {
 			fmt.Printf("搜索失败: %v\n", err)
 			return
 		}
-		allRecords := allIter.GetRecordSet(true)
+		allRecords := allIter.GetRecords(true)
 		defer record.PutRecords(allRecords)
 		fmt.Printf("当前表中共有 %d 条记录\n", len(allRecords))
 		for i, r := range allRecords {

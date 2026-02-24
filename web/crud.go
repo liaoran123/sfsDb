@@ -961,7 +961,7 @@ func (s *Server) handleGetRecords(c *gin.Context) {
 	defer iter.Release()
 
 	// 获取记录集
-	records := iter.GetRecordSet(true)
+	records := iter.GetRecords(true)
 	defer records.Release()
 
 	s.sendSuccess(c, gin.H{
@@ -1041,7 +1041,7 @@ func (s *Server) handleSearchRange(c *gin.Context) {
 	defer tableIter.Release()
 
 	// 获取记录集
-	records := tableIter.GetRecordSet(true)
+	records := tableIter.GetRecords(true)
 	defer records.Release()
 
 	s.sendSuccess(c, gin.H{

@@ -1517,7 +1517,7 @@ func TestTableIter_Export(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Search 失败: %v", err)
 		}
-		defer GlobalTableIterPool.Put(iter)
+		defer iter.Release()
 
 		count := 0
 		iter.ForExport(true, func(k, v []byte) bool {
@@ -1681,4 +1681,530 @@ func insertTestData(t *testing.T, table *Table) error {
 	}
 
 	return nil
+}
+
+// TestTableIter_UpdatePagination 测试 TableIter.Update 方法的分页功能
+func TestTableIter_UpdatePagination(t *testing.T) {
+	// Create a test table
+	table, err := TableNew("test_update_pagination")
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// Set table fields
+	fields := map[string]any{
+		"id":     0,
+		"name":   "",
+		"age":    0,
+		"score":  0.0,
+		"active": false,
+	}
+
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
+
+	// Create primary key index
+	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+	pkIndex.AddFields("id")
+	err = table.CreateIndex(pkIndex)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+
+	// Insert test data
+	testData := []map[string]any{
+		{"id": 1, "name": "Alice", "age": 20, "score": 85.5, "active": true},
+		{"id": 2, "name": "Bob", "age": 25, "score": 90.0, "active": true},
+		{"id": 3, "name": "Charlie", "age": 30, "score": 75.5, "active": false},
+		{"id": 4, "name": "David", "age": 35, "score": 95.0, "active": true},
+		{"id": 5, "name": "Eve", "age": 40, "score": 80.0, "active": false},
+		{"id": 6, "name": "Frank", "age": 45, "score": 88.5, "active": true},
+		{"id": 7, "name": "Grace", "age": 50, "score": 92.0, "active": true},
+		{"id": 8, "name": "Henry", "age": 55, "score": 78.5, "active": false},
+		{"id": 9, "name": "Ivy", "age": 60, "score": 83.0, "active": true},
+		{"id": 10, "name": "Jack", "age": 65, "score": 87.5, "active": true},
+	}
+
+	for _, record := range testData {
+		_, err = table.Insert(&record)
+		if err != nil {
+			t.Fatalf("Failed to insert record: %v", err)
+		}
+	}
+
+	// Test 1: Update with limit (pagination)
+	t.Run("UpdateWithLimit", func(t *testing.T) {
+		// Get full table iterator
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iter)
+
+		// Set matcher to find active records
+		iter.SetMatch(match.NewFieldComparison("active", match.Equal, true))
+
+		// Update only 3 records
+		updateFields := map[string]any{"score": 100.0}
+		err = iter.Update(&updateFields, 3) // limit to 3 records
+		if err != nil {
+			t.Fatalf("Failed to update records: %v", err)
+		}
+
+		// Verify update
+		iterAfter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iterAfter)
+		iterAfter.SetMatch(match.NewFieldComparison("score", match.Equal, 100.0))
+		recordsAfter := iterAfter.GetRecords(true)
+		if len(recordsAfter) != 3 {
+			t.Errorf("Expected 3 records with score=100, got %d", len(recordsAfter))
+		}
+	})
+
+	// Test 2: Update with no limit (update all)
+	t.Run("UpdateAll", func(t *testing.T) {
+		// Get full table iterator
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iter)
+
+		// Set matcher to find inactive records
+		iter.SetMatch(match.NewFieldComparison("active", match.Equal, false))
+
+		// Update all inactive records (no limit)
+		updateFields := map[string]any{"score": 70.0}
+		err = iter.Update(&updateFields) // no limit
+		if err != nil {
+			t.Fatalf("Failed to update records: %v", err)
+		}
+
+		// Verify update
+		iterAfter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iterAfter)
+		iterAfter.SetMatch(match.NewFieldComparison("score", match.Equal, 70.0))
+		recordsAfter := iterAfter.GetRecords(true)
+		if len(recordsAfter) != 3 {
+			t.Errorf("Expected 3 records with score=70, got %d", len(recordsAfter))
+		}
+	})
+
+	// Test 3: Update with limit greater than total records
+	t.Run("UpdateWithLargeLimit", func(t *testing.T) {
+		// Get full table iterator
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iter)
+
+		// Update with limit greater than total records
+		updateFields := map[string]any{"age": 99}
+		err = iter.Update(&updateFields, 20) // limit larger than total records
+		if err != nil {
+			t.Fatalf("Failed to update records: %v", err)
+		}
+
+		// Verify all records were updated
+		iterAfter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iterAfter)
+		recordsAfter := iterAfter.GetRecords(true)
+		for _, record := range recordsAfter {
+			if record["age"] != 99 {
+				t.Errorf("Expected age=99 for record %v, got %v", record["id"], record["age"])
+			}
+		}
+	})
+
+	// Test 4: Update with pagination (offset and limit)
+	t.Run("UpdateWithPagination", func(t *testing.T) {
+		// Get full table iterator
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iter)
+
+		// Update with pagination: skip 2 records, update 3 records
+		updateFields := map[string]any{"score": 110.0}
+		err = iter.Update(&updateFields, 2, 3) // offset=2, limit=3
+		if err != nil {
+			t.Fatalf("Failed to update records with pagination: %v", err)
+		}
+
+		// Verify update
+		iterAfter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iterAfter)
+		recordsAfter := iterAfter.GetRecords(true)
+		if len(recordsAfter) != 10 {
+			t.Errorf("Expected 10 records, got %d", len(recordsAfter))
+		}
+
+		// Check that only 3 records were updated
+		updatedCount := 0
+		for _, record := range recordsAfter {
+			if record["score"] == 110.0 {
+				updatedCount++
+			}
+		}
+		if updatedCount != 3 {
+			t.Errorf("Expected 3 records with score=110, got %d", updatedCount)
+		}
+	})
+
+	// Test 5: Update with pagination - second page
+	t.Run("UpdateWithPaginationSecondPage", func(t *testing.T) {
+		// Get full table iterator
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iter)
+
+		// Update with pagination: skip 5 records, update 3 records
+		updateFields := map[string]any{"score": 120.0}
+		err = iter.Update(&updateFields, 5, 3) // offset=5, limit=3
+		if err != nil {
+			t.Fatalf("Failed to update records with pagination: %v", err)
+		}
+
+		// Verify update
+		iterAfter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iterAfter)
+		recordsAfter := iterAfter.GetRecords(true)
+
+		// Check that only 3 records were updated
+		updatedCount := 0
+		for _, record := range recordsAfter {
+			if record["score"] == 120.0 {
+				updatedCount++
+			}
+		}
+		if updatedCount != 3 {
+			t.Errorf("Expected 3 records with score=120, got %d", updatedCount)
+		}
+	})
+}
+
+// TestTableIter_DeletePagination 测试 TableIter.Delete 方法的分页功能
+func TestTableIter_DeletePagination(t *testing.T) {
+	// Create a test table
+	table, err := TableNew("test_delete_pagination")
+	if err != nil {
+		t.Fatalf("Failed to create table: %v", err)
+	}
+
+	// Set table fields
+	fields := map[string]any{
+		"id":     0,
+		"name":   "",
+		"age":    0,
+		"score":  0.0,
+		"active": false,
+	}
+
+	err = table.SetFields(fields)
+	if err != nil {
+		t.Fatalf("Failed to set fields: %v", err)
+	}
+
+	// Create primary key index
+	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+	pkIndex.AddFields("id")
+	err = table.CreateIndex(pkIndex)
+	if err != nil {
+		t.Fatalf("Failed to create primary key index: %v", err)
+	}
+
+	// Insert test data
+	testData := []map[string]any{
+		{"id": 1, "name": "Alice", "age": 20, "score": 85.5, "active": true},
+		{"id": 2, "name": "Bob", "age": 25, "score": 90.0, "active": true},
+		{"id": 3, "name": "Charlie", "age": 30, "score": 75.5, "active": false},
+		{"id": 4, "name": "David", "age": 35, "score": 95.0, "active": true},
+		{"id": 5, "name": "Eve", "age": 40, "score": 80.0, "active": false},
+		{"id": 6, "name": "Frank", "age": 45, "score": 88.5, "active": true},
+		{"id": 7, "name": "Grace", "age": 50, "score": 92.0, "active": true},
+		{"id": 8, "name": "Henry", "age": 55, "score": 78.5, "active": false},
+		{"id": 9, "name": "Ivy", "age": 60, "score": 83.0, "active": true},
+		{"id": 10, "name": "Jack", "age": 65, "score": 87.5, "active": true},
+	}
+
+	for _, record := range testData {
+		_, err = table.Insert(&record)
+		if err != nil {
+			t.Fatalf("Failed to insert record: %v", err)
+		}
+	}
+
+	// Test 1: Delete with limit (pagination)
+	t.Run("DeleteWithLimit", func(t *testing.T) {
+		// Get full table iterator
+		iter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iter)
+
+		// Set matcher to find active records
+		iter.SetMatch(match.NewFieldComparison("active", match.Equal, true))
+
+		// Delete only 3 records
+		err = iter.Delete(3) // limit to 3 records
+		if err != nil {
+			t.Fatalf("Failed to delete records: %v", err)
+		}
+
+		// Verify deletion
+		iterAfter, err := table.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iterAfter)
+		// Count all remaining records
+		recordsAfter := iterAfter.GetRecords(true)
+		if len(recordsAfter) != 7 {
+			t.Errorf("Expected 7 records after deletion, got %d", len(recordsAfter))
+		}
+	})
+
+	// Test 2: Delete with no limit (delete all)
+	t.Run("DeleteAll", func(t *testing.T) {
+		// Recreate test table for fresh test
+		table2, err := TableNew("test_delete_all")
+		if err != nil {
+			t.Fatalf("Failed to create table: %v", err)
+		}
+
+		err = table2.SetFields(fields)
+		if err != nil {
+			t.Fatalf("Failed to set fields: %v", err)
+		}
+
+		pkIndex2, _ := DefaultPrimaryKeyNew("pk")
+		pkIndex2.AddFields("id")
+		err = table2.CreateIndex(pkIndex2)
+		if err != nil {
+			t.Fatalf("Failed to create primary key index: %v", err)
+		}
+
+		// Insert test data
+		for _, record := range testData {
+			_, err = table2.Insert(&record)
+			if err != nil {
+				t.Fatalf("Failed to insert record: %v", err)
+			}
+		}
+
+		// Get full table iterator
+		iter, err := table2.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iter)
+
+		// Set matcher to find inactive records
+		iter.SetMatch(match.NewFieldComparison("active", match.Equal, false))
+
+		// Delete all inactive records (no limit)
+		err = iter.Delete() // no limit
+		if err != nil {
+			t.Fatalf("Failed to delete records: %v", err)
+		}
+
+		// Verify deletion
+		iterAfter, err := table2.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iterAfter)
+		// Count all remaining records
+		recordsAfter := iterAfter.GetRecords(true)
+		if len(recordsAfter) != 7 {
+			t.Errorf("Expected 7 records after deletion, got %d", len(recordsAfter))
+		}
+	})
+
+	// Test 3: Delete with limit greater than total records
+	t.Run("DeleteWithLargeLimit", func(t *testing.T) {
+		// Recreate test table for fresh test
+		table3, err := TableNew("test_delete_large_limit")
+		if err != nil {
+			t.Fatalf("Failed to create table: %v", err)
+		}
+
+		err = table3.SetFields(fields)
+		if err != nil {
+			t.Fatalf("Failed to set fields: %v", err)
+		}
+
+		pkIndex3, _ := DefaultPrimaryKeyNew("pk")
+		pkIndex3.AddFields("id")
+		err = table3.CreateIndex(pkIndex3)
+		if err != nil {
+			t.Fatalf("Failed to create primary key index: %v", err)
+		}
+
+		// Insert test data
+		for _, record := range testData {
+			_, err = table3.Insert(&record)
+			if err != nil {
+				t.Fatalf("Failed to insert record: %v", err)
+			}
+		}
+
+		// Get full table iterator
+		iter, err := table3.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iter)
+
+		// Delete with limit greater than total records
+		err = iter.Delete(20) // limit larger than total records
+		if err != nil {
+			t.Fatalf("Failed to delete records: %v", err)
+		}
+
+		// Verify all records were deleted
+		iterAfter, err := table3.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iterAfter)
+		recordsAfter := iterAfter.GetRecords(true)
+		if len(recordsAfter) != 0 {
+			t.Errorf("Expected 0 records after deletion, got %d", len(recordsAfter))
+		}
+	})
+
+	// Test 4: Delete with pagination (offset and limit)
+	t.Run("DeleteWithPagination", func(t *testing.T) {
+		// Recreate test table for fresh test
+		table4, err := TableNew("test_delete_pagination")
+		if err != nil {
+			t.Fatalf("Failed to create table: %v", err)
+		}
+
+		err = table4.SetFields(fields)
+		if err != nil {
+			t.Fatalf("Failed to set fields: %v", err)
+		}
+
+		pkIndex4, _ := DefaultPrimaryKeyNew("pk")
+		pkIndex4.AddFields("id")
+		err = table4.CreateIndex(pkIndex4)
+		if err != nil {
+			t.Fatalf("Failed to create primary key index: %v", err)
+		}
+
+		// Insert test data
+		for _, record := range testData {
+			_, err = table4.Insert(&record)
+			if err != nil {
+				t.Fatalf("Failed to insert record: %v", err)
+			}
+		}
+
+		// Get full table iterator
+		iter, err := table4.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iter)
+
+		// Delete with pagination: skip 2 records, delete 3 records
+		err = iter.Delete(2, 3) // offset=2, limit=3
+		if err != nil {
+			t.Fatalf("Failed to delete records with pagination: %v", err)
+		}
+
+		// Verify deletion
+		iterAfter, err := table4.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iterAfter)
+		recordsAfter := iterAfter.GetRecords(true)
+		if len(recordsAfter) != 7 {
+			t.Errorf("Expected 7 records after deletion, got %d", len(recordsAfter))
+		}
+	})
+
+	// Test 5: Delete with pagination - second page
+	t.Run("DeleteWithPaginationSecondPage", func(t *testing.T) {
+		// Recreate test table for fresh test
+		table5, err := TableNew("test_delete_pagination_second")
+		if err != nil {
+			t.Fatalf("Failed to create table: %v", err)
+		}
+
+		err = table5.SetFields(fields)
+		if err != nil {
+			t.Fatalf("Failed to set fields: %v", err)
+		}
+
+		pkIndex5, _ := DefaultPrimaryKeyNew("pk")
+		pkIndex5.AddFields("id")
+		err = table5.CreateIndex(pkIndex5)
+		if err != nil {
+			t.Fatalf("Failed to create primary key index: %v", err)
+		}
+
+		// Insert test data
+		for _, record := range testData {
+			_, err = table5.Insert(&record)
+			if err != nil {
+				t.Fatalf("Failed to insert record: %v", err)
+			}
+		}
+
+		// Get full table iterator
+		iter, err := table5.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Failed to get full table iterator: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iter)
+
+		// Delete with pagination: skip 5 records, delete 3 records
+		err = iter.Delete(5, 3) // offset=5, limit=3
+		if err != nil {
+			t.Fatalf("Failed to delete records with pagination: %v", err)
+		}
+
+		// Verify deletion
+		iterAfter, err := table5.Search(&map[string]any{"id": nil})
+		if err != nil {
+			t.Fatalf("Search 失败: %v", err)
+		}
+		defer GlobalTableIterPool.Put(iterAfter)
+		recordsAfter := iterAfter.GetRecords(true)
+		if len(recordsAfter) != 7 {
+			t.Errorf("Expected 7 records after deletion, got %d", len(recordsAfter))
+		}
+	})
 }

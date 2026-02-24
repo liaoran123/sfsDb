@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"fmt"
-
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
@@ -12,14 +10,12 @@ func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 
 	// 使用 SearchImpl
 	searchImpl := NewSearchImpl(t)
-
 	// 读取记录
 	record, err := searchImpl.Read(fields)
 	if err != nil {
 		GlobalSearchImplPool.Put(searchImpl)
 		return nil, err
 	}
-
 	// 归还对象池
 	GlobalSearchImplPool.Put(searchImpl)
 
@@ -30,10 +26,6 @@ func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 func (t *Table) ReadByBytes(key []byte) []byte {
 	v, err := t.kvStore.Get(key)
 	if err != nil {
-		// ErrNotFound 是正常的未找到错误，不需要打印
-		if err != storage.ErrNotFound {
-			fmt.Printf("读取记录失败: %v\n", err)
-		}
 		return nil
 	}
 	return v

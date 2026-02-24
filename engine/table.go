@@ -417,7 +417,7 @@ func (t *Table) prepareBatch1(batch storage.Batch) (storage.Batch, bool, error) 
 // prepareBatch 准备批量操作的 batch
 // prepareBatch 准备批量操作的batch
 // 如果不是手动事务从外部传入batch，则使用创建一个batch，如果是手动事务，则使用外部传入的batch。
-func (t *Table) prepareBatch(batchs ...storage.Batch) (storage.Batch, bool, error) {
+func (t *Table) prepareBatch1(batchs ...storage.Batch) (storage.Batch, bool, error) {
 	var batch storage.Batch
 	userProvidedBatch := len(batchs) > 0
 
@@ -434,6 +434,17 @@ func (t *Table) prepareBatch(batchs ...storage.Batch) (storage.Batch, bool, erro
 	}
 
 	return batch, userProvidedBatch, nil
+}
+func (t *Table) prepareBatch(batchs ...storage.Batch) (storage.Batch, bool) {
+	var batch storage.Batch
+	//是否用户手动控制事务
+	userProvidedBatch := len(batchs) > 0
+	if userProvidedBatch { //用户手动控制事务
+		batch = batchs[0]
+	} else {
+		batch = t.kvStore.GetBatch()
+	}
+	return batch, userProvidedBatch
 }
 
 /*

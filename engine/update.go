@@ -104,12 +104,7 @@ func (u *UpdateImpl) CheckParams() error {
 // PrepareBatch 准备更新操作的batch
 func (u *UpdateImpl) PrepareBatch(batchs ...storage.Batch) {
 	//是否用户手动控制事务
-	u.userProvidedBatch = len(batchs) > 0
-	if u.userProvidedBatch { //用户手动控制事务
-		u.batch = batchs[0]
-	} else {
-		u.batch = u.table.kvStore.GetBatch()
-	}
+	u.batch, u.userProvidedBatch = u.table.prepareBatch(batchs...)
 }
 
 // ReadRecord 读取记录
@@ -233,10 +228,8 @@ func (u *BatchUpdateImpl) BatchUpdate(batchs ...storage.Batch) error {
 	}
 
 	// 准备batch
-	batch, userProvidedBatch, err := u.table.prepareBatch(batchs...)
-	if err != nil {
-		return err
-	}
+	batch, userProvidedBatch := u.table.prepareBatch(batchs...)
+
 	u.batch = batch
 	u.userProvidedBatch = userProvidedBatch
 

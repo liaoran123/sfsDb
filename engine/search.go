@@ -65,18 +65,15 @@ func NewSearchImpl(table *Table) *SearchImpl {
 
 // Read 读取记录
 func (s *SearchImpl) Read(fields *map[string]any) ([]byte, error) {
-	// 获取主键值用于行级锁
-	pkField := s.table.GetPrimaryFields()[0]
-	_ = (*fields)[pkField]
+	/*
+		// 获取主键值用于行级锁
+		pkField := s.table.GetPrimaryFields()[0]
+		_ = (*fields)[pkField]
 
-	// 获取行级共享锁（使用默认事务ID）
-
+		// 获取行级共享锁（使用默认事务ID）
+	*/
 	fieldsBytes := s.table.FieldsToBytes(fields)
-	defer func() {
-		if fieldsBytes != nil && *fieldsBytes != nil {
-			GlobalFieldsBytesPool.Put(*fieldsBytes)
-		}
-	}()
+	defer GlobalFieldsBytesPool.Put(*fieldsBytes)
 	key := s.table.GetPrimaryKey().JoinValue(fieldsBytes, s.table.id)
 	return s.table.ReadByBytes(key), nil
 }

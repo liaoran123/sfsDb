@@ -6,84 +6,27 @@ import (
 	"github.com/liaoran123/sfsDb/storage"
 )
 
-/*
-// validateDeleteFields 验证删除操作的字段
-func (t *Table) validateDeleteFields(fields *map[string]any) (any, error) {
-	// 检查是否提供了所有主键字段
-	for _, field := range t.GetPrimaryFields() {
-		if _, ok := (*fields)[field]; !ok {
-			return nil, fmt.Errorf("必须提供主键字段 '%s'", field)
-		}
-	}
-
-	// 获取主键值用于行级锁
-	pkField := t.GetPrimaryFields()[0]
-	pkValue := (*fields)[pkField]
-
-	return pkValue, nil
-}
-
-// readRecordForDelete 读取要删除的记录
-func (t *Table) readRecordForDelete(fields *map[string]any) ([]byte, error) {
-	//读取记录 - 直接使用 ReadByBytes 避免死锁
-	fieldsBytes := t.FieldsToBytes(fields)
-	defer func() {
-		if fieldsBytes != nil && *fieldsBytes != nil {
-			GlobalFieldsBytesPool.Put(*fieldsBytes)
-		}
-	}()
-	key := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
-	record := t.ReadByBytes(key)
-	if record == nil {
-		return nil, fmt.Errorf("主键值 '%v' 的记录不存在", fields)
-	}
-
-	return key, nil
-}
-
-
-// commitDeleteTransaction 提交删除事务
-func (t *Table) commitDeleteTransaction(batch storage.Batch, userProvidedBatch bool) error {
-	return t.commitTransaction(batch, userProvidedBatch)
-}
-*/
 // 删除记录
 // fields *map[string]any 主键值，可能是组合主键
 // 之前Delete的缺省参数为batchs ...storage.Batch ，支持乐观锁需要增加一个参数，故而为兼容之前的函数，
 // 使用使用 batchs ...storage.Batch 。batch和timeout合并为一个参数组数
 func (t *Table) Delete(fields *map[string]any, batchs ...storage.Batch) error {
-
-	// 准备batch
-	batch, userProvidedBatch, err := t.prepareBatch(batchs...)
-	if err != nil {
-		return err
-	}
-
 	// 使用 DeleteImpl
-	deleteImpl := NewDeleteImpl(t, batch, userProvidedBatch, fields)
-
-	// 验证字段
-	_, err = deleteImpl.ValidateDeleteFields()
-	if err != nil {
+	deleteImpl := NewDeleteImpl(t, fields)
+	if err := deleteImpl.HasPrimaryKey(); err != nil {
 		return err
 	}
-
-	// 读取记录
-	_, err = deleteImpl.ReadRecordForDelete()
-	if err != nil {
+	deleteImpl.PrepareBatch(batchs...)
+	if err := deleteImpl.ReadRecord(); err != nil {
 		return err
 	}
-
-	// 执行删除操作
-	if err := deleteImpl.ExecuteDeleteOperation(); err != nil {
+	if err := deleteImpl.DeleteRecord(); err != nil {
 		return err
 	}
-
 	// 提交事务
 	if err := deleteImpl.Commit(); err != nil {
 		return err
 	}
-
 	return nil
 }
 

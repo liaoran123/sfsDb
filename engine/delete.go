@@ -35,25 +35,16 @@ func (p *DeleteImplPool) Put(impl *DeleteImpl) {
 
 // 提供了一个统一的删除流程接口
 type Delete interface {
-	// 验证删除字段
-	ValidateDeleteFields() (any, error)
+	// 是否提供了主键字段
+	HasPrimaryKey() error
+	//准备删除操作的batch
+	PrepareBatch(batchs ...storage.Batch)
 	// 读取要删除的记录
-	ReadRecordForDelete() ([]byte, error)
-	// 执行删除操作
-	ExecuteDeleteOperation() error
+	ReadRecord() error
+	// 删除记录
+	DeleteRecord() error
 	// 提交事务
 	Commit() error
-}
-
-// 批量删除接口
-type BatchDelete interface {
-	Delete
-	// 批量删除多条记录
-	BatchDelete(records []*map[string]any, params ...any) error
-	// 带批量大小控制的批量删除
-	BatchDeleteWithSize(records []*map[string]any, batchSize int, params ...any) error
-	// 批量提交事务
-	BatchCommit() error
 }
 
 type DeleteImpl struct {
@@ -62,7 +53,7 @@ type DeleteImpl struct {
 	userProvidedBatch bool
 	fields            *map[string]any
 	fieldsBytes       *map[string][]byte
-	key               []byte
+	record            []byte
 	pkValue           any
 	// 批量操作相关字段
 	records []*map[string]any
@@ -75,84 +66,53 @@ func (d *DeleteImpl) Reset() {
 	d.userProvidedBatch = false
 	d.fields = nil
 	d.fieldsBytes = nil
-	d.key = nil
+	d.record = nil
 	d.pkValue = nil
 	d.records = nil
 }
 
 // NewDeleteImpl 创建一个新的 DeleteImpl 实例
-func NewDeleteImpl(table *Table, batch storage.Batch, userProvidedBatch bool, fields *map[string]any) *DeleteImpl {
+func NewDeleteImpl(table *Table, fields *map[string]any) *DeleteImpl {
 	impl := GlobalDeleteImplPool.Get()
 	impl.table = table
-	impl.batch = batch
-	impl.userProvidedBatch = userProvidedBatch
 	impl.fields = fields
 	return impl
 }
-
-// NewBatchDeleteImpl 创建一个新的用于批量删除的 DeleteImpl 实例
-func NewBatchDeleteImpl(table *Table, batch storage.Batch, userProvidedBatch bool, records []*map[string]any) *DeleteImpl {
-	impl := GlobalDeleteImplPool.Get()
-	impl.table = table
-	impl.batch = batch
-	impl.userProvidedBatch = userProvidedBatch
-	impl.records = records
-	return impl
-}
-
-// ValidateDeleteFields 验证删除操作的字段
-func (d *DeleteImpl) ValidateDeleteFields() (any, error) {
+func (d *DeleteImpl) HasPrimaryKey() error {
 	// 检查是否提供了所有主键字段
 	for _, field := range d.table.GetPrimaryFields() {
 		if _, ok := (*d.fields)[field]; !ok {
-			return nil, fmt.Errorf("必须提供主键字段 '%s'", field)
+			return fmt.Errorf("必须提供主键字段 '%s'", field)
 		}
 	}
-
-	// 获取主键值用于行级锁
-	pkField := d.table.GetPrimaryFields()[0]
-	pkValue := (*d.fields)[pkField]
-	d.pkValue = pkValue
-
-	return pkValue, nil
+	return nil
 }
-
-// ReadRecordForDelete 读取要删除的记录
-func (d *DeleteImpl) ReadRecordForDelete() ([]byte, error) {
-	//读取记录 - 直接使用 ReadByBytes 避免死锁
-	fieldsBytes := d.table.FieldsToBytes(d.fields)
-	defer GlobalFieldsBytesPool.Put(*fieldsBytes)
-
-	key := d.table.GetPrimaryKey().JoinValue(fieldsBytes, d.table.id)
-	record := d.table.ReadByBytes(key)
-	if record == nil {
-		return nil, fmt.Errorf("主键值 '%v' 的记录不存在", d.fields)
-	}
-
-	// 反序列化记录
-	pk := d.table.GetPrimaryKey()
-	parsedFieldsBytes, err := pk.Parse(d.table.fieldsid, record)
+func (d *DeleteImpl) PrepareBatch(batchs ...storage.Batch) {
+	// 准备batch
+	d.batch, d.userProvidedBatch = d.table.prepareBatch(batchs...)
+}
+func (d *DeleteImpl) ReadRecord() error {
+	record, err := d.table.Read(d.fields)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	d.key = key
-	d.fieldsBytes = parsedFieldsBytes
-
-	return key, nil
+	if record == nil {
+		return fmt.Errorf("主键值 '%v' 的记录不存在", d.fields)
+	}
+	d.record = record
+	return nil
 }
-
-// ExecuteDeleteOperation 执行删除操作
-func (d *DeleteImpl) ExecuteDeleteOperation() error {
-	// 从对象池中获取一个 batchContainer
+func (d *DeleteImpl) DeleteRecord() error {
+	pk := d.table.GetPrimaryKey()
+	fieldsBytes, err := pk.Parse(d.table.fieldsid, d.record)
+	defer GlobalFieldsBytesPool.Put(*fieldsBytes)
+	if err != nil {
+		//释放batch资源
+		return err
+	}
 	BatchContainer := GetBatchContainer(d.batch, d.table.indexs, d.table.id, d.table.kvStore)
 	defer PutBatchContainer(BatchContainer)
-
-	// 对于删除操作，需要将values[0]设置为nil，这样Add方法才会执行删除操作
-	// 明确设置为 nil 以确保执行删除操作，提高代码可读性和防御性
-	BatchContainer.SetValue(0, nil) //这行代码可有可无。
-	BatchContainer.Operation(d.fieldsBytes)
-
+	BatchContainer.Operation(fieldsBytes)
 	return nil
 }
 
@@ -164,11 +124,32 @@ func (d *DeleteImpl) Commit() error {
 			return err
 		}
 	}
-
 	// 归还对象池
 	defer GlobalDeleteImplPool.Put(d)
 
 	return nil
+}
+
+// -------以下的函数功能可能是无用的，以防万一，保留一下。--------------------------------------------------------
+// 批量删除接口
+type BatchDelete interface {
+	Delete
+	// 批量删除多条记录
+	BatchDelete(records []*map[string]any, params ...any) error
+	// 带批量大小控制的批量删除
+	BatchDeleteWithSize(records []*map[string]any, batchSize int, params ...any) error
+	// 批量提交事务
+	BatchCommit() error
+}
+
+// NewBatchDeleteImpl 创建一个新的用于批量删除的 DeleteImpl 实例
+func NewBatchDeleteImpl(table *Table, batch storage.Batch, userProvidedBatch bool, records []*map[string]any) *DeleteImpl {
+	impl := GlobalDeleteImplPool.Get()
+	impl.table = table
+	impl.batch = batch
+	impl.userProvidedBatch = userProvidedBatch
+	impl.records = records
+	return impl
 }
 
 // BatchDelete 批量删除多条记录
@@ -185,32 +166,31 @@ func (d *DeleteImpl) BatchDelete(records []*map[string]any, batchs ...storage.Ba
 	d.records = records
 
 	// 准备batch
-	batch, userProvidedBatch, err := d.table.prepareBatch(batchs...)
-	if err != nil {
-		return err
-	}
-	d.batch = batch
-	d.userProvidedBatch = userProvidedBatch
+	d.batch, d.userProvidedBatch = d.table.prepareBatch(batchs...)
 
 	// 处理记录并批量删除
 	for _, fields := range records {
 		// 创建临时 DeleteImpl 实例处理单条记录
-		deleteImpl := NewDeleteImpl(d.table, batch, userProvidedBatch, fields)
+		deleteImpl := NewDeleteImpl(d.table, fields)
+		// 设置与主实例相同的batch
+		deleteImpl.batch = d.batch
+		deleteImpl.userProvidedBatch = d.userProvidedBatch
 
-		// 验证字段
-		_, err := deleteImpl.ValidateDeleteFields()
-		if err != nil {
+		// 检查主键
+		if err := deleteImpl.HasPrimaryKey(); err != nil {
+			GlobalDeleteImplPool.Put(deleteImpl)
 			return err
 		}
 
 		// 读取记录
-		_, err = deleteImpl.ReadRecordForDelete()
-		if err != nil {
+		if err := deleteImpl.ReadRecord(); err != nil {
+			GlobalDeleteImplPool.Put(deleteImpl)
 			return err
 		}
 
 		// 执行删除操作
-		if err := deleteImpl.ExecuteDeleteOperation(); err != nil {
+		if err := deleteImpl.DeleteRecord(); err != nil {
+			GlobalDeleteImplPool.Put(deleteImpl)
 			return err
 		}
 		// 释放临时实例回对象池

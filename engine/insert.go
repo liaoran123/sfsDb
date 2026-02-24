@@ -264,12 +264,7 @@ func (i *BatchInsertImpl) BatchInsert(records []*map[string]any, batchs ...stora
 	supportDefault := pklen == 1 && pkfield == "id"
 
 	// 处理批量操作
-	var err error
-	i.batch, i.userProvidedBatch, err = i.table.prepareBatch(batchs...)
-	if err != nil {
-		return nil, err
-	}
-
+	i.batch, i.userProvidedBatch = i.table.prepareBatch(batchs...)
 	// 预分配ID列表容量
 	ids := make([]int, len(records))
 	i.ids = ids
@@ -399,12 +394,7 @@ func (i *BatchInsertImpl) BatchInsertNoInc(batchs ...storage.Batch) ([]int, erro
 	pkfield := primaryFields[0]
 
 	// 处理批量操作
-	var err error
-	i.batch, i.userProvidedBatch, err = i.table.prepareBatch(batchs...)
-	if err != nil {
-		return nil, err
-	}
-
+	i.batch, i.userProvidedBatch = i.table.prepareBatch(batchs...)
 	// 预分配ID列表容量
 	ids := make([]int, len(i.records))
 	i.ids = ids
