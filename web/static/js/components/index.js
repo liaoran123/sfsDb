@@ -11,7 +11,7 @@ import MemoryComponent from './MemoryComponent.js';
 import KeyComponent from './KeyComponent.js';
 import IndexStatsComponent from './IndexStatsComponent.js';
 
-import CrudComponent from './CrudComponent.js';
+
 import DataQueryComponent from './DataQueryComponent.js';
 import ImportExportComponent from './ImportExportComponent.js';
 
@@ -25,7 +25,6 @@ export {
     KeyComponent,
     IndexStatsComponent,
     TransactionStatsComponent,
-    CrudComponent,
     DataQueryComponent,
     ImportExportComponent
 };
@@ -40,7 +39,6 @@ const components = {
     key: KeyComponent,
     indexStats: IndexStatsComponent,
 
-    crud: CrudComponent,
     dataQuery: DataQueryComponent,
     importExport: ImportExportComponent
 };

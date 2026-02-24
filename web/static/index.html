@@ -84,16 +84,7 @@
                         </div>
                     </li>
 
-                    <!-- 表操作菜单 -->
-                    <li class="nav-item mb-2">
-                        <div 
-                            class="nav-link menu-item rounded" 
-                            :class="{ active: activePage === 'crud' }"
-                            @click="setActivePage('crud')"
-                        >
-                            表操作
-                        </div>
-                    </li>
+
                     <!-- 数据查询菜单 -->
                     <li class="nav-item mb-2">
                         <div 
@@ -163,10 +154,7 @@
                     </div>
                     
 
-                    <!-- 表操作内容 -->
-                    <div v-if="activePage === 'crud'">
-                        <crud-component />
-                    </div>
+
 
                     <!-- 数据查询内容 -->
                     <div v-if="activePage === 'dataQuery'">

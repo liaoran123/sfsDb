@@ -72,7 +72,7 @@ func TableNew(name string) (*Table, error) {
 		return nil, err
 	}
 	tb.id = id    //tb.getSysNameId(name, "tb") //tb.getSysId("sys-tbid")
-	tb.InitAuto() //初始化自动增值计数器
+	tb.InitAuto() //初始化自动增值计数器。支持单一ID生成模式，要么系统自动增长，要么用户自定义ID。
 	return tb, nil
 }
 
@@ -459,7 +459,7 @@ func (t *Table) prepareBatch(batchs ...storage.Batch) (storage.Batch, bool) {
 		}
 		return nil
 	}
-*/
+
 // OpenTable 根据表名打开已存在的表并加载其结构信息
 // 参数:
 //   name: 表名
@@ -501,7 +501,7 @@ func (t *Table) OpenTable(name string) error {
 		return err
 	}
 	t.id = id
-
+	t.InitAuto() //初始化自动增值计数器。支持单一ID生成模式，要么系统自动增长，要么用户自定义ID。
 	// 尝试加载字段ID映射
 	// 这里可以通过系统管理器获取字段信息
 	// 或者从存储中读取字段ID映射
@@ -515,3 +515,13 @@ func (t *Table) OpenTable(name string) error {
 
 	return nil
 }
+*/
+// OpenTable 创建并返回一个新的表实例
+// 参数:
+//
+//	name: 表名
+//
+// 返回:
+//
+//	*Table: 创建的表实例
+//	error: 错误信息

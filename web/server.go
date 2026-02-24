@@ -160,25 +160,6 @@ func (s *Server) Start() error {
 		api.POST("/tables/export", PermissionMiddleware(s.authManager, PermissionRead), s.handleExportTable)
 		api.POST("/tables/import", PermissionMiddleware(s.authManager, PermissionWrite), s.handleImportTable)
 
-		// 表操作API
-		api.POST("/tables", PermissionMiddleware(s.authManager, PermissionWrite), s.handleCreateTable)
-		api.GET("/tables", PermissionMiddleware(s.authManager, PermissionRead), s.handleGetTables)
-		api.GET("/tables/:name", PermissionMiddleware(s.authManager, PermissionRead), s.handleGetTable)
-		api.PUT("/tables/:name", PermissionMiddleware(s.authManager, PermissionWrite), s.handleUpdateTable)
-		api.DELETE("/tables/:name", PermissionMiddleware(s.authManager, PermissionAdmin), s.handleDeleteTable)
-
-		// 记录操作API
-		api.POST("/tables/:name/records", PermissionMiddleware(s.authManager, PermissionWrite), s.handleInsertRecord)
-		api.GET("/tables/:name/records", PermissionMiddleware(s.authManager, PermissionRead), s.handleGetRecords)
-		api.PUT("/tables/:name/records", PermissionMiddleware(s.authManager, PermissionWrite), s.handleUpdateRecord)
-		api.DELETE("/tables/:name/records", PermissionMiddleware(s.authManager, PermissionWrite), s.handleDeleteRecord)
-
-		// 批量操作API
-		api.POST("/tables/:name/records/batch", PermissionMiddleware(s.authManager, PermissionWrite), s.handleBatchInsertRecords)
-
-		// 范围查询API
-		api.GET("/tables/:name/records/range", PermissionMiddleware(s.authManager, PermissionRead), s.handleSearchRange)
-
 		// 监控API
 		api.GET("/metrics", PermissionMiddleware(s.authManager, PermissionRead), s.handleGetMetrics)
 		api.GET("/alerts", PermissionMiddleware(s.authManager, PermissionRead), s.handleGetAlerts)

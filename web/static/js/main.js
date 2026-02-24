@@ -22,7 +22,6 @@ const components = {
     KeyComponent: defineAsyncComponent(() => import('./components/KeyComponent.js')),
     IndexStatsComponent: defineAsyncComponent(() => import('./components/IndexStatsComponent.js')),
     TransactionStatsComponent: defineAsyncComponent(() => import('./components/TransactionStatsComponent.js')),
-    CrudComponent: defineAsyncComponent(() => import('./components/CrudComponent.js')),
     DataQueryComponent: defineAsyncComponent(() => import('./components/DataQueryComponent.js')),
     ImportExportComponent: defineAsyncComponent(() => import('./components/ImportExportComponent.js'))
 };
@@ -37,7 +36,6 @@ const app = createApp({
         KeyComponent: components.KeyComponent,
         IndexStatsComponent: components.IndexStatsComponent,
         TransactionStatsComponent: components.TransactionStatsComponent,
-        CrudComponent: components.CrudComponent,
         DataQueryComponent: components.DataQueryComponent,
         ImportExportComponent: components.ImportExportComponent
     },

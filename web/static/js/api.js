@@ -182,97 +182,9 @@ const api = {
         });
     },
 
-    /**
-     * 删除表
-     * @param {string} tableName - 表名
-     * @returns {Promise} - 删除结果
-     */
-    async deleteTable(tableName) {
-        return apiRequest(`/tables/${tableName}`, {
-            method: 'DELETE'
-        });
-    },
 
-    /**
-     * 插入记录
-     * @param {string} tableName - 表名
-     * @param {object} fields - 记录字段
-     * @returns {Promise} - 插入结果
-     */
-    async insertRecord(tableName, fields) {
-        return apiRequest(`/tables/${tableName}/records`, {
-            method: 'POST',
-            body: JSON.stringify({ fields })
-        });
-    },
 
-    /**
-     * 查询记录
-     * @param {string} tableName - 表名
-     * @param {object} params - 查询参数
-     * @returns {Promise} - 查询结果
-     */
-    async getRecords(tableName, params = {}) {
-        const queryParams = new URLSearchParams(params).toString();
-        const endpoint = `/tables/${tableName}/records${queryParams ? `?${queryParams}` : ''}`;
-        return apiRequest(endpoint);
-    },
 
-    /**
-     * 更新记录
-     * @param {string} tableName - 表名
-     * @param {object} fields - 记录字段
-     * @returns {Promise} - 更新结果
-     */
-    async updateRecord(tableName, fields) {
-        return apiRequest(`/tables/${tableName}/records`, {
-            method: 'PUT',
-            body: JSON.stringify({ fields })
-        });
-    },
-
-    /**
-     * 删除记录
-     * @param {string} tableName - 表名
-     * @param {object} fields - 记录字段
-     * @returns {Promise} - 删除结果
-     */
-    async deleteRecord(tableName, fields) {
-        return apiRequest(`/tables/${tableName}/records`, {
-            method: 'DELETE',
-            body: JSON.stringify({ fields })
-        });
-    },
-
-    /**
-     * 批量插入记录
-     * @param {string} tableName - 表名
-     * @param {array} records - 记录数组
-     * @returns {Promise} - 插入结果
-     */
-    async batchInsertRecords(tableName, records) {
-        return apiRequest(`/tables/${tableName}/records/batch`, {
-            method: 'POST',
-            body: JSON.stringify({ records })
-        });
-    },
-
-    /**
-     * 范围查询记录
-     * @param {string} tableName - 表名
-     * @param {string} field - 字段名
-     * @param {string} start - 开始值
-     * @param {string} end - 结束值
-     * @returns {Promise} - 查询结果
-     */
-    async searchRange(tableName, field, start, end) {
-        const params = new URLSearchParams({
-            field,
-            start,
-            end
-        });
-        return apiRequest(`/tables/${tableName}/records/range?${params.toString()}`);
-    },
 
     /**
      * 获取指标信息

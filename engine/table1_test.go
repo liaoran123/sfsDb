@@ -78,8 +78,8 @@ func TestTableSearch1(t *testing.T) {
 		{"id": 4, "name": "David", "age": uint8(40), "description": "David isnot a developer"},
 		{"id": 5, "name": "Eve", "age": uint8(45), "description": "Eve is an manager"},
 		{"id": 6, "name": "Alice", "age": uint8(27), "description": "Alice is2 a software engineer"},
-		{"id": nil, "name": "Eve 49", "age": uint8(49), "description": "Eve is3 a manager 49"}, //"id": nil 使用自动增值
-		{"id": nil, "name": "Eve 55", "age": uint8(55), "description": "Eve is4 a manager 55"}, //"id": nil 使用自动增值
+		{"id": 7, "name": "Eve 49", "age": uint8(49), "description": "Eve is3 a manager 49"}, //"id": nil 使用自动增值
+		{"id": 8, "name": "Eve 55", "age": uint8(55), "description": "Eve is4 a manager 55"}, //"id": nil 使用自动增值
 	}
 	for _, item := range data {
 		fields := table.GetAllFields()

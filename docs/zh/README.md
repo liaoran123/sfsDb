@@ -24,6 +24,7 @@ sfsDb 是一个灵活、高效的嵌入式数据库，支持多种数据类型�
 - [跳跃区间](./advanced/jump_ranges.md)
 - [时序数据处理](./advanced/time_series.md)
 - [服务支持](./advanced/service_support.md)
+- [范围搜索](./advanced/search_range.md)
 - [其他功能](./advanced/other_features.md)
 
 ### 优化与最佳实践

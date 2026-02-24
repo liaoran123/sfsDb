@@ -1,0 +1,87 @@
+package engine
+
+import (
+	"testing"
+)
+
+// TestOpenTable_Comprehensive 测试OpenTable函数的全面功能
+func TestOpenTable_Comprehensive(t *testing.T) {
+	// 清理测试环境
+
+	// 测试用例
+	testCases := []struct {
+		name        string
+		tableName   string
+		expectedErr bool
+		setup       func() error
+	}{{
+		name:        "打开已存在的表",
+		tableName:   "test_table",
+		expectedErr: false,
+		setup: func() error {
+			// 创建一个测试表
+			table, err := TableNew("test_table")
+			if err != nil {
+				return err
+			}
+			// 设置字段
+			fields := map[string]any{
+				"id":    0,
+				"name":  "",
+				"age":   0,
+				"email": "",
+			}
+			return table.SetFields(fields)
+		},
+	}, {
+		name:        "打开不存在的表",
+		tableName:   "non_existent_table",
+		expectedErr: false, // 目前实现中，不存在的表也会被打开
+		setup:       func() error { return nil },
+	}}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// 执行测试前的设置
+			if tc.setup != nil {
+				if err := tc.setup(); err != nil {
+					t.Fatalf("测试设置失败: %v", err)
+				}
+			}
+
+			// 创建表实例并打开表
+
+			table, err := OpenTable(tc.tableName)
+			// 检查错误
+			if tc.expectedErr && err == nil {
+				t.Errorf("预期会出错，但没有错误")
+			} else if !tc.expectedErr && err != nil {
+				t.Errorf("预期不会出错，但出错了: %v", err)
+			}
+
+			// 验证表的属性
+			if err == nil {
+				if table.name != tc.tableName {
+					t.Errorf("表名设置错误，预期: %s, 实际: %s", tc.tableName, table.name)
+				}
+				if table.fields == nil {
+					t.Error("字段映射未初始化")
+				}
+				if table.fieldsid == nil {
+					t.Error("字段ID映射未初始化")
+				}
+				if table.kvStore == nil {
+					t.Error("存储实例未初始化")
+				}
+				if table.indexs == nil {
+					t.Error("索引集合未初始化")
+				}
+				if table.timeFields == nil {
+					t.Error("时间字段映射未初始化")
+				}
+
+				t.Logf("成功打开表: %s, 表ID: %d", table.name, table.GetId())
+			}
+		})
+	}
+}
