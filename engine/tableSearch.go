@@ -1,27 +1,41 @@
 package engine
 
 import (
+	"fmt"
+
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
 )
 
 // 从按主键数据库读取记录
 func (t *Table) Read(fields *map[string]any) ([]byte, error) {
+	fieldsBytes := t.FieldsToBytes(fields)
+	defer GlobalFieldsBytesPool.Put(*fieldsBytes)
+	key := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
+	record := t.ReadByBytes(key)
+	if record == nil {
+		return nil, fmt.Errorf("主键值 '%v' 的记录不存在", fields)
+	}
+	return record, nil
+}
+
+/*
+// 从按主键数据库读取记录
+func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 
 	// 使用 SearchImpl
 	searchImpl := NewSearchImpl(t)
 	// 读取记录
-	record, err := searchImpl.Read(fields)
-	if err != nil {
+	record := searchImpl.Read(fields)
+	if record == nil {
 		GlobalSearchImplPool.Put(searchImpl)
-		return nil, err
+		return nil, fmt.Errorf("主键值 '%v' 的记录不存在", fields)
 	}
 	// 归还对象池
 	GlobalSearchImplPool.Put(searchImpl)
-
 	return record, nil
 }
-
+*/
 // 从按主键数据库读取记录
 func (t *Table) ReadByBytes(key []byte) []byte {
 	v, err := t.kvStore.Get(key)

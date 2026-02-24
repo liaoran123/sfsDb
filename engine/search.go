@@ -65,17 +65,7 @@ func NewSearchImpl(table *Table) *SearchImpl {
 
 // Read 读取记录
 func (s *SearchImpl) Read(fields *map[string]any) ([]byte, error) {
-	/*
-		// 获取主键值用于行级锁
-		pkField := s.table.GetPrimaryFields()[0]
-		_ = (*fields)[pkField]
-
-		// 获取行级共享锁（使用默认事务ID）
-	*/
-	fieldsBytes := s.table.FieldsToBytes(fields)
-	defer GlobalFieldsBytesPool.Put(*fieldsBytes)
-	key := s.table.GetPrimaryKey().JoinValue(fieldsBytes, s.table.id)
-	return s.table.ReadByBytes(key), nil
+	return s.table.Read(fields)
 }
 
 // Search 搜索记录
@@ -247,7 +237,6 @@ func (s *SearchImpl) BatchRead(records []*map[string]any) (map[any][]byte, error
 			GlobalSearchImplPool.Put(searchImpl)
 			return nil, err
 		}
-
 		// 获取主键值作为结果映射的键
 		pkField := s.table.GetPrimaryFields()[0]
 		pkValue := (*fields)[pkField]
