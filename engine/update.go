@@ -192,6 +192,7 @@ func (u *UpdateImpl) Commit() error {
 	return nil
 }
 
+/*
 // -----以下功能函数，并无实质用处，以防万一，保留一下。-------------------------------------------------
 
 // 批量更新接口
@@ -333,3 +334,4 @@ func (u *BatchUpdateImpl) BatchCommit() error {
 
 	return nil
 }
+*/

@@ -254,6 +254,9 @@ func (i *BatchInsertImpl) BatchInsertInc(records []*map[string]any, batchs ...st
 	pklen := len(primaryFields)
 	pkfield := primaryFields[0]
 	supportDefault := pklen == 1 && pkfield == "id"
+	if !supportDefault {
+		return nil, fmt.Errorf("表 '%s' 没有设置默认自动增值主键", i.table.name)
+	}
 	// 处理批量操作
 	i.batch, i.userProvidedBatch = i.table.prepareBatch(batchs...)
 	// 预分配ID列表容量
@@ -277,7 +280,7 @@ func (i *BatchInsertImpl) BatchInsertInc(records []*map[string]any, batchs ...st
 	*/
 	// 批量获取自动增值ID，确保并发安全
 	var autoIncStart int
-	if supportDefault && autoIncCount > 0 {
+	if autoIncCount > 0 {
 		autoIncStart = i.table.GetAutoIncBatch(autoIncCount)
 	}
 
@@ -298,21 +301,26 @@ func (i *BatchInsertImpl) BatchInsertInc(records []*map[string]any, batchs ...st
 		}
 
 		// 处理自动增值主键
-		if supportDefault {
-			if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
-				// 使用预分配的自动增值ID
-				ids[j] = autoIncStart + autoIncIdx
-				(*fields)[pkfield] = ids[j]
-				autoIncIdx++
-			} else {
-				// 使用提供的主键值
+		// 使用预分配的自动增值ID
+		ids[j] = autoIncStart + autoIncIdx
+		(*fields)[pkfield] = ids[j]
+		autoIncIdx++
+		/*
+			if supportDefault {
+				if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
+					// 使用预分配的自动增值ID
+					ids[j] = autoIncStart + autoIncIdx
+					(*fields)[pkfield] = ids[j]
+					autoIncIdx++
+				} else {
+					// 使用提供的主键值
+					ids[j] = util.AnyToInt((*fields)[pkfield])
+				}
+			}  else {
+				// 非默认自动增值主键，使用提供的主键值
 				ids[j] = util.AnyToInt((*fields)[pkfield])
 			}
-		} else {
-			// 非默认自动增值主键，使用提供的主键值
-			ids[j] = util.AnyToInt((*fields)[pkfield])
-		}
-
+		*/
 		// 转换字段为字节数组
 		fieldsBytes := i.table.FieldsToBytes(fields)
 		// 检查fieldsBytes是否为nil

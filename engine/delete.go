@@ -130,6 +130,7 @@ func (d *DeleteImpl) Commit() error {
 	return nil
 }
 
+/*
 // -------以下的函数功能可能是无用的，以防万一，保留一下。--------------------------------------------------------
 // 批量删除接口
 type BatchDelete interface {
@@ -249,3 +250,4 @@ func (d *DeleteImpl) BatchCommit() error {
 
 	return nil
 }
+*/
