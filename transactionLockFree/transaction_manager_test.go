@@ -1,4 +1,4 @@
-package transaction
+package transactionLockFree
 
 import (
 	"fmt"
@@ -302,3 +302,4 @@ func testEmptyTransaction(t *testing.T) {
 
 	fmt.Println("✓ 空事务测试通过")
 }
+

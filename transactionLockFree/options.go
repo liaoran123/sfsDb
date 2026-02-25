@@ -1,4 +1,4 @@
-package transaction
+package transactionLockFree
 
 import "time"
 
@@ -10,7 +10,7 @@ const (
 	ReadCommitted = "READ_COMMITTED"
 	// RepeatableRead 可重复读：确保同一事务中多次读取同一数据时结果一致，避免脏读、不可重复读，但可能导致幻读
 	RepeatableRead = "REPEATABLE_READ"
-	// Serializable 可序列化：最高隔离级别，完全避免脏读、不可重复读、幻读，但性能最低
+	// Serializable 可序列化：最高隔离级别，完全避免脏读、不可重复读、幻读
 	Serializable = "SERIALIZABLE"
 )
 

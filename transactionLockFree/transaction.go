@@ -1,4 +1,4 @@
-package transaction
+package transactionLockFree
 
 import (
 	"fmt"
@@ -6,12 +6,8 @@ import (
 	"time"
 
 	"github.com/liaoran123/sfsDb/engine"
-	"github.com/liaoran123/sfsDb/monitor"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
-
-	"github.com/liaoran123/sfsDb/transaction/batch"
-	"github.com/liaoran123/sfsDb/transaction/lock"
 )
 
 // 全局事务对象池
@@ -32,11 +28,8 @@ var GlobalTableTransactionPool = &TableTransactionPool{
 	},
 }
 
-// 全局锁管理器
-var GlobalLockManager = lock.NewShardedManager(16)
-
-// 全局批量操作优化器
-var GlobalBatchOptimizer = batch.NewOptimizer()
+// 全局无锁版本管理器
+var GlobalVersionManager = NewLockFreeVersionManager()
 
 // TransactionPool 事务对象池
 type TransactionPool struct {
@@ -75,10 +68,9 @@ func (p *TableTransactionPool) Put(tx *TableTransaction) {
 	// 重置事务对象
 	tx.Committed = false
 	tx.Cache = make(map[string][]byte)
-	tx.LockKeyCache = make(map[string]string)
 	tx.Parent = nil
 	tx.Children = nil
-	tx.OCCSupport = NewOCCSupport() // 重置乐观并发控制支持
+	tx.VersionManager = NewLockFreeVersionManager() // 重置版本管理器
 	// 其他字段在使用时会被覆盖，不需要重置
 
 	p.Pool.Put(tx)
@@ -132,7 +124,7 @@ type TableTransactionInterface interface {
 	GetTxID() uint64
 }
 
-// SfsTransaction 基于sfsdb的事务实现
+// SfsTransaction 基于sfsdb的无锁事务实现
 type SfsTransaction struct {
 	store     storage.Store
 	batch     storage.Batch
@@ -146,23 +138,20 @@ type SfsTransaction struct {
 	startTime time.Time
 }
 
-// TableTransaction 基于sfsdb的表事务实现
+// TableTransaction 基于sfsdb的无锁表事务实现
 type TableTransaction struct {
-	Table          *engine.Table        // 关联的表
-	Batch          storage.Batch        // 事务使用的batch，原子性
-	Committed      bool                 // 是否已提交，提交成功后则是持久性。
-	Snapshot       storage.Snapshot     // 事务使用的快照，一致性。
-	OriginalStore  storage.Store        // 原始存储，用于写操作
-	Cache          map[string][]byte    // 事务内修改缓存，用于读取自己的写操作
-	LockKeyCache   map[string]string    // 锁键缓存，避免重复生成锁键
-	Options        *TransactionOptions  // 事务选项
-	Parent         *TableTransaction    // 父事务（用于嵌套事务）
-	Children       []*TableTransaction  // 子事务列表
-	TxID           uint64               // 事务ID
-	StartTime      time.Time            // 事务开始时间
-	LockManager    *lock.ShardedManager // 锁管理器
-	BatchOptimizer *batch.Optimizer     // 批量操作优化器
-	OCCSupport     *OCCSupport          // 乐观并发控制支持
+	Table          *engine.Table           // 关联的表
+	Batch          storage.Batch           // 事务使用的batch，原子性
+	Committed      bool                    // 是否已提交，提交成功后则是持久性。
+	Snapshot       storage.Snapshot        // 事务使用的快照，一致性。
+	OriginalStore  storage.Store           // 原始存储，用于写操作
+	Cache          map[string][]byte       // 事务内修改缓存，用于读取自己的写操作
+	Options        *TransactionOptions     // 事务选项
+	Parent         *TableTransaction       // 父事务（用于嵌套事务）
+	Children       []*TableTransaction     // 子事务列表
+	TxID           uint64                  // 事务ID
+	StartTime      time.Time               // 事务开始时间
+	VersionManager *LockFreeVersionManager // 无锁版本管理器
 }
 
 // NewTransaction 创建新的事务
@@ -219,8 +208,6 @@ func NewTableTransaction(table *engine.Table) (*TableTransaction, error) {
 // NewTableTransactionWithOptions 为指定表创建带选项的事务
 func NewTableTransactionWithOptions(table *engine.Table, options *TransactionOptions) (*TableTransaction, error) {
 	// 创建批量操作对象
-	// 由于table.kvStore是未导出的，我们需要通过其他方式获取batch
-	// 这里我们使用一个临时的batch来获取存储实例
 	tempBatch := storage.GetDBManager().GetDB().GetBatch()
 	if tempBatch == nil {
 		return nil, fmt.Errorf("failed to create batch")
@@ -230,7 +217,6 @@ func NewTableTransactionWithOptions(table *engine.Table, options *TransactionOpt
 }
 
 // NewTableTransactionWithBatch 创建一个使用外部传入batch的表事务
-// 用于实现多表事务，多个表共享同一个batch
 func NewTableTransactionWithBatch(table *engine.Table, batch storage.Batch) (*TableTransaction, error) {
 	options := DefaultTransactionOptions()
 	return NewTableTransactionWithBatchAndOptions(table, batch, options)
@@ -246,16 +232,11 @@ func NewTableTransactionWithBatchAndOptions(table *engine.Table, batch storage.B
 		options = DefaultTransactionOptions()
 	}
 
-	// 为每个事务创建自己的快照实例，而不是共享表级别的快照
+	// 为每个事务创建自己的快照实例
 	var snapshot storage.Snapshot
 	var err error
 
 	// 根据隔离级别决定是否创建快照
-	// 隔离级别实现说明：
-	// 1. ReadUncommitted：不创建快照，直接读取原始存储，可能导致脏读、不可重复读、幻读
-	// 2. ReadCommitted：每次读取都创建新的快照，避免脏读，但可能导致不可重复读、幻读
-	// 3. RepeatableRead：事务开始时创建快照，整个事务使用同一个快照，避免脏读、不可重复读，但可能导致幻读
-	// 4. Serializable：与RepeatableRead类似，但使用更严格的快照管理，尝试避免所有并发问题
 	switch options.IsolationLevel {
 	case RepeatableRead, Serializable:
 		// 对于RepeatableRead和Serializable，事务开始时创建快照
@@ -269,12 +250,9 @@ func NewTableTransactionWithBatchAndOptions(table *engine.Table, batch storage.B
 			}
 		}
 	case ReadCommitted:
-		// 对于ReadCommitted，暂时不创建快照，每次读取时会直接使用原始存储
-		// 注意：严格来说，ReadCommitted应该每次读取都创建新的快照
-		// 但为了简化实现，当前版本使用直接读取原始存储的方式
+		// 对于ReadCommitted，暂时不创建快照
 	case ReadUncommitted:
-		// 对于ReadUncommitted，不创建快照，直接读取原始存储
-		// 允许读取未提交的数据
+		// 对于ReadUncommitted，不创建快照
 	}
 
 	// 生成事务ID
@@ -289,20 +267,16 @@ func NewTableTransactionWithBatchAndOptions(table *engine.Table, batch storage.B
 	tx.Committed = false
 	tx.Snapshot = snapshot
 	tx.OriginalStore = storage.GetDBManager().GetDB()
-	tx.Cache = make(map[string][]byte)        // 初始化事务内缓存
-	tx.LockKeyCache = make(map[string]string) // 初始化锁键缓存
+	tx.Cache = make(map[string][]byte) // 初始化事务内缓存
 	tx.Options = options
 	tx.TxID = txID
 	tx.StartTime = time.Now()
-	tx.LockManager = GlobalLockManager       // 使用全局锁管理器
-	tx.BatchOptimizer = GlobalBatchOptimizer // 使用全局批量操作优化器
-	tx.OCCSupport = NewOCCSupport()          // 初始化乐观并发控制支持
+	tx.VersionManager = NewLockFreeVersionManager() // 初始化无锁版本管理器
 
 	return tx, nil
 }
 
 // Get 从事务中获取值
-// 优先从缓存中查找，然后从批量操作中查找，最后从快照或存储中查找
 func (tx *SfsTransaction) Get(key []byte) ([]byte, error) {
 	if tx.committed {
 		return nil, fmt.Errorf("transaction already committed")
@@ -490,20 +464,11 @@ func (tx *SfsTransaction) isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// 这里可以根据具体的错误类型判断是否可重试
-	// 例如：锁冲突、临时网络问题等
-	// 对于LevelDB，常见的可重试错误包括：
-	// - 锁冲突
-	// - 临时的I/O错误
-
-	// 暂时默认所有错误都可重试，实际应用中需要根据具体错误类型判断
-	// 后续可以根据storage包中的错误类型进行更精确的判断
+	// 暂时默认所有错误都可重试
 	return true
 }
 
 // Rollback 回滚事务
-// 注意：LevelDB的WriteBatch不支持真正的回滚
-// 此方法仅标记事务已结束，防止重复提交，并释放快照资源
 func (tx *SfsTransaction) Rollback() error {
 	if err := tx.checkCommitted(); err != nil {
 		return err
@@ -557,39 +522,15 @@ func (tx *TableTransaction) Insert(fields *map[string]interface{}) (int, error) 
 	// 生成缓存键
 	cacheKey := tx.GetCacheKey(fields)
 
-	// 使用乐观并发控制检查冲突
-	currentVersion := tx.OCCSupport.GetVersion(cacheKey)
-	if tx.OCCSupport.CheckConflict(cacheKey, currentVersion) {
+	// 使用无锁版本管理器检查冲突
+	currentVersion := tx.VersionManager.GetVersion(cacheKey)
+	if tx.VersionManager.CheckConflict(cacheKey, currentVersion) {
 		return 0, fmt.Errorf("并发冲突，记录已被修改，请重试")
-	}
-
-	// 尝试获取写锁（非阻塞模式）
-	err := tx.LockManager.AcquireLock(lock.LockRequest{
-		Key:       cacheKey,
-		Type:      lock.WriteLock,
-		Mode:      lock.NonBlocking,
-		Timeout:   0,
-		Requestor: fmt.Sprintf("tx_%d", tx.TxID),
-	})
-	if err != nil {
-		// 锁获取失败，使用阻塞模式重试
-		err = tx.LockManager.AcquireLock(lock.LockRequest{
-			Key:       cacheKey,
-			Type:      lock.WriteLock,
-			Mode:      lock.Blocking,
-			Timeout:   5 * time.Second,
-			Requestor: fmt.Sprintf("tx_%d", tx.TxID),
-		})
-		if err != nil {
-			return 0, fmt.Errorf("获取锁失败: %v", err)
-		}
 	}
 
 	// 执行插入操作
 	id, err := tx.Table.Insert(fields, tx.Batch)
 	if err != nil {
-		// 操作失败，释放锁
-		tx.LockManager.ReleaseLock(cacheKey, fmt.Sprintf("tx_%d", tx.TxID))
 		return 0, err
 	}
 
@@ -602,11 +543,8 @@ func (tx *TableTransaction) Insert(fields *map[string]interface{}) (int, error) 
 	// 将记录存入缓存，用于读取自己的写操作
 	tx.Cache[cacheKey] = record
 
-	// 缓存锁键（使用简单的缓存键作为锁键）
-	tx.LockKeyCache[cacheKey] = cacheKey
-
-	// 递增版本号
-	tx.OCCSupport.IncrementVersion(cacheKey)
+	// 无锁递增版本号
+	tx.VersionManager.IncrementVersion(cacheKey)
 
 	return id, nil
 }
@@ -620,50 +558,23 @@ func (tx *TableTransaction) Update(fields *map[string]interface{}) error {
 	// 生成缓存键
 	cacheKey := tx.GetCacheKey(fields)
 
-	// 使用乐观并发控制检查冲突
-	currentVersion := tx.OCCSupport.GetVersion(cacheKey)
-	if tx.OCCSupport.CheckConflict(cacheKey, currentVersion) {
+	// 使用无锁版本管理器检查冲突
+	currentVersion := tx.VersionManager.GetVersion(cacheKey)
+	if tx.VersionManager.CheckConflict(cacheKey, currentVersion) {
 		return fmt.Errorf("并发冲突，记录已被修改，请重试")
 	}
 
-	// 尝试获取写锁（非阻塞模式）
-	err := tx.LockManager.AcquireLock(lock.LockRequest{
-		Key:       cacheKey,
-		Type:      lock.WriteLock,
-		Mode:      lock.NonBlocking,
-		Timeout:   0,
-		Requestor: fmt.Sprintf("tx_%d", tx.TxID),
-	})
-	if err != nil {
-		// 锁获取失败，使用阻塞模式重试
-		err = tx.LockManager.AcquireLock(lock.LockRequest{
-			Key:       cacheKey,
-			Type:      lock.WriteLock,
-			Mode:      lock.Blocking,
-			Timeout:   5 * time.Second,
-			Requestor: fmt.Sprintf("tx_%d", tx.TxID),
-		})
-		if err != nil {
-			return fmt.Errorf("获取锁失败: %v", err)
-		}
-	}
-
 	// 执行更新操作
-	err = tx.Table.Update(fields, tx.Batch)
+	err := tx.Table.Update(fields, tx.Batch)
 	if err != nil {
-		// 操作失败，释放锁
-		tx.LockManager.ReleaseLock(cacheKey, fmt.Sprintf("tx_%d", tx.TxID))
 		return err
 	}
 
 	// 从缓存中删除旧记录，强制后续读取从数据库获取最新值
 	delete(tx.Cache, cacheKey)
 
-	// 缓存锁键（使用简单的缓存键作为锁键）
-	tx.LockKeyCache[cacheKey] = cacheKey
-
-	// 递增版本号
-	tx.OCCSupport.IncrementVersion(cacheKey)
+	// 无锁递增版本号
+	tx.VersionManager.IncrementVersion(cacheKey)
 
 	return nil
 }
@@ -677,50 +588,79 @@ func (tx *TableTransaction) Delete(fields *map[string]interface{}) error {
 	// 生成缓存键
 	cacheKey := tx.GetCacheKey(fields)
 
-	// 使用乐观并发控制检查冲突
-	currentVersion := tx.OCCSupport.GetVersion(cacheKey)
-	if tx.OCCSupport.CheckConflict(cacheKey, currentVersion) {
+	// 使用无锁版本管理器检查冲突
+	currentVersion := tx.VersionManager.GetVersion(cacheKey)
+	if tx.VersionManager.CheckConflict(cacheKey, currentVersion) {
 		return fmt.Errorf("并发冲突，记录已被修改，请重试")
 	}
 
-	// 尝试获取写锁（非阻塞模式）
-	err := tx.LockManager.AcquireLock(lock.LockRequest{
-		Key:       cacheKey,
-		Type:      lock.WriteLock,
-		Mode:      lock.NonBlocking,
-		Timeout:   0,
-		Requestor: fmt.Sprintf("tx_%d", tx.TxID),
-	})
-	if err != nil {
-		// 锁获取失败，使用阻塞模式重试
-		err = tx.LockManager.AcquireLock(lock.LockRequest{
-			Key:       cacheKey,
-			Type:      lock.WriteLock,
-			Mode:      lock.Blocking,
-			Timeout:   5 * time.Second,
-			Requestor: fmt.Sprintf("tx_%d", tx.TxID),
-		})
-		if err != nil {
-			return fmt.Errorf("获取锁失败: %v", err)
-		}
-	}
-
 	// 执行删除操作
-	err = tx.Table.Delete(fields, tx.Batch)
+	err := tx.Table.Delete(fields, tx.Batch)
 	if err != nil {
-		// 操作失败，释放锁
-		tx.LockManager.ReleaseLock(cacheKey, fmt.Sprintf("tx_%d", tx.TxID))
 		return err
 	}
 
 	// 从缓存中删除记录，确保读一致性
 	delete(tx.Cache, cacheKey)
 
-	// 缓存锁键（使用简单的缓存键作为锁键）
-	tx.LockKeyCache[cacheKey] = cacheKey
+	// 无锁递增版本号
+	tx.VersionManager.IncrementVersion(cacheKey)
 
-	// 递增版本号
-	tx.OCCSupport.IncrementVersion(cacheKey)
+	return nil
+}
+
+// OptimisticUpdate 乐观更新操作，适用于复杂事务
+// 提供更细粒度的冲突检测和自动重试机制
+func (tx *TableTransaction) OptimisticUpdate(fields *map[string]interface{}, maxRetries int) error {
+	if err := tx.CheckCommitted(); err != nil {
+		return err
+	}
+
+	// 生成缓存键
+	cacheKey := tx.GetCacheKey(fields)
+
+	// 尝试执行更新，支持重试
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// 使用无锁版本管理器检查冲突
+		currentVersion := tx.VersionManager.GetVersion(cacheKey)
+		if tx.VersionManager.CheckConflict(cacheKey, currentVersion) {
+			// 检测到冲突，等待后重试
+			delay := time.Duration(attempt*10) * time.Millisecond
+			time.Sleep(delay)
+			continue
+		}
+
+		// 执行更新操作
+		err := tx.Table.Update(fields, tx.Batch)
+		if err != nil {
+			return err
+		}
+
+		// 从缓存中删除旧记录，强制后续读取从数据库获取最新值
+		delete(tx.Cache, cacheKey)
+
+		// 无锁递增版本号
+		tx.VersionManager.IncrementVersion(cacheKey)
+
+		return nil
+	}
+
+	return fmt.Errorf("更新失败，多次尝试后仍无法解决并发冲突")
+}
+
+// BatchOperations 批量操作，适用于复杂事务中的多个操作
+// 通过一次Batch提交多个操作，减少磁盘I/O，提高性能
+func (tx *TableTransaction) BatchOperations(operations []func() error) error {
+	if err := tx.CheckCommitted(); err != nil {
+		return err
+	}
+
+	// 执行所有操作
+	for _, operation := range operations {
+		if err := operation(); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -754,29 +694,7 @@ func (tx *TableTransaction) Read(fields *map[string]interface{}) ([]byte, error)
 		return record, nil
 	}
 
-	// 2. 缓存中没有，尝试获取读锁（非阻塞模式）
-	err := tx.LockManager.AcquireLock(lock.LockRequest{
-		Key:       cacheKey,
-		Type:      lock.ReadLock,
-		Mode:      lock.NonBlocking,
-		Timeout:   0,
-		Requestor: fmt.Sprintf("tx_%d", tx.TxID),
-	})
-	if err != nil {
-		// 锁获取失败，使用阻塞模式重试
-		err = tx.LockManager.AcquireLock(lock.LockRequest{
-			Key:       cacheKey,
-			Type:      lock.ReadLock,
-			Mode:      lock.Blocking,
-			Timeout:   5 * time.Second,
-			Requestor: fmt.Sprintf("tx_%d", tx.TxID),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("获取锁失败: %v", err)
-		}
-	}
-
-	// 3. 根据隔离级别选择读取方式
+	// 2. 缓存中没有，根据隔离级别选择读取方式
 	// 生成主键键值
 	fieldsBytes := tx.Table.FieldsToBytes(fields)
 	defer func() {
@@ -790,12 +708,10 @@ func (tx *TableTransaction) Read(fields *map[string]interface{}) ([]byte, error)
 	// 根据隔离级别选择读取方式
 	switch tx.Options.IsolationLevel {
 	case ReadUncommitted:
-		// 对于ReadUncommitted，直接使用原始存储读取，允许读取未提交的数据
+		// 对于ReadUncommitted，直接使用原始存储读取
 		return tx.OriginalStore.Get(pkKey)
 	case ReadCommitted:
-		// 对于ReadCommitted，每次读取都使用原始存储，确保只能读取已提交的数据
-		// 注意：严格来说，ReadCommitted应该每次读取都创建新的快照
-		// 但为了简化实现，当前版本使用直接读取原始存储的方式
+		// 对于ReadCommitted，每次读取都使用原始存储
 		return tx.OriginalStore.Get(pkKey)
 	case RepeatableRead, Serializable:
 		// 对于RepeatableRead和Serializable，使用事务开始时创建的快照
@@ -910,17 +826,17 @@ func (tx *TableTransaction) BeginNested() (TableTransactionInterface, error) {
 
 	// 为嵌套事务创建新的缓存，但共享同一个batch
 	nestedTx := &TableTransaction{
-		Table:         tx.Table,
-		Batch:         tx.Batch, // 共享父事务的batch
-		Committed:     false,
-		Snapshot:      tx.Snapshot, // 共享父事务的快照
-		OriginalStore: tx.OriginalStore,
-		Cache:         make(map[string][]byte), // 新的缓存
-		LockKeyCache:  make(map[string]string), // 新的锁键缓存
-		Options:       tx.Options,
-		Parent:        tx,
-		TxID:          uint64(time.Now().UnixNano()),
-		StartTime:     time.Now(),
+		Table:          tx.Table,
+		Batch:          tx.Batch, // 共享父事务的batch
+		Committed:      false,
+		Snapshot:       tx.Snapshot, // 共享父事务的快照
+		OriginalStore:  tx.OriginalStore,
+		Cache:          make(map[string][]byte), // 新的缓存
+		Options:        tx.Options,
+		Parent:         tx,
+		TxID:           uint64(time.Now().UnixNano()),
+		StartTime:      time.Now(),
+		VersionManager: NewLockFreeVersionManager(), // 新的版本管理器
 	}
 
 	// 将嵌套事务添加到父事务的子事务列表
@@ -935,10 +851,6 @@ func (tx *TableTransaction) Commit() error {
 		return err
 	}
 
-	// 记录事务结束时间并计算用时
-	endTime := time.Now()                 // 记录事务结束时间
-	duration := endTime.Sub(tx.StartTime) // 计算事务用时
-
 	// 提交所有子事务
 	for _, child := range tx.Children {
 		if !child.Committed {
@@ -952,34 +864,13 @@ func (tx *TableTransaction) Commit() error {
 	if tx.Parent == nil {
 		// 1. 提交批量操作
 		// 使用原始存储执行写操作，支持重试
-		startTime := time.Now()
 		err := tx.ExecuteWithRetry()
-		batchDuration := time.Since(startTime)
-
-		// 记录批量操作统计信息
-		tx.BatchOptimizer.RecordOperation(len(tx.LockKeyCache), batchDuration)
 
 		if err != nil {
 			// 提交失败，释放快照资源
 			if tx.Snapshot != nil {
 				tx.Snapshot.Release()
-				// 注意：这里我们不能直接使用sfsDb的LdbSnapshotPool，因为它管理的是LevelDBStore类型
-				// 而我们使用的是snapshot接口，类型不匹配
 				tx.Snapshot = nil
-			}
-			// 释放所有锁
-			tx.LockManager.ReleaseAllLocks(fmt.Sprintf("tx_%d", tx.TxID))
-			// 记录事务失败的统计信息
-			if monitor.GTransactionStatsMap != nil {
-				tableName := ""
-				if tx.Table != nil {
-					tableName = tx.Table.GetName()
-				}
-				isolationLevel := ""
-				if tx.Options != nil {
-					isolationLevel = tx.Options.IsolationLevel
-				}
-				monitor.GTransactionStatsMap.SetTimeAsync(tx.TxID, duration, tableName, isolationLevel, false)
 			}
 			return err
 		}
@@ -987,38 +878,19 @@ func (tx *TableTransaction) Commit() error {
 		// 2. 释放快照资源
 		if tx.Snapshot != nil {
 			tx.Snapshot.Release()
-			// 注意：这里我们不能直接使用sfsDb的LdbSnapshotPool，因为它管理的是LevelDBStore类型
-			// 而我们使用的是snapshot接口，类型不匹配
 			tx.Snapshot = nil
 		}
 	}
 
-	// 3. 释放所有锁
-	tx.LockManager.ReleaseAllLocks(fmt.Sprintf("tx_%d", tx.TxID))
-
-	// 4. 标记事务已结束，清空缓存
+	// 3. 标记事务已结束，清空缓存
 	tx.Committed = true
 	tx.Cache = nil
-	tx.LockKeyCache = nil
 	tx.Children = nil
 
-	// 5. 归还事务对象到池中
+	// 4. 归还事务对象到池中
 	if tx.Parent == nil {
 		// 只有根事务才归还到池，子事务由父事务管理
 		GlobalTableTransactionPool.Put(tx)
-
-		// 记录事务成功的统计信息
-		if monitor.GTransactionStatsMap != nil {
-			tableName := ""
-			if tx.Table != nil {
-				tableName = tx.Table.GetName()
-			}
-			isolationLevel := ""
-			if tx.Options != nil {
-				isolationLevel = tx.Options.IsolationLevel
-			}
-			monitor.GTransactionStatsMap.SetTimeAsync(tx.TxID, duration, tableName, isolationLevel, true)
-		}
 	}
 
 	return nil
@@ -1080,28 +952,15 @@ func (tx *TableTransaction) IsRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// 这里可以根据具体的错误类型判断是否可重试
-	// 例如：锁冲突、临时网络问题等
-	// 对于LevelDB，常见的可重试错误包括：
-	// - 锁冲突
-	// - 临时的I/O错误
-
-	// 暂时默认所有错误都可重试，实际应用中需要根据具体错误类型判断
-	// 后续可以根据storage包中的错误类型进行更精确的判断
+	// 暂时默认所有错误都可重试
 	return true
 }
 
 // Rollback 回滚表事务
-// 注意：LevelDB的WriteBatch不支持真正的回滚
-// 此方法仅标记事务已结束，防止重复提交，并释放快照资源
 func (tx *TableTransaction) Rollback() error {
 	if err := tx.CheckCommitted(); err != nil {
 		return err
 	}
-
-	// 记录事务结束时间并计算用时
-	endTime := time.Now()                 // 记录事务结束时间
-	duration := endTime.Sub(tx.StartTime) // 计算事务用时
 
 	// 回滚所有子事务
 	for _, child := range tx.Children {
@@ -1117,39 +976,287 @@ func (tx *TableTransaction) Rollback() error {
 		// 1. 释放快照资源
 		if tx.Snapshot != nil {
 			tx.Snapshot.Release()
-			// 注意：这里我们不能直接使用sfsDb的LdbSnapshotPool，因为它管理的是LevelDBStore类型
-			// 而我们使用的是snapshot接口，类型不匹配
 			tx.Snapshot = nil
 		}
 	}
 
-	// 2. 释放所有锁
-	tx.LockManager.ReleaseAllLocks(fmt.Sprintf("tx_%d", tx.TxID))
-
-	// 3. 标记事务已结束，清空缓存
+	// 2. 标记事务已结束，清空缓存
 	tx.Committed = true
 	tx.Cache = nil
-	tx.LockKeyCache = nil
 	tx.Children = nil
 
-	// 4. 归还事务对象到池中
+	// 3. 归还事务对象到池中
 	if tx.Parent == nil {
 		// 只有根事务才归还到池，子事务由父事务管理
 		GlobalTableTransactionPool.Put(tx)
+	}
 
-		// 记录事务回滚的统计信息
-		if monitor.GTransactionStatsMap != nil {
-			tableName := ""
-			if tx.Table != nil {
-				tableName = tx.Table.GetName()
-			}
-			isolationLevel := ""
-			if tx.Options != nil {
-				isolationLevel = tx.Options.IsolationLevel
-			}
-			monitor.GTransactionStatsMap.SetTimeAsync(tx.TxID, duration, tableName, isolationLevel, false)
+	return nil
+}
+
+// Savepoint 事务保存点
+type Savepoint struct {
+	id          string
+	tableStates map[*engine.Table][]byte // 保存每个表的状态
+}
+
+// TransactionManager 事务管理器
+// 用于管理多个表的事务，确保它们在同一个batch中执行，保证原子性
+type TransactionManager struct {
+	batch      storage.Batch
+	tableTxMap map[*engine.Table]*TableTransaction
+	savepoints map[string]*Savepoint
+	parent     *TransactionManager
+	children   []*TransactionManager
+	committed  bool
+	rolledBack bool
+	options    *TransactionOptions
+	txID       uint64
+	startTime  time.Time
+}
+
+// NewTransactionManager 创建事务管理器
+func NewTransactionManager(batch storage.Batch) *TransactionManager {
+	return NewTransactionManagerWithOptions(batch, DefaultTransactionOptions())
+}
+
+// NewTransactionManagerWithOptions 使用指定选项创建事务管理器
+func NewTransactionManagerWithOptions(batch storage.Batch, options *TransactionOptions) *TransactionManager {
+	if options == nil {
+		options = DefaultTransactionOptions()
+	}
+	return &TransactionManager{
+		batch:      batch,
+		tableTxMap: make(map[*engine.Table]*TableTransaction),
+		savepoints: make(map[string]*Savepoint),
+		children:   make([]*TransactionManager, 0),
+		committed:  false,
+		rolledBack: false,
+		options:    options,
+		txID:       uint64(time.Now().UnixNano()),
+		startTime:  time.Now(),
+	}
+}
+
+// AddTable 添加表到事务管理器
+func (m *TransactionManager) AddTable(table *engine.Table) (*TableTransaction, error) {
+	if m.committed || m.rolledBack {
+		return nil, fmt.Errorf("transaction manager already completed")
+	}
+
+	// 检查表是否已经添加
+	if _, exists := m.tableTxMap[table]; exists {
+		return nil, fmt.Errorf("table already added to transaction manager")
+	}
+
+	// 创建表事务
+	tx, err := NewTableTransactionWithBatchAndOptions(table, m.batch, m.options)
+	if err != nil {
+		return nil, err
+	}
+
+	// 添加到映射
+	m.tableTxMap[table] = tx
+
+	return tx, nil
+}
+
+// GetTableTransaction 获取指定表的事务
+func (m *TransactionManager) GetTableTransaction(table *engine.Table) (*TableTransaction, error) {
+	if m.committed || m.rolledBack {
+		return nil, fmt.Errorf("transaction manager already completed")
+	}
+
+	tx, exists := m.tableTxMap[table]
+	if !exists {
+		return nil, fmt.Errorf("table not found in transaction manager")
+	}
+	return tx, nil
+}
+
+// BeginNested 创建嵌套事务
+func (m *TransactionManager) BeginNested() (*TransactionManager, error) {
+	if m.committed || m.rolledBack {
+		return nil, fmt.Errorf("transaction manager already completed")
+	}
+
+	if !m.options.AllowNested {
+		return nil, fmt.Errorf("nested transactions are not allowed")
+	}
+
+	// 创建嵌套事务管理器
+	nested := &TransactionManager{
+		batch:      m.batch, // 共享父事务的batch
+		tableTxMap: make(map[*engine.Table]*TableTransaction),
+		savepoints: make(map[string]*Savepoint),
+		parent:     m,
+		children:   make([]*TransactionManager, 0),
+		committed:  false,
+		rolledBack: false,
+		options:    m.options,
+		txID:       uint64(time.Now().UnixNano()),
+		startTime:  time.Now(),
+	}
+
+	// 添加到父事务的子事务列表
+	m.children = append(m.children, nested)
+
+	return nested, nil
+}
+
+// CreateSavepoint 创建事务保存点
+func (m *TransactionManager) CreateSavepoint(name string) (*Savepoint, error) {
+	if m.committed || m.rolledBack {
+		return nil, fmt.Errorf("transaction manager already completed")
+	}
+
+	// 创建保存点
+	savepoint := &Savepoint{
+		id:          name,
+		tableStates: make(map[*engine.Table][]byte),
+	}
+
+	// 保存每个表的状态（这里简化处理，实际实现需要根据存储引擎特性调整）
+	for table, _ := range m.tableTxMap {
+		// 这里可以保存tx的缓存状态或其他必要信息
+		savepoint.tableStates[table] = []byte{}
+	}
+
+	// 添加到保存点映射
+	m.savepoints[name] = savepoint
+
+	return savepoint, nil
+}
+
+// RollbackToSavepoint 回滚到保存点
+func (m *TransactionManager) RollbackToSavepoint(savepoint *Savepoint) error {
+	if m.committed || m.rolledBack {
+		return fmt.Errorf("transaction manager already completed")
+	}
+
+	// 检查保存点是否存在
+	if _, exists := m.savepoints[savepoint.id]; !exists {
+		return fmt.Errorf("savepoint not found")
+	}
+
+	// 回滚到保存点状态（这里简化处理，实际实现需要根据存储引擎特性调整）
+	// 对于基于batch的实现，可能需要重新创建batch并重新执行保存点后的操作
+
+	// 移除保存点之后创建的保存点
+	for name, sp := range m.savepoints {
+		if sp.id > savepoint.id {
+			delete(m.savepoints, name)
 		}
 	}
 
 	return nil
+}
+
+// Commit 提交所有事务
+func (m *TransactionManager) Commit() error {
+	if m.committed || m.rolledBack {
+		return fmt.Errorf("transaction manager already completed")
+	}
+
+	// 提交所有子事务
+	for _, child := range m.children {
+		if !child.committed && !child.rolledBack {
+			if err := child.Commit(); err != nil {
+				return err
+			}
+		}
+	}
+
+	// 只有根事务才真正提交batch
+	if m.parent == nil {
+		// 提交所有表事务
+		for _, tableTx := range m.tableTxMap {
+			if err := tableTx.Commit(); err != nil {
+				return err
+			}
+		}
+	}
+
+	// 标记为已提交
+	m.committed = true
+
+	return nil
+}
+
+// Rollback 回滚所有事务
+func (m *TransactionManager) Rollback() error {
+	if m.committed || m.rolledBack {
+		return fmt.Errorf("transaction manager already completed")
+	}
+
+	// 回滚所有子事务
+	for _, child := range m.children {
+		if !child.committed && !child.rolledBack {
+			if err := child.Rollback(); err != nil {
+				return err
+			}
+		}
+	}
+
+	// 只有根事务才释放资源
+	if m.parent == nil {
+		// 回滚所有表事务
+		for _, tx := range m.tableTxMap {
+			if err := tx.Rollback(); err != nil {
+				return err
+			}
+		}
+	}
+
+	// 标记为已回滚
+	m.rolledBack = true
+
+	return nil
+}
+
+// GetTxID 获取事务ID
+func (m *TransactionManager) GetTxID() uint64 {
+	return m.txID
+}
+
+// GetOptions 获取事务选项
+func (m *TransactionManager) GetOptions() *TransactionOptions {
+	return m.options
+}
+
+// IsActive 检查事务是否活跃
+func (m *TransactionManager) IsActive() bool {
+	return !m.committed && !m.rolledBack
+}
+
+// GetElapsedTime 获取事务执行时间
+func (m *TransactionManager) GetElapsedTime() time.Duration {
+	return time.Since(m.startTime)
+}
+
+// WithTransaction 便捷函数，用于执行多表事务
+func WithTransaction(batch storage.Batch, tables []*engine.Table, fn func(txs map[*engine.Table]TableTransactionInterface) error) error {
+	// 创建事务管理器
+	manager := NewTransactionManager(batch)
+
+	// 添加所有表
+	txs := make(map[*engine.Table]TableTransactionInterface)
+	for _, table := range tables {
+		tx, err := manager.AddTable(table)
+		if err != nil {
+			return err
+		}
+		txs[table] = tx
+	}
+
+	// 执行函数
+	err := fn(txs)
+	if err != nil {
+		// 执行失败，回滚事务
+		manager.Rollback()
+		return err
+	}
+
+	// 执行成功，提交事务
+	return manager.Commit()
 }

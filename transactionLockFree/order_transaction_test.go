@@ -1,4 +1,4 @@
-package transaction
+package transactionLockFree
 
 import (
 	"fmt"
@@ -442,8 +442,8 @@ func createOrder(productTable, orderTable *engine.Table, productID, userID, orde
 		}
 		defer func() {
 			if txFieldsBytes != nil && *txFieldsBytes != nil {
-				// 注意：我们无法直接访问 GlobalFieldsBytesPool，因为它是未导出的
-				// 但我们可以确保在使用后不再引用它
+				// 注意：这里我们不能直接使用engine.GlobalFieldsBytesPool.Put，因为它是未导出的
+				// 我们需要使用其他方式管理内存
 			}
 		}()
 
@@ -988,53 +988,6 @@ func getProductStock(table *engine.Table, productID string, t *testing.T) int {
 	return stockInt
 }
 
-// getProductStockInTransaction 在事务中获取产品库存
-func getProductStockInTransaction(tx *TableTransaction, productID string) (int, error) {
-	// 搜索产品
-	fields := map[string]any{"id": productID}
-	iter, err := tx.Search(&fields)
-	if err != nil {
-		return 0, fmt.Errorf("搜索产品失败: %v", err)
-	}
-
-	if !iter.First() {
-		return 0, fmt.Errorf("产品不存在: %s", productID)
-	}
-
-	// 解析记录
-	key := iter.Key()
-	value := iter.Value()
-	fieldsBytes := iter.ParseBytes(key, value)
-	if fieldsBytes == nil {
-		return 0, fmt.Errorf("解析记录失败")
-	}
-
-	// 转换为map[string]any
-	anyMap := tx.Table.RecordByteToAny(fieldsBytes)
-	if anyMap == nil {
-		return 0, fmt.Errorf("解析记录失败")
-	}
-
-	// 提取库存字段
-	stock, ok := (*anyMap)["stock"]
-	if !ok {
-		return 0, fmt.Errorf("产品缺少库存字段")
-	}
-
-	// 转换为int
-	stockInt, ok := stock.(int)
-	if !ok {
-		stockFloat, ok := stock.(float64)
-		if ok {
-			stockInt = int(stockFloat)
-		} else {
-			return 0, fmt.Errorf("库存字段类型错误")
-		}
-	}
-
-	return stockInt, nil
-}
-
 // getOrderAmount 获取订单金额
 func getOrderAmount(table *engine.Table, orderID string, t *testing.T) int {
 	// 搜索订单
@@ -1179,51 +1132,4 @@ func getAccountBalance(table *engine.Table, accountID string, t *testing.T) floa
 	}
 
 	return balanceFloat
-}
-
-// getAccountBalanceInTransaction 在事务中获取账户余额
-func getAccountBalanceInTransaction(tx *TableTransaction, accountID string) (float64, error) {
-	// 搜索账户
-	fields := map[string]any{"id": accountID}
-	iter, err := tx.Search(&fields)
-	if err != nil {
-		return 0, fmt.Errorf("搜索账户失败: %v", err)
-	}
-
-	if !iter.First() {
-		return 0, fmt.Errorf("账户不存在: %s", accountID)
-	}
-
-	// 解析记录
-	key := iter.Key()
-	value := iter.Value()
-	fieldsBytes := iter.ParseBytes(key, value)
-	if fieldsBytes == nil {
-		return 0, fmt.Errorf("解析记录失败")
-	}
-
-	// 转换为map[string]any
-	anyMap := tx.Table.RecordByteToAny(fieldsBytes)
-	if anyMap == nil {
-		return 0, fmt.Errorf("解析记录失败")
-	}
-
-	// 提取余额字段
-	balance, ok := (*anyMap)["balance"]
-	if !ok {
-		return 0, fmt.Errorf("账户缺少余额字段")
-	}
-
-	// 转换为float64
-	balanceFloat, ok := balance.(float64)
-	if !ok {
-		balanceInt, ok := balance.(int)
-		if ok {
-			balanceFloat = float64(balanceInt)
-		} else {
-			return 0, fmt.Errorf("余额字段类型错误")
-		}
-	}
-
-	return balanceFloat, nil
 }

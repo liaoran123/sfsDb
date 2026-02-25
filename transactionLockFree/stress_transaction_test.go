@@ -1,4 +1,4 @@
-package transaction
+package transactionLockFree
 
 import (
 	"fmt"
@@ -423,6 +423,216 @@ func testTransactionRetryStress(accountTable, orderTable, productTable *engine.T
 	}
 }
 
+// TestDeadlockScenario 测试死锁场景
+// 模拟可能导致死锁的并发操作，验证transactionLockFree包是否能避免死锁
+func TestDeadlockScenario(t *testing.T) {
+	// 创建测试目录
+	testPath := t.TempDir()
+
+	// 创建数据库存储
+	db, err := storage.NewLevelDBStore(testPath, nil)
+	if err != nil {
+		t.Fatalf("创建数据库存储失败: %v", err)
+	}
+	defer db.Close()
+
+	// 设置全局存储
+	originalKVDb := storage.KVDb
+	storage.KVDb = db
+	defer func() {
+		storage.KVDb = originalKVDb
+	}()
+
+	// 创建账户表
+	accountTable, err := engine.TableNew("accounts_deadlock")
+	if err != nil {
+		t.Fatalf("创建账户表失败: %v", err)
+	}
+	accountTable.SetFields(map[string]any{"id": "", "name": "", "balance": 0.0})
+	err = accountTable.CreatePrimaryKey("id")
+	if err != nil {
+		t.Fatalf("设置账户表主键失败: %v", err)
+	}
+
+	// 插入测试账户
+	insertDeadlockTestAccounts(accountTable, t)
+
+	// 测试场景1: 循环转账死锁测试
+	t.Run("CircularTransferDeadlockTest", testCircularTransferDeadlock(accountTable))
+
+	// 测试场景2: 高并发相同数据操作测试
+	t.Run("HighConcurrencySameDataTest", testHighConcurrencySameData(accountTable))
+}
+
+// insertDeadlockTestAccounts 插入死锁测试账户
+func insertDeadlockTestAccounts(table *engine.Table, t *testing.T) {
+	// 创建一个 batch 用于批量插入
+	dbMgr := storage.GetDBManager()
+	db := dbMgr.GetDB()
+	batch := db.GetBatch()
+	if batch == nil {
+		t.Fatalf("创建 batch 失败")
+	}
+
+	// 插入测试账户
+	accounts := []map[string]any{
+		{"id": "1", "name": "账户1", "balance": 10000.0},
+		{"id": "2", "name": "账户2", "balance": 10000.0},
+		{"id": "3", "name": "账户3", "balance": 10000.0},
+		{"id": "4", "name": "账户4", "balance": 10000.0},
+	}
+
+	for _, account := range accounts {
+		_, err := table.Insert(&account, batch)
+		if err != nil {
+			t.Fatalf("插入测试账户失败: %v", err)
+		}
+	}
+
+	// 提交 batch
+	err := db.WriteBatch(batch)
+	if err != nil {
+		t.Fatalf("提交 batch 失败: %v", err)
+	}
+
+	fmt.Println("死锁测试账户初始化完成")
+}
+
+// testCircularTransferDeadlock 测试循环转账死锁场景
+func testCircularTransferDeadlock(table *engine.Table) func(*testing.T) {
+	return func(t *testing.T) {
+		// 循环转账配置
+		const concurrencyCount = 4 // 4个账户，形成循环转账
+		const transferCount = 100  // 每个方向执行100次转账
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		successCount := 0
+		errorCount := 0
+		startTime := time.Now()
+
+		// 启动循环转账协程
+		// 账户1→账户2→账户3→账户4→账户1，形成循环
+		transferConfig := []struct {
+			fromID string
+			toID   string
+			amount float64
+		}{
+			{"1", "2", 10.0},
+			{"2", "3", 10.0},
+			{"3", "4", 10.0},
+			{"4", "1", 10.0},
+		}
+
+		for i := 0; i < concurrencyCount; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				config := transferConfig[i]
+
+				// 执行多次转账
+				for j := 0; j < transferCount; j++ {
+					// 执行转账
+					err := transfer(table, config.fromID, config.toID, config.amount)
+
+					mu.Lock()
+					if err != nil {
+						errorCount++
+					} else {
+						successCount++
+					}
+					mu.Unlock()
+				}
+			}(i)
+		}
+
+		// 等待所有转账完成
+		wg.Wait()
+
+		// 计算执行时间
+		duration := time.Since(startTime)
+		totalTransfers := successCount + errorCount
+		transfersPerSecond := float64(totalTransfers) / duration.Seconds()
+
+		// 验证没有死锁（如果有死锁，测试会卡住或超时）
+		t.Logf("✅ 循环转账死锁测试完成")
+		t.Logf("   总转账次数: %d", totalTransfers)
+		t.Logf("   成功次数: %d", successCount)
+		t.Logf("   失败次数: %d", errorCount)
+		t.Logf("   执行时间: %v", duration)
+		t.Logf("   每秒转账次数: %.2f", transfersPerSecond)
+
+		// 注意：在并发环境下，循环转账的最终余额是不确定的
+		// 这里我们只验证没有发生死锁，而不验证余额是否不变
+
+		fmt.Println("✓ 循环转账死锁测试通过，没有发生死锁")
+	}
+}
+
+// testHighConcurrencySameData 测试高并发操作相同数据的场景
+func testHighConcurrencySameData(table *engine.Table) func(*testing.T) {
+	return func(t *testing.T) {
+		// 高并发配置
+		const concurrencyCount = 200 // 200个并发协程
+		const operationCount = 10    // 每个协程执行10次操作
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		successCount := 0
+		errorCount := 0
+		startTime := time.Now()
+
+		// 启动高并发协程，所有协程都操作相同的两个账户
+		for i := 0; i < concurrencyCount; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+
+				// 每个协程执行多次操作
+				for j := 0; j < operationCount; j++ {
+					// 交替执行不同方向的转账
+					var fromID, toID string
+					if (i+j)%2 == 0 {
+						fromID = "1"
+						toID = "2"
+					} else {
+						fromID = "2"
+						toID = "1"
+					}
+					amount := float64((i+j)%100 + 1)
+
+					// 执行转账
+					err := transfer(table, fromID, toID, amount)
+
+					mu.Lock()
+					if err != nil {
+						errorCount++
+					} else {
+						successCount++
+					}
+					mu.Unlock()
+				}
+			}(i)
+		}
+
+		// 等待所有操作完成
+		wg.Wait()
+
+		// 计算执行时间
+		duration := time.Since(startTime)
+		totalOperations := successCount + errorCount
+		operationsPerSecond := float64(totalOperations) / duration.Seconds()
+
+		// 验证没有死锁（如果有死锁，测试会卡住或超时）
+		t.Logf("✅ 高并发相同数据操作测试完成")
+		t.Logf("   总操作次数: %d", totalOperations)
+		t.Logf("   成功次数: %d", successCount)
+		t.Logf("   失败次数: %d", errorCount)
+		t.Logf("   执行时间: %v", duration)
+		t.Logf("   每秒操作次数: %.2f", operationsPerSecond)
+
+		fmt.Println("✓ 高并发相同数据操作测试通过，没有发生死锁")
+	}
+}
+
 // transferWithRetryForStress 带重试配置的转账操作（用于压力测试）
 func transferWithRetryForStress(table *engine.Table, fromID, toID string, amount float64) error {
 	// 使用自定义重试配置
@@ -582,4 +792,98 @@ func transfer(table *engine.Table, fromID, toID string, amount float64) error {
 
 	// 提交事务
 	return tx.Commit()
+}
+
+// getAccountBalanceInTransaction 在事务中获取账户余额
+func getAccountBalanceInTransaction(tx *TableTransaction, accountID string) (float64, error) {
+	// 搜索账户
+	fields := map[string]any{"id": accountID}
+	iter, err := tx.Search(&fields)
+	if err != nil {
+		return 0, err
+	}
+
+	// 解析记录
+	if !iter.First() {
+		return 0, fmt.Errorf("账户不存在: %s", accountID)
+	}
+
+	key := iter.Key()
+	value := iter.Value()
+	fieldsBytes := iter.ParseBytes(key, value)
+	if fieldsBytes == nil {
+		return 0, fmt.Errorf("解析记录失败")
+	}
+
+	// 转换为map[string]any
+	anyMap := tx.Table.RecordByteToAny(fieldsBytes)
+	if anyMap == nil {
+		return 0, fmt.Errorf("解析记录失败")
+	}
+
+	// 提取余额字段
+	balance, ok := (*anyMap)["balance"]
+	if !ok {
+		return 0, fmt.Errorf("账户缺少余额字段")
+	}
+
+	// 转换为float64
+	balanceFloat, ok := balance.(float64)
+	if !ok {
+		balanceInt, ok := balance.(int)
+		if ok {
+			balanceFloat = float64(balanceInt)
+		} else {
+			return 0, fmt.Errorf("余额字段类型错误")
+		}
+	}
+
+	return balanceFloat, nil
+}
+
+// getProductStockInTransaction 在事务中获取产品库存
+func getProductStockInTransaction(tx *TableTransaction, productID string) (int, error) {
+	// 搜索产品
+	fields := map[string]any{"id": productID}
+	iter, err := tx.Search(&fields)
+	if err != nil {
+		return 0, err
+	}
+
+	// 解析记录
+	if !iter.First() {
+		return 0, fmt.Errorf("产品不存在: %s", productID)
+	}
+
+	key := iter.Key()
+	value := iter.Value()
+	fieldsBytes := iter.ParseBytes(key, value)
+	if fieldsBytes == nil {
+		return 0, fmt.Errorf("解析记录失败")
+	}
+
+	// 转换为map[string]any
+	anyMap := tx.Table.RecordByteToAny(fieldsBytes)
+	if anyMap == nil {
+		return 0, fmt.Errorf("解析记录失败")
+	}
+
+	// 提取库存字段
+	stock, ok := (*anyMap)["stock"]
+	if !ok {
+		return 0, fmt.Errorf("产品缺少库存字段")
+	}
+
+	// 转换为int
+	stockInt, ok := stock.(int)
+	if !ok {
+		stockFloat, ok := stock.(float64)
+		if ok {
+			stockInt = int(stockFloat)
+		} else {
+			return 0, fmt.Errorf("库存字段类型错误")
+		}
+	}
+
+	return stockInt, nil
 }
