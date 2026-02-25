@@ -208,12 +208,8 @@ type BatchInsert interface {
 	Insert
 	// 批量插入多条记录
 	BatchInsert(records []*map[string]any, batchs ...storage.Batch) ([]int, error)
-	// 带批量大小控制的批量插入
-	BatchInsertWithSize(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error)
 	// 批量插入多条记录，不自动生成主键
 	BatchInsertNoInc(batchs ...storage.Batch) ([]int, error)
-	// 带批量大小控制的批量插入，不自动生成主键
-	BatchInsertWithSizeNoInc(records []*map[string]any, batchSize int, batchs ...storage.Batch) ([]int, error)
 	// 批量提交事务
 	BatchCommit() error
 }
@@ -235,9 +231,8 @@ func NewBatchInsertImpl(table *Table, records []*map[string]any) *BatchInsertImp
 	return impl
 }
 
-// BatchInsert 批量插入多条记录
-func (i *BatchInsertImpl) BatchInsert(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
-
+// BatchInsertInc 批量插入多条记录，自动生成主键
+func (i *BatchInsertImpl) BatchInsertInc(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
 	// 检查参数
 	if i.table.fields == nil {
 		return nil, fmt.Errorf("表 '%s' 未设置字段和类型", i.table.name)
@@ -248,40 +243,38 @@ func (i *BatchInsertImpl) BatchInsert(records []*map[string]any, batchs ...stora
 	if records == nil {
 		return nil, fmt.Errorf("records cannot be nil")
 	}
-
 	// 保存记录
 	i.records = records
-
 	// 获取主键字段
 	primaryFields := i.table.GetPrimaryFields()
 	if len(primaryFields) == 0 {
 		return nil, fmt.Errorf("表 '%s' 没有设置主键", i.table.name)
 	}
-
 	// 是否支持默认自动增值主键，单主键并且主键字段名为"id"
 	pklen := len(primaryFields)
 	pkfield := primaryFields[0]
 	supportDefault := pklen == 1 && pkfield == "id"
-
 	// 处理批量操作
 	i.batch, i.userProvidedBatch = i.table.prepareBatch(batchs...)
 	// 预分配ID列表容量
-	ids := make([]int, len(records))
+	rdlen := len(records)
+	ids := make([]int, rdlen)
 	i.ids = ids
 
 	// 计算需要自动生成的ID数量
-	autoIncCount := 0
-	for _, fields := range records {
-		if fields == nil {
-			return nil, fmt.Errorf("record cannot be nil")
-		}
-		if supportDefault {
-			if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
-				autoIncCount++
+	autoIncCount := rdlen
+	/*
+		for _, fields := range records {
+			if fields == nil {
+				return nil, fmt.Errorf("record cannot be nil")
+			}
+			if supportDefault {
+				if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
+					autoIncCount++
+				}
 			}
 		}
-	}
-
+	*/
 	// 批量获取自动增值ID，确保并发安全
 	var autoIncStart int
 	if supportDefault && autoIncCount > 0 {
@@ -376,7 +369,6 @@ func (i *BatchInsertImpl) BatchCommit() error {
 // 批量添加不需要自动增值的记录，并且全部记录规则相同。
 // 可用于批量插入时序数据，当表主键为时间戳时，建议使用此方法
 func (i *BatchInsertImpl) BatchInsertNoInc(batchs ...storage.Batch) ([]int, error) {
-
 	// 检查参数
 	if i.table.fields == nil {
 		return nil, fmt.Errorf("表 '%s' 未设置字段和类型", i.table.name)

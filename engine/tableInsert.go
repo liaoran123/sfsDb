@@ -39,12 +39,12 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 // records []*map[string]any 要插入的记录列表
 // batchs ...storage.Batch 可选的批量操作容器
 // 返回值：插入记录的ID列表和错误信息
-func (t *Table) BatchInsert(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
+func (t *Table) BatchInsertInc(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
 	// 使用 InsertImpl
 	insertImpl := NewBatchInsertImpl(t, records)
 
 	// 执行批量插入
-	return insertImpl.BatchInsert(records, batchs...)
+	return insertImpl.BatchInsertInc(records, batchs...)
 }
 
 // BatchInsertNoInc 批量插入不需要自动增值的记录
