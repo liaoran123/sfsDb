@@ -1,11 +1,13 @@
 # sfsDb
 
 <div align="center">
-  <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20database%20logo%20with%20blue%20and%20green%20colors%2C%20minimalist%20design%2C%20professional%20looking%2C%20suitable%20for%20embedded%20database&image_size=square" alt="sfsDb Logo" width="120" height="120">
+  <img src="https://neeko-copilot.bytedance.net/api/text2image?prompt=modern%20database%20logo%20with%20blue%20and%20green%20colors%2C%20minimalist%20design%2C%20professional%20looking%2C%20suitable%20for%20embedded%20database&size=512x512" alt="sfsDb Logo" width="120" height="120">
   
-  <h2>🚀 轻量级嵌入式关系型数据库，3行代码实现本地数据存储，替代复杂的云端依赖</h2>
+  <h1>sfsDb：面向工业物联网与边缘计算的嵌入式数据库</h1>
   
-  <p>纯 Golang 实现 | 高性能 | 全文索引 | 边缘计算友好</p>
+  <p>🚀 专为 工业物联网(IIoT) 和 边缘计算 场景打造的轻量级 嵌入式关系型数据库</p>
+  
+  <p>基于 纯 Go (Golang) 语言开发，无 CGO 依赖，编译后仅为单个静态二进制文件，极致轻量，启动内存仅数 MB。完美适配各类 ARM 及 x86 架构的边缘网关与工业设备，解决资源受限环境下的数据持久化存储难题。</p>
   
   <div>
     <a href="https://github.com/liaoran123/sfsDb"><img src="https://img.shields.io/github/stars/liaoran123/sfsDb?style=social" alt="GitHub Stars"></a>
@@ -13,28 +15,47 @@
   </div>
 </div>
 
-## 项目特点
+## 核心特性 (Key Features)
 
-### 核心亮点
+### 🎯 纯 Go 开发 (Pure Go)
+- 无 CGO 依赖，零配置，无需外部依赖库
+- 支持交叉编译，部署极其简单
+- 适合工业物联网和边缘计算场景的技术栈
 
-✅ **轻量级设计，复杂查询场景支持**
-   - 采用创新设计，在保持轻量级的同时，能够支持复杂的查询场景
-   - 超越了传统嵌入式数据库的能力边界，为应用提供更强大的数据处理能力
+### 📦 极致轻量 (Lightweight)
+- 启动占用内存极低（仅数 MB）
+- 对 CPU 和磁盘 I/O 消耗极小
+- 专为资源受限设备优化，适合边缘网关数据存储
 
-✅ **原生支持考据级全文索引**
-   - 内置高性能全文索引引擎，提供精准的文本搜索能力
-   - 支持复杂的文本匹配和检索需求，满足考据级应用场景
+### 🚀 单文件部署 (Single Binary)
+- 编译后为单一可执行文件
+- 可轻松集成到 Docker 容器或直接运行在边缘网关上
+- 简化工业设备的部署和维护流程
 
-✅ **基于 LevelDB 封装实现**
-   - 使用 `github.com/syndtr/goleveldb/leveldb` 库作为存储引擎基础
-   - 充分利用 LevelDB 的 LSM-Tree 架构优势，提供高性能的读写操作
+### 🔧 工业级可靠 (Industrial Ready)
+- 针对 工业物联网(IIoT) 场景优化
+- 支持高并发时序数据写入
+- 具备断电保护与数据持久化能力
+- 确保工业环境下的数据可靠性
 
-### 其他特性
+### 🌍 广泛硬件兼容
+- 支持 ARM (ARM64/ARMv7) 和 x86 架构
+- 通用于主流工业网关、PLC 和边缘服务器
+- 适应各种边缘侧存储环境
 
-📦 **灵活的存储模型**：支持多种数据结构和存储格式
-⚡ **高性能查询**：优化的查询引擎，提供快速的数据检索
-👨‍💻 **简单易用的 API**：简洁直观的接口设计，降低开发成本
-🌍 **跨平台兼容**：支持多种操作系统和环境
+## 技术优势
+
+### ✅ 轻量级设计，复杂查询场景支持
+- 采用创新设计，在保持轻量级的同时，能够支持复杂的查询场景
+- 超越了传统嵌入式数据库的能力边界，为应用提供更强大的数据处理能力
+
+### ✅ 原生支持考据级全文索引
+- 内置高性能全文索引引擎，提供精准的文本搜索能力
+- 支持复杂的文本匹配和检索需求，满足考据级应用场景
+
+### ✅ 基于 LevelDB 封装实现
+- 使用 `github.com/syndtr/goleveldb/leveldb` 库作为存储引擎基础
+- 充分利用 LevelDB 的 LSM-Tree 架构优势，提供高性能的读写操作
 
 ## 生产应用示例
 
