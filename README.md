@@ -1,9 +1,7 @@
 # sfsDb
 
 <div align="center">
-  <img src="https://neeko-copilot.bytedance.net/api/text2image?prompt=modern%20database%20logo%20with%20blue%20and%20green%20colors%2C%20minimalist%20design%2C%20professional%20looking%2C%20suitable%20for%20embedded%20database&size=512x512" alt="sfsDb Logo" width="120" height="120">
-  
-  <h1>sfsDb：面向工业物联网与边缘计算的嵌入式数据库</h1>
+  <h1>📊 sfsDb：面向工业物联网与边缘计算的嵌入式数据库</h1>
   
   <p>🚀 专为 工业物联网(IIoT) 和 边缘计算 场景打造的轻量级 嵌入式关系型数据库</p>
   
