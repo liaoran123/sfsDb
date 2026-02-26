@@ -1939,6 +1939,7 @@ Correct use of transaction operations can significantly improve the performance 
 10. **Iterator Resource Management**: Properly return iterators to avoid resource leaks
 11. **Built-in Transaction Retry**: Automatically retry failed transactions, improve system reliability
 12. **Test Resources**: Use provided test files to learn transaction usage methods
+13. **Lock-Free Transactions**: Use `transactionLockFree` package for high-concurrency scenarios, significantly improving performance
 
 **Latest Optimization Highlights**:
 - **Lock Key Construction Optimization**: Utilize the existing `JoinValue` method to generate lock keys, support composite primary keys, and reduce type conversion overhead
@@ -1946,6 +1947,7 @@ Correct use of transaction operations can significantly improve the performance 
 - **Iterator Resource Management**: Emphasize the importance of properly returning iterators to the object pool to avoid resource leaks
 - **Built-in Transaction Retry Mechanism**: Automatically retry failed transactions to improve system reliability and stability
 - **Transaction Test Resources**: Provide detailed test files as references for users to learn
+- **Lock-Free Transaction System**: Implement optimistic concurrency control (OCC) for high-performance transactions
 
 **Performance Improvement Summary**:
 - **Batch Operations**: 85-90% faster than automatic transactions
@@ -1953,13 +1955,179 @@ Correct use of transaction operations can significantly improve the performance 
 - **Cache Effects**: Approximately 15-25% improvement in repeat operation performance
 - **Resource Management**: Approximately 30-40% improvement in resource utilization
 - **Transaction Retry**: Improves system reliability, reduces failures caused by temporary errors
+- **Lock-Free Transactions**: 3-8x performance improvement in high-concurrency scenarios
 
-**Learning Resource Summary**:
+**Learning Resources Summary**:
 - **Financial Transaction Test**: Demonstrates how to use transactions in financial scenarios to ensure fund security
 - **Order Transaction Test**: Demonstrates how to use transactions in e-commerce scenarios to ensure order and inventory consistency
 - **Transaction Stress Test**: Demonstrates how to use transactions in high-concurrency scenarios to test system performance
 
-By reasonably using the transaction mechanism and the latest performance optimizations, you can fully leverage the performance potential of sfsDb while ensuring data consistency, especially when processing large amounts of data, performing cross-table operations, or in high-concurrency scenarios, where the optimization effects are more significant.
+## 18. Lock-Free Transactions (transactionLockFree)
+
+### 18.1 Overview
+
+sfsDb provides the `transactionLockFree` package, which implements a lock-free transaction system based on Optimistic Concurrency Control (OCC). It significantly improves concurrent performance while ensuring complete ACID support.
+
+### 18.2 Core Features
+
+- ✅ Optimistic Concurrency Control (OCC): Avoids competition issues of traditional lock mechanisms
+- ✅ Lock-Free Version Management: Implements isolation through version number checking and conflict detection
+- ✅ Nested Transaction Support: Supports nested transactions for complex business logic
+- ✅ Savepoint Functionality: Supports partial rollback operations
+- ✅ Batch Operation Optimization: Reduces disk I/O and improves write performance
+- ✅ Transaction Retry Mechanism: Automatically handles concurrent conflicts
+- ✅ Multi-Isolation Level Support: From ReadUncommitted to Serializable
+- ✅ Object Pool Optimization: Reduces memory allocation and GC pressure
+- ✅ Complete ACID Support: Guarantees atomicity, consistency, isolation, and durability
+
+### 18.3 Performance Advantages
+
+| Operation Type | transaction Package (TPS) | transactionLockFree Package (TPS) | Performance Improvement |
+|---------------|---------------------------|----------------------------------|------------------------|
+| Transfer Operation | ~2,000-5,000 | ~16,000+ | 3-8x |
+| Order Creation | ~1,000-3,000 | ~3,700+ | 1-3x |
+| Batch Update | ~1,500-4,000 | ~5,000+ | 1-3x |
+
+### 18.4 Application Scenarios
+
+- **High-Concurrency Read/Write**: Such as e-commerce orders, financial transactions, etc.
+- **Performance-Sensitive**: Applications with high requirements for transaction processing latency and throughput
+- **Read-Heavy Workloads**: Optimistic concurrency control performs best in this scenario
+- **Medium-Complexity Business**: Scenarios requiring advanced features like nested transactions and savepoints
+- **Single-Node Deployment**: Scenarios that don't require distributed transactions
+
+### 18.5 Usage Methods
+
+#### 18.5.1 Basic Transaction Operations
+
+```go
+import "github.com/liaoran123/sfsDb/transactionLockFree"
+
+// Create transaction
+tx, err := transactionLockFree.NewTransaction(store)
+if err != nil {
+    panic(err)
+}
+
+// Execute operations
+tx.Put([]byte("key1"), []byte("value1"))
+tx.Delete([]byte("key2"))
+
+// Commit transaction
+err = tx.Commit()
+if err != nil {
+    panic(err)
+}
+```
+
+#### 18.5.2 Table Transaction Operations
+
+```go
+// Create table transaction
+tx, err := transactionLockFree.NewTableTransaction(table)
+if err != nil {
+    panic(err)
+}
+
+// Insert record
+fields := map[string]interface{}{
+    "id":   1,
+    "name": "test",
+}
+id, err := tx.Insert(&fields)
+if err != nil {
+    panic(err)
+}
+
+// Commit transaction
+err = tx.Commit()
+if err != nil {
+    panic(err)
+}
+```
+
+#### 18.5.3 Multi-Table Transactions
+
+```go
+// Create shared batch operation
+batch := store.GetBatch()
+
+// Use helper function to execute multi-table transaction
+err := transactionLockFree.WithTransaction(batch, []*engine.Table{table1, table2}, func(txs map[*engine.Table]transactionLockFree.TableTransactionInterface) error {
+    // Execute operation on table1
+    tx1 := txs[table1]
+    fields1 := map[string]interface{}{"id": 1, "name": "test1"}
+    _, err := tx1.Insert(&fields1)
+    if err != nil {
+        return err
+    }
+
+    // Execute operation on table2
+    tx2 := txs[table2]
+    fields2 := map[string]interface{}{"id": 1, "name": "test2"}
+    _, err = tx2.Insert(&fields2)
+    if err != nil {
+        return err
+    }
+
+    return nil
+})
+
+if err != nil {
+    panic(err)
+}
+```
+
+#### 18.5.4 Optimistic Update
+
+```go
+// Use optimistic update to automatically handle concurrent conflicts
+fields := map[string]interface{}{"id": 1, "balance": 100}
+err := tx.OptimisticUpdate(&fields, 3) // Maximum 3 retries
+if err != nil {
+    panic(err)
+}
+```
+
+### 18.6 Comparison with Traditional Transactions
+
+| Feature | transaction Package | transactionLockFree Package |
+|---------|---------------------|------------------------|
+| Concurrency Control | Pessimistic Locking | Optimistic Concurrency Control |
+| Lock Contention | High, may cause deadlocks | Low, no deadlock risk |
+| Performance | Medium | High, especially in high-concurrency scenarios |
+| Implementation Complexity | Lower | Medium, requires version management |
+| Application Scenarios | Low concurrency, simple business | High concurrency, complex business |
+| Isolation Level Support | Complete | Complete |
+| Nested Transactions | Supported | Supported |
+| Savepoints | Supported | Supported |
+
+### 18.7 Best Practices
+
+1. **Choose the Right Transaction Package**: Select transaction or transactionLockFree based on concurrency requirements
+2. **Use Batch Operations**: Reduce disk I/O and improve write performance
+3. **Set Appropriate Isolation Level**: Choose the right isolation level based on business needs
+4. **Handle Concurrent Conflicts**: Use optimistic update and transaction retry mechanism to handle concurrent conflicts
+5. **Keep Transactions Short**: Reduce transaction holding time and conflict probability
+6. **Monitor System Performance**: Regularly monitor transaction execution time and success rate
+
+### 18.8 Migration Guide
+
+If you are migrating from the transaction package to the transactionLockFree package, note the following:
+
+1. **Package Path Change**: Change import path from `transaction` to `transactionLockFree`
+2. **API Compatibility**: Most APIs remain compatible, but some method signatures may differ
+3. **Configuration Adjustment**: transactionLockFree package provides more configuration options
+4. **Error Handling**: Need to adapt to optimistic concurrency control error handling
+5. **Performance Testing**: Conduct performance tests after migration to ensure business requirements are met
+
+### 18.9 Summary
+
+The `transactionLockFree` package successfully balances performance and reliability through optimistic concurrency control and lock-free design, providing efficient transaction processing capabilities for sfsDb. It not only supports complete ACID properties and multiple isolation levels but also significantly improves concurrent performance through batch operations, object pools, and other optimization methods.
+
+In high-concurrency read/write scenarios, the `transactionLockFree` package outperforms the traditional transaction package while maintaining transaction function integrity comparable to relational databases. This makes sfsDb an ideal choice for application scenarios that require transaction support but also pursue high performance.
+
+By rationally using transaction mechanisms and the latest performance optimizations, you can fully unleash the performance potential of sfsDb while ensuring data consistency, especially when processing large amounts of data, performing cross-table operations, or in high-concurrency scenarios, the optimization effect is more significant.
 
 **Future Development Directions**:
 - Further optimize transaction processing performance and reliability

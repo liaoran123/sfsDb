@@ -1959,6 +1959,171 @@ go test -v ./engine -run TestTransactionStress
 - **订单事务测试**：展示如何在电商场景中使用事务，确保订单和库存一致性
 - **事务压力测试**：展示如何在高并发场景中使用事务，测试系统性能
 
+## 18. 无锁事务 (transactionLockFree)
+
+### 18.1 概述
+
+sfsDb 提供了 `transactionLockFree` 包，实现了基于乐观并发控制（OCC）的无锁事务系统，在保证完整 ACID 支持的同时，显著提升了并发性能。
+
+### 18.2 核心特性
+
+- ✅ 乐观并发控制（OCC）：避免传统锁机制的竞争问题
+- ✅ 无锁版本管理：通过版本号检查和冲突检测实现隔离性
+- ✅ 嵌套事务支持：支持复杂业务逻辑的嵌套事务
+- ✅ 保存点功能：支持部分回滚操作
+- ✅ 批量操作优化：减少磁盘 I/O，提高写入性能
+- ✅ 事务重试机制：自动处理并发冲突
+- ✅ 多隔离级别支持：从 ReadUncommitted 到 Serializable
+- ✅ 对象池优化：减少内存分配和 GC 压力
+- ✅ 完整 ACID 支持：保证事务的原子性、一致性、隔离性和持久性
+
+### 18.3 性能优势
+
+| 操作类型 | transaction 包 (TPS) | transactionLockFree 包 (TPS) | 性能提升 |
+|---------|---------------------|------------------------------|---------|
+| 转账操作 | ~2,000-5,000 | ~16,000+ | 3-8倍 |
+| 订单创建 | ~1,000-3,000 | ~3,700+ | 1-3倍 |
+| 批量更新 | ~1,500-4,000 | ~5,000+ | 1-3倍 |
+
+### 18.4 适用场景
+
+- **高并发读写**：如电商订单、金融交易等场景
+- **性能敏感**：对事务处理延迟和吞吐量有较高要求的应用
+- **读多写少**：乐观并发控制在这种场景下表现最佳
+- **中等复杂度业务**：需要嵌套事务、保存点等高级功能的场景
+- **单节点部署**：不需要分布式事务的场景
+
+### 18.5 使用方法
+
+#### 18.5.1 基本事务操作
+
+```go
+import "github.com/liaoran123/sfsDb/transactionLockFree"
+
+// 创建事务
+tx, err := transactionLockFree.NewTransaction(store)
+if err != nil {
+    panic(err)
+}
+
+// 执行操作
+tx.Put([]byte("key1"), []byte("value1"))
+tx.Delete([]byte("key2"))
+
+// 提交事务
+err = tx.Commit()
+if err != nil {
+    panic(err)
+}
+```
+
+#### 18.5.2 表事务操作
+
+```go
+// 创建表事务
+tx, err := transactionLockFree.NewTableTransaction(table)
+if err != nil {
+    panic(err)
+}
+
+// 插入记录
+fields := map[string]interface{}{
+    "id":   1,
+    "name": "test",
+}
+id, err := tx.Insert(&fields)
+if err != nil {
+    panic(err)
+}
+
+// 提交事务
+err = tx.Commit()
+if err != nil {
+    panic(err)
+}
+```
+
+#### 18.5.3 多表事务
+
+```go
+// 创建共享批量操作
+batch := store.GetBatch()
+
+// 使用便捷函数执行多表事务
+err := transactionLockFree.WithTransaction(batch, []*engine.Table{table1, table2}, func(txs map[*engine.Table]transactionLockFree.TableTransactionInterface) error {
+    // 在 table1 上执行操作
+    tx1 := txs[table1]
+    fields1 := map[string]interface{}{"id": 1, "name": "test1"}
+    _, err := tx1.Insert(&fields1)
+    if err != nil {
+        return err
+    }
+
+    // 在 table2 上执行操作
+    tx2 := txs[table2]
+    fields2 := map[string]interface{}{"id": 1, "name": "test2"}
+    _, err = tx2.Insert(&fields2)
+    if err != nil {
+        return err
+    }
+
+    return nil
+})
+
+if err != nil {
+    panic(err)
+}
+```
+
+#### 18.5.4 乐观更新
+
+```go
+// 使用乐观更新，自动处理并发冲突
+fields := map[string]interface{}{"id": 1, "balance": 100}
+err := tx.OptimisticUpdate(&fields, 3) // 最多重试3次
+if err != nil {
+    panic(err)
+}
+```
+
+### 18.6 与传统事务的比较
+
+| 特性 | transaction 包 | transactionLockFree 包 |
+|------|---------------|------------------------|
+| 并发控制 | 悲观锁机制 | 乐观并发控制 |
+| 锁竞争 | 高，可能导致死锁 | 低，无死锁风险 |
+| 性能 | 中等 | 高，特别是在高并发场景 |
+| 实现复杂度 | 较低 | 中等，需要版本管理 |
+| 适用场景 | 低并发，简单业务 | 高并发，复杂业务 |
+| 隔离级别支持 | 完整 | 完整 |
+| 嵌套事务 | 支持 | 支持 |
+| 保存点 | 支持 | 支持 |
+
+### 18.7 最佳实践
+
+1. **选择合适的事务包**：根据并发需求选择 transaction 或 transactionLockFree 包
+2. **使用批量操作**：减少磁盘 I/O，提高写入性能
+3. **合理设置隔离级别**：根据业务需求选择合适的隔离级别
+4. **处理并发冲突**：使用乐观更新和事务重试机制处理并发冲突
+5. **保持事务简短**：减少事务持有时间，降低冲突概率
+6. **监控系统性能**：定期监控事务执行时间和成功率
+
+### 18.8 迁移指南
+
+如果您正在从 transaction 包迁移到 transactionLockFree 包，需要注意以下几点：
+
+1. **包路径变更**：将导入路径从 `transaction` 改为 `transactionLockFree`
+2. **API 兼容性**：大部分 API 保持兼容，但部分方法签名可能有差异
+3. **配置调整**：transactionLockFree 包提供了更多配置选项
+4. **错误处理**：需要适应乐观并发控制的错误处理方式
+5. **性能测试**：迁移后进行性能测试，确保满足业务需求
+
+### 18.9 总结
+
+`transactionLockFree` 包通过乐观并发控制和无锁设计，成功地平衡了性能和可靠性，为 sfsDb 提供了高效的事务处理能力。它不仅支持完整的 ACID 特性和多隔离级别，还通过批量操作、对象池等优化手段，显著提升了并发性能。
+
+在高并发读写场景下，`transactionLockFree` 包的性能表现优于传统的 transaction 包，同时保持了与关系型数据库相当的事务功能完整性。这使得 sfsDb 在需要事务支持但又追求高性能的应用场景中，成为了一个理想的选择。
+
 通过合理使用事务机制和最新的性能优化，可以在保证数据一致性的同时，充分发挥 sfsDb 的性能潜力，特别是在处理大量数据、执行跨表操作或高并发场景时，优化效果更加显著。
 
 **未来发展方向**：
