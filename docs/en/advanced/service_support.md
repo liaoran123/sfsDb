@@ -27,7 +27,7 @@ sfsDb adopts a service-oriented business model, providing customers with compreh
 ## Service Productization
 
 ### 1. Basic Support Package
-- **Price**: ¥5,000/year
+- **Price**: $700/year
 - **Included**:
   - Self-service + remote assistance (working hours)
   - 5 technical consultations
@@ -35,7 +35,7 @@ sfsDb adopts a service-oriented business model, providing customers with compreh
 - **Suitable For**: Small projects, customers new to sfsDb
 
 ### 2. Advanced Support Package
-- **Price**: ¥15,000/year
+- **Price**: $2,100/year
 - **Included**:
   - Self-service + 7×24-hour remote assistance + regular health checks
   - Unlimited technical consultations
@@ -44,7 +44,7 @@ sfsDb adopts a service-oriented business model, providing customers with compreh
 - **Suitable For**: Medium-sized projects, customers with higher service quality requirements
 
 ### 3. Enterprise Support Package
-- **Price**: Starting from ¥30,000/year
+- **Price**: Starting from $7,100/year
 - **Included**:
   - All remote services + on-site support + customized remote management solutions
   - 7×24-hour dedicated engineer

@@ -2,7 +2,44 @@
 
 ## Overview
 
-sfsDb is a lightweight, high-performance embedded database library for Go. This documentation provides comprehensive guides for using sfsDb effectively, including basic operations, advanced features, and optimization techniques.
+sfsDb is a lightweight, high-performance embedded database library for Go. This documentation provides comprehensive guides for using sfsDb effectively, including basic operations, advanced features, and optimization techniques. Based on a **service-oriented business model**, we focus on deepening our presence in the domestic market by providing professional services and value-added content to realize commercial value.
+
+## Service System
+
+### Service Tiers
+- **Community Service**: Basic support through GitHub Issues, WeChat groups, etc. (Free)
+- **Professional Service**: Technical support, problem troubleshooting, performance optimization, etc. (Pay-per-use or monthly subscription)
+- **Enterprise Service**: Custom development, on-site deployment, training and certification, etc. (Project-based pricing)
+
+### Annual Support Service Packages
+
+- **Basic Operation Package**: $700/year
+  - **Applicable to**: Individual developers, startup projects, non-critical business test environments
+  - **Service Content**: Remote self-diagnostic tools + weekday remote assistance, 5 lightweight technical consultations (≤30 minutes each), 24-hour fault response (email/ticket), basic documentation and knowledge base access
+  - **Node Limit**: Supports 1-5 edge nodes
+  - **Value Point**: Low-cost entry, solving basic adaptation and configuration issues
+
+- **Advanced Protection Package**: $2,100/year
+  - **Applicable to**: Medium-sized enterprises, production environments, high availability requirement scenarios
+  - **Service Content**: 7×24-hour remote monitoring and assistance, unlimited technical consultations (including complex problem troubleshooting), 4-hour emergency response (P1-level faults), monthly remote health check (including database fragmentation, lock status analysis), 2 on-site supports (travel expenses reimbursed, ≤2 person-days each)
+  - **Node Limit**: Supports 1-50 edge nodes
+  - **Value Point**: Production environment guarantee, preventing edge data corruption risks through health checks
+
+- **Enterprise Exclusive Package**: $7,100/year起
+  - **Applicable to**: Large enterprises, critical business systems, multi-node distributed edge clusters
+  - **Service Content**: 7×24-hour dedicated engineer on-site (remote), unlimited on-site support (travel expenses reimbursed), customized remote management solutions (including data synchronization strategy, offline transmission logic design), SLA agreement (99.9% availability commitment), priority access to new version testing
+  - **Node Limit**: Supports 50+ edge nodes
+  - **Value Point**: Expert-level personal service, solving complex edge-cloud data collaboration problems
+
+### Special Services and Add-ons
+
+- **On-site Support Travel Expenses**: Reimbursed at actual cost, standards as follows: Transportation (high-speed rail second class/airplane economy class), Accommodation (first-tier cities ≤$70/day, second-tier cities ≤$60/day), Meal allowance ($14/day)
+- **Emergency Fault Expedited Fee**: Non-working hours (night 22:00-8:00 next day) emergency response, 50% service fee surcharge
+- **Hardware Adaptation Fee**: Driver development for non-standard edge devices (such as special industrial gateways), quoted separately at $210/person-day
+- **Health Check**: $700/time, providing system health check report and optimization suggestions
+- **Disaster Recovery Plan**: Starting from $1,400, customized according to customer scale
+- **Performance Optimization**: $1,100/time, performance tuning for specific scenarios
+- **Custom Development**: Starting from $2,800/person-month, high-difficulty tasks (such as kernel modification, cross-platform transplantation) $3,600/person-month or more
 
 ## Documentation Structure
 
@@ -138,9 +175,24 @@ func main() {
 
 For bug reports, feature requests, or contributions, please visit the [GitHub repository](https://github.com/liaoran123/sfsDb).
 
+## Contact Us
+
+If you have any questions or suggestions, please contact us through:
+
+- **Email**: sfsweb@qq.com
+
 ## License
 
-sfsDb is released under the MIT License. See the LICENSE file for details.
+sfsDb adopts a dual-license model:
+
+### Core Engine - MIT License
+- **Open Source Free**: Core database engine uses MIT open source license
+- **Business Friendly**: Allows free use, modification, and commercial distribution
+- **Concise and Flexible**: License text is concise, with few restrictions, easy to understand and use
+
+### Enterprise Edition Plugins - Commercial License
+- **Advanced Features**: Enterprise edition plugins (such as advanced security features, multi-node coordination, etc.) use commercial license
+- **Support Services**: Includes professional technical support, regular updates, and enterprise-level features
 
 ## Privacy Policy
 
