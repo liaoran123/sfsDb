@@ -309,29 +309,6 @@ func main() {
 }
 
 ```
-
-## 构建与集成
-
-sfsDb 提供完整的预编译解决方案，支持工业嵌入式系统的快速集成：
-
-🔧 **多架构支持**：x86、ARM64、MIPS64
-🐳 **Docker 构建**：隔离环境，一键构建
-🔗 **C/C++ 集成**：提供静态库和详细集成指南
-⏱️ **30秒跑通**：预编译示例程序，快速验证
-
-### 快速开始
-
-```bash
-# 使用 Docker 构建
-docker build -t sfsdb-build-env .
-docker run -it --rm -v $(pwd):/app sfsdb-build-env bash -c "./build/build.sh"
-
-# 运行示例
-./build/output/demo/demo_linux_arm64
-```
-
-[详细构建指南](docs/zh/advanced/build.md) | [英文构建指南](docs/en/advanced/build.md)
-
 ## 文档
 
 ### 使用指南
