@@ -153,7 +153,10 @@ func TestTableSnapshotSearchConsistency(t *testing.T) {
 		// 从快照中读取
 		snapshotValue := snapshotGet(key)
 		// 从数据库中读取
-		dbValue := table.ReadByBytes(key)
+		dbValue, err := table.ReadByBytes(key)
+		if err != nil {
+			t.Fatalf("Failed to read record from db: %v", err)
+		}
 
 		// 解析记录
 		var snapshotRecord, dbRecord *map[string]any

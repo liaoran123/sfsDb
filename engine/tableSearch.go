@@ -12,8 +12,8 @@ func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 	fieldsBytes := t.FieldsToBytes(fields)
 	defer GlobalFieldsBytesPool.Put(*fieldsBytes)
 	key := t.GetPrimaryKey().JoinValue(fieldsBytes, t.id)
-	record := t.ReadByBytes(key)
-	if record == nil {
+	record, err := t.ReadByBytes(key)
+	if err != nil {
 		return nil, fmt.Errorf("主键值 '%v' 的记录不存在", fields)
 	}
 	return record, nil
@@ -37,12 +37,12 @@ func (t *Table) Read(fields *map[string]any) ([]byte, error) {
 }
 */
 // 从按主键数据库读取记录
-func (t *Table) ReadByBytes(key []byte) []byte {
+func (t *Table) ReadByBytes(key []byte) ([]byte, error) {
 	v, err := t.kvStore.Get(key)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return v
+	return v, nil
 }
 
 // 遍历表所有kv键值对，用于快速复制表用或删除表数据

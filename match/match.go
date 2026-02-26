@@ -1,6 +1,8 @@
 package match
 
-import "github.com/liaoran123/sfsDb/util"
+import (
+	"github.com/liaoran123/sfsDb/util"
+)
 
 // 根据TableIter回传的key,value所有能得到的field的值，进行所需匹配
 type Match interface {
@@ -35,7 +37,7 @@ func NewAND(fields []string, data map[any]bool, rule ...bool) *AND {
 	}
 }
 
-//由于data map[any]bool,any只能是一个值，所以规定，fields 大于1,则需要将fields *map[string]any中的合并值转换为字符串，再进行匹配
+// 由于data map[any]bool,any只能是一个值，所以规定，fields 大于1,则需要将fields *map[string]any中的合并值转换为字符串，再进行匹配
 func (b *AND) mergeFields(fields *map[string]any) (r any) {
 	return util.MergeFields(b.fields, fields)
 }

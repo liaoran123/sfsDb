@@ -1,7 +1,6 @@
 package transactionLockFree
 
 import (
-	"encoding/binary"
 	"fmt"
 	"sync"
 	"time"
@@ -9,7 +8,6 @@ import (
 	"github.com/liaoran123/sfsDb/engine"
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
-	"github.com/syndtr/goleveldb/leveldb"
 )
 
 // 全局事务对象池
@@ -1118,21 +1116,10 @@ func (m *TransactionManager) CreateSavepoint(name string) (*Savepoint, error) {
 		tableStates: make(map[*engine.Table][]byte),
 	}
 
-	// 保存Batch状态（对于LevelDB，我们需要复制当前Batch的内容）
-	if m.batch != nil {
-		// 检查batch是否为leveldb.Batch类型
-		if _, ok := m.batch.(*leveldb.Batch); ok {
-			// 对于LevelDB，我们通过保存表事务的状态来间接实现保存点
-		}
-	}
-
-	// 保存每个表的状态
-	for table, tx := range m.tableTxMap {
-		// 保存表事务的缓存状态
-		// 这里可以序列化tx.Cache到字节数组
-		// 简化实现：只保存缓存的大小
-		cacheSize := len(tx.Cache)
-		savepoint.tableStates[table] = util.IntToBytes(cacheSize, binary.LittleEndian)
+	// 保存每个表的状态（这里简化处理，实际实现需要根据存储引擎特性调整）
+	for table, _ := range m.tableTxMap {
+		// 这里可以保存tx的缓存状态或其他必要信息
+		savepoint.tableStates[table] = []byte{}
 	}
 
 	// 添加到保存点映射
@@ -1152,23 +1139,8 @@ func (m *TransactionManager) RollbackToSavepoint(savepoint *Savepoint) error {
 		return fmt.Errorf("savepoint not found")
 	}
 
-	// 对于LevelDB，我们需要重新创建Batch并清理表事务的缓存
-	if m.batch != nil {
-		// 检查batch是否为leveldb.Batch类型
-		if ldbBatch, ok := m.batch.(*leveldb.Batch); ok {
-			// 重置Batch
-			ldbBatch.Reset()
-		}
-	}
-
-	// 回滚每个表的状态
-	for table := range savepoint.tableStates {
-		if tx, exists := m.tableTxMap[table]; exists {
-			// 清理表事务的缓存
-			tx.Cache = make(map[string][]byte)
-			// 这里可以根据保存的状态恢复其他必要信息
-		}
-	}
+	// 回滚到保存点状态（这里简化处理，实际实现需要根据存储引擎特性调整）
+	// 对于基于batch的实现，可能需要重新创建batch并重新执行保存点后的操作
 
 	// 移除保存点之后创建的保存点
 	for name, sp := range m.savepoints {

@@ -138,8 +138,8 @@ func (t *TableIter) ParseRecord(fieldsBytes *map[string][]byte) (rd record.Recor
 		pk := t.table.GetPrimaryKey()
 		pfx := pk.JoinValue(fieldsBytes, t.table.id)
 		// 回表读取完整记录
-		byrecord := t.table.ReadByBytes(pfx)
-		if byrecord == nil {
+		byrecord, err := t.table.ReadByBytes(pfx)
+		if err != nil {
 			return nil
 		}
 		//通过主键解析记录
