@@ -324,6 +324,29 @@ func main() {
 - [Index Management Guide](./docs/en/advanced/index_management.md) - Index creation, management and optimization (English)
 
 ### 性能测试报告
+
+#### 性能对比图表
+
+<div align="center">
+  <img src="./docs/performance/database_comparison.png" alt="数据库性能比较" width="600">
+  <p>sfsDb 与其他嵌入式数据库性能比较</p>
+</div>
+
+<div align="center">
+  <img src="./docs/performance/acid_comparison.png" alt="ACID vs 非ACID性能比较" width="600">
+  <p>ACID vs 非ACID模式性能比较</p>
+</div>
+
+<div align="center">
+  <img src="./docs/performance/data_volume_impact.png" alt="数据量对性能的影响" width="600">
+  <p>数据量增长对性能的影响</p>
+</div>
+
+<div align="center">
+  <img src="./docs/performance/concurrency_impact.png" alt="并发对性能的影响" width="600">
+  <p>并发增长对性能的影响</p>
+</div>
+
 - [综合性能基准测试报告](./engine/comprehensive_benchmark_report.md) - 全面的性能测试和分析，包括读写性能、并发性能、不同数据量下的表现，以及与其他数据库的性能比较
 - [事务基准测试报告](./engine/transaction_benchmark_report.md) - 详细的事务性能测试和分析，包括单事务和多事务场景下的性能表现，以及事务优化效果
 - [ACID vs Non-ACID 性能比较报告](./engine/acid_vs_nonacid_benchmark_report.md) - ACID特性对性能的影响分析，比较不同事务模式下的性能差异和适用场景
@@ -368,10 +391,6 @@ sfsDb 采用双许可证模式：
 - **简洁灵活**: 许可证文本简洁，限制少，易于理解和使用
 - **许可证文本**: 详见 [LICENSE](./LICENSE) 文件
 
-### 企业版插件 - 商业许可证
-- **高级功能**: 企业版插件（如高级安全特性、多节点协调等）使用商业许可证
-- **支持服务**: 包含专业技术支持、定期更新和企业级功能
-- **许可证文本**: 详见 [LICENSE.COMMERCIAL](./LICENSE.COMMERCIAL) 文件
 
 ### 依赖库许可证
 - **LevelDB**: 使用 BSD 2-clause 开源许可证，与 MIT 许可证兼容
