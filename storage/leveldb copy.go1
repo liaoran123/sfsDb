@@ -216,15 +216,6 @@ func (s *LevelDBStore) Close() error {
 	return NewError("invalid database type")
 }
 
-// GetDB 获取底层的 LevelDB 实例
-// 注意：这个方法应该谨慎使用，仅用于需要直接操作 LevelDB 的场景
-func (s *LevelDBStore) GetDB() *leveldb.DB {
-	if db, ok := s.ldb.(*leveldb.DB); ok {
-		return db
-	}
-	return s.originalDB
-}
-
 // Release 释放快照资源
 // 对于普通数据库实例，Release方法不做任何事情
 // 对于快照实例，Release方法会释放快照资源
