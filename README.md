@@ -7,10 +7,6 @@
   
   <p>基于 纯 Go (Golang) 语言开发，无 CGO 依赖，编译后仅为单个静态二进制文件，极致轻量，启动内存仅数 MB。完美适配各类 ARM 及 x86 架构的边缘网关与工业设备，解决资源受限环境下的数据持久化存储难题。</p>
   
-  <div>
-    <a href="https://github.com/liaoran123/sfsDb"><img src="https://img.shields.io/github/stars/liaoran123/sfsDb?style=social" alt="GitHub Stars"></a>
-    <a href="https://github.com/liaoran123/sfsDb"><img src="https://img.shields.io/github/forks/liaoran123/sfsDb?style=social" alt="GitHub Forks"></a>
-  </div>
 </div>
 
 ## 核心特性 (Key Features)
