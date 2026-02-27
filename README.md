@@ -43,9 +43,12 @@
 
 ## 技术优势
 
-### ✅ 轻量级设计，复杂查询场景支持
+### ✅ 轻量级设计与多模能力融合
 - 采用创新设计，在保持轻量级的同时，能够支持复杂的查询场景
+- 创新性地将 NoSQL 的高并发写入能力与 SQL 的复杂查询能力融合在一个系统中
+- 避免了传统解决方案中分别部署 NoSQL 和 SQL 数据库带来的一致性、延迟和维护成本问题
 - 超越了传统嵌入式数据库的能力边界，为应用提供更强大的数据处理能力
+- 实现了"鱼与熊掌兼得"的目标，满足现代应用对数据处理的双重需求
 
 ### ✅ 原生支持考据级全文索引
 - 内置高性能全文索引引擎，提供精准的文本搜索能力
@@ -54,6 +57,13 @@
 ### ✅ 基于 LevelDB 封装实现
 - 使用 `github.com/syndtr/goleveldb/leveldb` 库作为存储引擎基础
 - 充分利用 LevelDB 的 LSM-Tree 架构优势，提供高性能的读写操作
+
+### ✅ 无锁事务系统：性能与可靠性的完美平衡
+- 采用乐观并发控制（OCC）机制，避免了传统锁机制的开销
+- 支持事务创建、提交、回滚等完整事务操作
+- 提供高性能的并发事务处理能力，在10并发下达到26,315 ops/s
+- 支持批量操作和嵌套事务，满足复杂业务场景需求
+- 轻量级设计，内存占用低，适合资源受限环境
 
 ## 生产应用示例
 
@@ -328,28 +338,44 @@ func main() {
 #### 性能对比图表
 
 <div align="center">
-  <img src="./docs/performance/database_comparison.png" alt="数据库性能比较" width="600">
+  <img src="./docs/performance/database_comparison.svg" alt="数据库性能比较" width="600">
   <p>sfsDb 与其他嵌入式数据库性能比较</p>
 </div>
 
-<div align="center">
-  <img src="./docs/performance/acid_comparison.png" alt="ACID vs 非ACID性能比较" width="600">
-  <p>ACID vs 非ACID模式性能比较</p>
-</div>
 
 <div align="center">
-  <img src="./docs/performance/data_volume_impact.png" alt="数据量对性能的影响" width="600">
-  <p>数据量增长对性能的影响</p>
-</div>
-
-<div align="center">
-  <img src="./docs/performance/concurrency_impact.png" alt="并发对性能的影响" width="600">
+  <img src="./docs/performance/concurrency_impact.svg" alt="并发对性能的影响" width="600">
   <p>并发增长对性能的影响</p>
+</div>
+
+
+#### 事务性能图表
+
+<div align="center">
+  <img src="./docs/performance/transaction_database_comparison.svg" alt="事务性能与其他数据库比较" width="600">
+  <p>事务性能与其他数据库比较</p>
+</div>
+
+
+<div align="center">
+  <img src="./docs/performance/transaction_operations.svg" alt="事务操作性能" width="600">
+  <p>事务操作性能</p>
+</div>
+
+
+<div align="center">
+  <img src="./docs/performance/transaction_batch_operations.svg" alt="批量操作性能" width="600">
+  <p>批量操作性能</p>
+</div>
+
+
+<div align="center">
+  <img src="./docs/performance/transaction_concurrency_performance.svg" alt="并发事务性能" width="600">
+  <p>并发事务性能</p>
 </div>
 
 - [综合性能基准测试报告](./engine/comprehensive_benchmark_report.md) - 全面的性能测试和分析，包括读写性能、并发性能、不同数据量下的表现，以及与其他数据库的性能比较
 - [事务基准测试报告](./engine/transaction_benchmark_report.md) - 详细的事务性能测试和分析，包括单事务和多事务场景下的性能表现，以及事务优化效果
-- [ACID vs Non-ACID 性能比较报告](./engine/acid_vs_nonacid_benchmark_report.md) - ACID特性对性能的影响分析，比较不同事务模式下的性能差异和适用场景
 - [时序数据库性能比较报告](./docs/performance/time_series_benchmark.md) - time包基准测试与其他时序数据库性能比较，包括单线程和并发性能测试，以及时间序列数据处理的效率分析
 
 ### 性能优势分析

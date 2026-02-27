@@ -1,0 +1,9 @@
+
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+    <rect width="800" height="400" fill="#f9f9f9"/>
+    <text x="400" y="30" font-size="20" text-anchor="middle" font-weight="bold">批量操作性能</text>
+    <text x="400" y="380" font-size="12" text-anchor="middle">平均耗时 (ms)</text>
+<rect x='250' y='334.4' width='100' height='15.600000000000001' fill='#2196F3'/><text x='300.0' y='370' font-size='12' text-anchor='middle'>10条</text><text x='300.0' y='329.4' font-size='12' text-anchor='middle'>5.2ms</text><rect x='450' y='214.10000000000002' width='100' height='135.89999999999998' fill='#2196F3'/><text x='500.0' y='370' font-size='12' text-anchor='middle'>100条</text><text x='500.0' y='209.10000000000002' font-size='12' text-anchor='middle'>45.3ms</text>
+    <rect x="600" y="50" width="20" height="20" fill="#2196F3"/>
+    <text x="630" y="65" font-size="12">平均耗时 (ms)</text>
+</svg>

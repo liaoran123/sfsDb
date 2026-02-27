@@ -1,0 +1,11 @@
+
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+    <rect width="800" height="400" fill="#f9f9f9"/>
+    <text x="400" y="30" font-size="20" text-anchor="middle" font-weight="bold">ACID vs 非ACID模式性能比较</text>
+    <text x="400" y="380" font-size="12" text-anchor="middle">性能 (微秒/次)</text>
+<rect x='150' y='305.1155' width='60' height='44.884499999999996' fill='#4CAF50'/><rect x='220' y='301.3685' width='60' height='48.6315' fill='#2196F3'/><text x='215' y='370' font-size='12' text-anchor='middle'>单次插入</text><rect x='310' y='160.394' width='60' height='189.606' fill='#4CAF50'/><rect x='380' y='65.03000000000003' width='60' height='284.96999999999997' fill='#2196F3'/><text x='375' y='370' font-size='12' text-anchor='middle'>批量插入</text><rect x='470' y='322.1645' width='60' height='27.835499999999996' fill='#4CAF50'/><rect x='540' y='316.628' width='60' height='33.372' fill='#2196F3'/><text x='535' y='370' font-size='12' text-anchor='middle'>主键搜索</text><rect x='630' y='284.1815' width='60' height='65.8185' fill='#4CAF50'/><rect x='700' y='285.7985' width='60' height='64.20150000000001' fill='#2196F3'/><text x='695' y='370' font-size='12' text-anchor='middle'>数据更新</text>
+    <rect x="600" y="50" width="20" height="20" fill="#4CAF50"/>
+    <text x="630" y="65" font-size="12">非ACID模式</text>
+    <rect x="600" y="80" width="20" height="20" fill="#2196F3"/>
+    <text x="630" y="95" font-size="12">ACID事务模式</text>
+</svg>

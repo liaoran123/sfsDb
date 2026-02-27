@@ -1,0 +1,9 @@
+
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+    <rect width="800" height="400" fill="#f9f9f9"/>
+    <text x="400" y="30" font-size="20" text-anchor="middle" font-weight="bold">事务操作性能</text>
+    <text x="400" y="380" font-size="12" text-anchor="middle">平均耗时 (ms)</text>
+<rect x='100' y='325.0' width='60' height='25.0' fill='#4CAF50'/><text x='130.0' y='370' font-size='12' text-anchor='middle'>事务创建</text><text x='130.0' y='320.0' font-size='12' text-anchor='middle'>0.5ms</text><rect x='180' y='290.0' width='60' height='60.0' fill='#4CAF50'/><text x='210.0' y='370' font-size='12' text-anchor='middle'>事务提交</text><text x='210.0' y='285.0' font-size='12' text-anchor='middle'>1.2ms</text><rect x='260' y='310.0' width='60' height='40.0' fill='#4CAF50'/><text x='290.0' y='370' font-size='12' text-anchor='middle'>单条写入</text><text x='290.0' y='305.0' font-size='12' text-anchor='middle'>0.8ms</text><rect x='340' y='335.0' width='60' height='15.0' fill='#4CAF50'/><text x='370.0' y='370' font-size='12' text-anchor='middle'>单条读取</text><text x='370.0' y='330.0' font-size='12' text-anchor='middle'>0.3ms</text><rect x='420' y='300.0' width='60' height='50.0' fill='#4CAF50'/><text x='450.0' y='370' font-size='12' text-anchor='middle'>读写组合</text><text x='450.0' y='295.0' font-size='12' text-anchor='middle'>1.0ms</text><rect x='500' y='320.0' width='60' height='30.0' fill='#4CAF50'/><text x='530.0' y='370' font-size='12' text-anchor='middle'>事务回滚</text><text x='530.0' y='315.0' font-size='12' text-anchor='middle'>0.6ms</text>
+    <rect x="600" y="50" width="20" height="20" fill="#4CAF50"/>
+    <text x="630" y="65" font-size="12">平均耗时 (ms)</text>
+</svg>
