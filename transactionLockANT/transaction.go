@@ -42,6 +42,60 @@ var GlobalRecoveryManager *recovery.RecoveryManager
 // 全局加密管理器
 var GlobalEncryptionManager *EncryptionManager
 
+// 全局活跃事务跟踪
+var activeTransactions = struct {
+	sfsTransactions    map[*SfsTransaction]bool
+	tableTransactions  map[*TableTransaction]bool
+	mutex              sync.RWMutex
+}{
+	sfsTransactions:   make(map[*SfsTransaction]bool),
+	tableTransactions: make(map[*TableTransaction]bool),
+}
+
+// addActiveTransaction 添加活跃事务
+func addActiveTransaction(tx interface{}) {
+	activeTransactions.mutex.Lock()
+	defer activeTransactions.mutex.Unlock()
+	
+	switch t := tx.(type) {
+	case *SfsTransaction:
+		activeTransactions.sfsTransactions[t] = true
+	case *TableTransaction:
+		activeTransactions.tableTransactions[t] = true
+	}
+}
+
+// removeActiveTransaction 移除活跃事务
+func removeActiveTransaction(tx interface{}) {
+	activeTransactions.mutex.Lock()
+	defer activeTransactions.mutex.Unlock()
+	
+	switch t := tx.(type) {
+	case *SfsTransaction:
+		delete(activeTransactions.sfsTransactions, t)
+	case *TableTransaction:
+		delete(activeTransactions.tableTransactions, t)
+	}
+}
+
+// getActiveTransactions 获取所有活跃事务
+func getActiveTransactions() ([]*SfsTransaction, []*TableTransaction) {
+	activeTransactions.mutex.RLock()
+	defer activeTransactions.mutex.RUnlock()
+	
+	sfsTx := make([]*SfsTransaction, 0, len(activeTransactions.sfsTransactions))
+	for tx := range activeTransactions.sfsTransactions {
+		sfsTx = append(sfsTx, tx)
+	}
+	
+	tableTx := make([]*TableTransaction, 0, len(activeTransactions.tableTransactions))
+	for tx := range activeTransactions.tableTransactions {
+		tableTx = append(tableTx, tx)
+	}
+	
+	return sfsTx, tableTx
+}
+
 // InitWAL 初始化WAL
 func InitWAL(db storage.Store, logDir string) error {
 	if levelDBStore, ok := db.(*storage.LevelDBStore); ok {
@@ -124,6 +178,7 @@ func (p *TransactionPool) Put(tx *SfsTransaction) {
 	tx.cache = make(map[string][]byte)
 	tx.readSet = make(map[string]bool)
 	tx.writeSet = make(map[string]bool)
+	tx.readVersions = make(map[string]uint64)
 	tx.parent = nil
 	tx.children = nil
 	// 其他字段在使用时会被覆盖，不需要重置
@@ -148,10 +203,11 @@ func (p *TableTransactionPool) Put(tx *TableTransaction) {
 	tx.Cache = make(map[string][]byte)
 	tx.ReadSet = make(map[string]bool)
 	tx.WriteSet = make(map[string]bool)
+	tx.ReadVersions = make(map[string]uint64)
 	tx.savepoints = nil
 	tx.Parent = nil
 	tx.Children = nil
-	tx.VersionManager = NewLockFreeVersionManager() // 重置版本管理器
+	// 版本管理器使用全局实例，不需要重置
 	// 其他字段在使用时会被覆盖，不需要重置
 
 	p.Pool.Put(tx)
@@ -222,22 +278,23 @@ type Savepoint struct {
 
 // SfsTransaction 基于sfsdb的无锁事务实现
 type SfsTransaction struct {
-	store      storage.Store
-	batch      storage.Batch
-	snapshot   storage.Snapshot
-	committed  bool
-	cache      map[string][]byte     // 事务内修改缓存
-	readSet    map[string]bool       // 读集，用于Serializable隔离级别
-	writeSet   map[string]bool       // 写集，用于冲突检测
-	savepoints map[string]*Savepoint // 保存点
-	options    *TransactionOptions
-	parent     *SfsTransaction
-	children   []*SfsTransaction
-	txID       uint64
-	startTime  time.Time
-	wal        *wal.WAL           // 事务日志
-	encryption *EncryptionManager // 加密管理器
-	userID     string             // 用户ID，用于权限检查
+	store        storage.Store
+	batch        storage.Batch
+	snapshot     storage.Snapshot
+	committed    bool
+	cache        map[string][]byte     // 事务内修改缓存
+	readSet      map[string]bool       // 读集，用于Serializable隔离级别
+	writeSet     map[string]bool       // 写集，用于冲突检测
+	savepoints   map[string]*Savepoint // 保存点
+	options      *TransactionOptions
+	parent       *SfsTransaction
+	children     []*SfsTransaction
+	txID         uint64
+	startTime    time.Time
+	wal          *wal.WAL           // 事务日志
+	encryption   *EncryptionManager // 加密管理器
+	userID       string             // 用户ID，用于权限检查
+	readVersions map[string]uint64  // 读版本号，用于Serializable隔离级别
 }
 
 // TableTransaction 基于sfsdb的无锁表事务实现
@@ -260,6 +317,7 @@ type TableTransaction struct {
 	WAL            *wal.WAL                // 事务日志
 	Encryption     *EncryptionManager      // 加密管理器
 	UserID         string                  // 用户ID，用于权限检查
+	ReadVersions   map[string]uint64       // 读版本号，用于Serializable隔离级别
 }
 
 // NewTransaction 创建新的事务
@@ -311,9 +369,10 @@ func NewTransactionWithOptions(store storage.Store, options *TransactionOptions,
 	tx.batch = batch
 	tx.snapshot = snapshot
 	tx.committed = false
-	tx.cache = make(map[string][]byte)  // 初始化事务内缓存
-	tx.readSet = make(map[string]bool)  // 初始化读集
-	tx.writeSet = make(map[string]bool) // 初始化写集
+	tx.cache = make(map[string][]byte)        // 初始化事务内缓存
+	tx.readSet = make(map[string]bool)        // 初始化读集
+	tx.writeSet = make(map[string]bool)       // 初始化写集
+	tx.readVersions = make(map[string]uint64) // 初始化读版本号
 	tx.options = options
 	tx.txID = txID
 	tx.startTime = time.Now()
@@ -330,6 +389,9 @@ func NewTransactionWithOptions(store storage.Store, options *TransactionOptions,
 		}
 		tx.wal.WriteLog(beginRecord)
 	}
+
+	// 添加到活跃事务列表
+	addActiveTransaction(tx)
 
 	return tx, nil
 }
@@ -417,10 +479,11 @@ func NewTableTransactionWithBatchAndOptions(table *engine.Table, batch storage.B
 	tx.Cache = make(map[string][]byte)  // 初始化事务内缓存
 	tx.ReadSet = make(map[string]bool)  // 初始化读集
 	tx.WriteSet = make(map[string]bool) // 初始化写集
+	tx.ReadVersions = make(map[string]uint64) // 初始化读版本号
 	tx.Options = options
 	tx.TxID = txID
 	tx.StartTime = time.Now()
-	tx.VersionManager = NewLockFreeVersionManager() // 初始化无锁版本管理器
+	tx.VersionManager = GlobalVersionManager // 使用全局版本管理器
 	tx.WAL = GlobalWAL
 	tx.Encryption = GlobalEncryptionManager
 	tx.UserID = userID
@@ -434,6 +497,9 @@ func NewTableTransactionWithBatchAndOptions(table *engine.Table, batch storage.B
 		}
 		tx.WAL.WriteLog(beginRecord)
 	}
+
+	// 添加到活跃事务列表
+	addActiveTransaction(tx)
 
 	return tx, nil
 }
@@ -477,17 +543,44 @@ func (tx *SfsTransaction) Get(key []byte) ([]byte, error) {
 	switch tx.options.IsolationLevel {
 	case ReadUncommitted:
 		// 对于ReadUncommitted，尝试读取其他事务的未提交数据
-		// 这里简化实现，直接使用原始存储，实际生产环境中需要更复杂的实现
-		value, err = tx.store.Get(key)
+		// 1. 先检查其他活跃事务的缓存
+		sfsTxs, _ := getActiveTransactions()
+		for _, activeTx := range sfsTxs {
+			// 跳过自己
+			if activeTx == tx {
+				continue
+			}
+			// 检查其他事务的缓存
+			if val, exists := activeTx.cache[cacheKey]; exists {
+				value = val
+				err = nil
+				break
+			}
+		}
+		// 2. 如果没有，再从原始存储读取
+		if err != nil || value == nil {
+			value, err = tx.store.Get(key)
+		}
 	case ReadCommitted:
 		// 对于ReadCommitted，每次读取都使用原始存储
 		value, err = tx.store.Get(key)
-	case RepeatableRead, Serializable:
-		// 对于RepeatableRead和Serializable，使用事务开始时创建的快照
+	case RepeatableRead:
+		// 对于RepeatableRead，使用事务开始时创建的快照
 		if tx.snapshot != nil {
 			value, err = tx.snapshot.Get(key)
 		} else {
 			value, err = tx.store.Get(key)
+		}
+	case Serializable:
+		// 对于Serializable，使用事务开始时创建的快照
+		if tx.snapshot != nil {
+			value, err = tx.snapshot.Get(key)
+		} else {
+			value, err = tx.store.Get(key)
+		}
+		// 记录读版本号，用于后续冲突检测
+		if err == nil {
+			tx.readVersions[cacheKey] = GlobalVersionManager.GetVersion(cacheKey)
 		}
 	default:
 		// 默认使用原始存储
@@ -777,11 +870,9 @@ func (tx *SfsTransaction) Commit() error {
 		// 对于Serializable隔离级别，执行冲突检测
 		if tx.options.IsolationLevel == Serializable {
 			// 检查读集与其他事务的写集是否冲突
-			for key := range tx.readSet {
-				// 获取当前版本号
-				currentVersion := GlobalVersionManager.GetVersion(key)
+			for key, expectedVersion := range tx.readVersions {
 				// 检查是否有冲突
-				if GlobalVersionManager.CheckConflict(key, currentVersion) {
+				if GlobalVersionManager.CheckConflict(key, expectedVersion) {
 					// 提交失败，释放快照资源
 					if tx.snapshot != nil {
 						tx.snapshot.Release()
@@ -845,6 +936,9 @@ func (tx *SfsTransaction) Commit() error {
 		// 只有根事务才归还到池，子事务由父事务管理
 		GlobalTransactionPool.Put(tx)
 	}
+
+	// 从活跃事务列表中移除
+	removeActiveTransaction(tx)
 
 	return nil
 }
@@ -958,6 +1052,9 @@ func (tx *SfsTransaction) Rollback() error {
 		// 只有根事务才归还到池，子事务由父事务管理
 		GlobalTransactionPool.Put(tx)
 	}
+
+	// 从活跃事务列表中移除
+	removeActiveTransaction(tx)
 
 	return nil
 }
@@ -1338,17 +1435,45 @@ func (tx *TableTransaction) Read(fields *map[string]interface{}) ([]byte, error)
 	switch tx.Options.IsolationLevel {
 	case ReadUncommitted:
 		// 对于ReadUncommitted，尝试读取其他事务的未提交数据
-		// 这里简化实现，直接使用原始存储，实际生产环境中需要更复杂的实现
-		value, err = tx.OriginalStore.Get(pkKey)
+		// 1. 先检查其他活跃事务的缓存
+		_, tableTxs := getActiveTransactions()
+		for _, activeTx := range tableTxs {
+			// 跳过自己
+			if activeTx == tx {
+				continue
+			}
+			// 检查其他事务的缓存
+			if val, exists := activeTx.Cache[cacheKey]; exists {
+				value = val
+				err = nil
+				break
+			}
+		}
+		// 2. 如果没有，再从原始存储读取
+		if err != nil || value == nil {
+			value, err = tx.OriginalStore.Get(pkKey)
+		}
 	case ReadCommitted:
 		// 对于ReadCommitted，每次读取都使用原始存储
 		value, err = tx.OriginalStore.Get(pkKey)
-	case RepeatableRead, Serializable:
-		// 对于RepeatableRead和Serializable，使用事务开始时创建的快照
+	case RepeatableRead:
+		// 对于RepeatableRead，使用事务开始时创建的快照
 		if tx.Snapshot != nil {
 			value, err = tx.Snapshot.Get(pkKey)
 		} else {
 			value, err = tx.OriginalStore.Get(pkKey)
+		}
+	case Serializable:
+		// 对于Serializable，使用事务开始时创建的快照
+		if tx.Snapshot != nil {
+			value, err = tx.Snapshot.Get(pkKey)
+		} else {
+			value, err = tx.OriginalStore.Get(pkKey)
+		}
+		// 记录读版本号，用于后续冲突检测
+		if err == nil {
+			tx.ReadVersions[pkKeyStr] = tx.VersionManager.GetVersion(pkKeyStr)
+			tx.ReadVersions[cacheKey] = tx.VersionManager.GetVersion(cacheKey)
 		}
 	default:
 		// 默认使用原始存储读取
@@ -1568,11 +1693,9 @@ func (tx *TableTransaction) Commit() error {
 		// 对于Serializable隔离级别，执行冲突检测
 		if tx.Options.IsolationLevel == Serializable {
 			// 检查读集与其他事务的写集是否冲突
-			for key := range tx.ReadSet {
-				// 获取当前版本号
-				currentVersion := tx.VersionManager.GetVersion(key)
+			for key, expectedVersion := range tx.ReadVersions {
 				// 检查是否有冲突
-				if tx.VersionManager.CheckConflict(key, currentVersion) {
+				if tx.VersionManager.CheckConflict(key, expectedVersion) {
 					// 释放快照资源
 					if tx.Snapshot != nil {
 						tx.Snapshot.Release()
@@ -1633,6 +1756,9 @@ func (tx *TableTransaction) Commit() error {
 		// 只有根事务才归还到池，子事务由父事务管理
 		GlobalTableTransactionPool.Put(tx)
 	}
+
+	// 从活跃事务列表中移除
+	removeActiveTransaction(tx)
 
 	return nil
 }
@@ -1744,6 +1870,9 @@ func (tx *TableTransaction) Rollback() error {
 		// 只有根事务才归还到池，子事务由父事务管理
 		GlobalTableTransactionPool.Put(tx)
 	}
+
+	// 从活跃事务列表中移除
+	removeActiveTransaction(tx)
 
 	return nil
 }
