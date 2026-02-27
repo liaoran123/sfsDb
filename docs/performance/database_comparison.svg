@@ -1,0 +1,13 @@
+
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+    <rect width="800" height="400" fill="#f9f9f9"/>
+    <text x="400" y="30" font-size="20" text-anchor="middle" font-weight="bold">sfsDb 与其他嵌入式数据库性能比较</text>
+    <text x="400" y="380" font-size="12" text-anchor="middle">性能 (微秒)</text>
+<rect x='100' y='312.8' width='50' height='37.2' fill='#4CAF50'/><rect x='155' y='290.2' width='50' height='59.8' fill='#2196F3'/><rect x='210' y='324.8' width='50' height='25.2' fill='#FF9800'/><text x='150' y='370' font-size='12' text-anchor='middle'>sfsDb</text><rect x='270' y='150' width='50' height='200' fill='#4CAF50'/><rect x='325' y='200' width='50' height='150' fill='#2196F3'/><rect x='380' y='280' width='50' height='70' fill='#FF9800'/><text x='320' y='370' font-size='12' text-anchor='middle'>SQLite</text><rect x='440' y='295.0' width='50' height='55.0' fill='#4CAF50'/><rect x='495' y='290' width='50' height='60' fill='#2196F3'/><rect x='550' y='327.0' width='50' height='23.0' fill='#FF9800'/><text x='490' y='370' font-size='12' text-anchor='middle'>BoltDB</text><rect x='610' y='310' width='50' height='40' fill='#4CAF50'/><rect x='665' y='305.0' width='50' height='45.0' fill='#2196F3'/><rect x='720' y='335.0' width='50' height='15.0' fill='#FF9800'/><text x='660' y='370' font-size='12' text-anchor='middle'>RocksDB</text><rect x='780' y='290' width='50' height='60' fill='#4CAF50'/><rect x='835' y='280' width='50' height='70' fill='#2196F3'/><rect x='890' y='325.0' width='50' height='25.0' fill='#FF9800'/><text x='830' y='370' font-size='12' text-anchor='middle'>BadgerDB</text>
+    <rect x="600" y="50" width="20" height="20" fill="#4CAF50"/>
+    <text x="630" y="65" font-size="12">主键搜索</text>
+    <rect x="600" y="80" width="20" height="20" fill="#2196F3"/>
+    <text x="630" y="95" font-size="12">单次插入</text>
+    <rect x="600" y="110" width="20" height="20" fill="#FF9800"/>
+    <text x="630" y="125" font-size="12">批量插入</text>
+</svg>

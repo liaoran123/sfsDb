@@ -1,0 +1,11 @@
+
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+    <rect width="800" height="400" fill="#f9f9f9"/>
+    <text x="400" y="30" font-size="20" text-anchor="middle" font-weight="bold">数据量增长对性能的影响</text>
+    <text x="400" y="380" font-size="12" text-anchor="middle">性能 (微秒)</text>
+<polyline points='100,257.0 300,248.5 500,233.5 700,192.5' fill='none' stroke='#4CAF50' stroke-width='2'/><circle cx='100' cy='257.0' r='4' fill='#4CAF50'/><circle cx='300' cy='248.5' r='4' fill='#4CAF50'/><circle cx='500' cy='233.5' r='4' fill='#4CAF50'/><circle cx='700' cy='192.5' r='4' fill='#4CAF50'/><polyline points='100,260.3 300,252.5 500,229.39999999999998 700,198.5' fill='none' stroke='#2196F3' stroke-width='2'/><circle cx='100' cy='260.3' r='4' fill='#2196F3'/><circle cx='300' cy='252.5' r='4' fill='#2196F3'/><circle cx='500' cy='229.39999999999998' r='4' fill='#2196F3'/><circle cx='700' cy='198.5' r='4' fill='#2196F3'/><text x='100' y='370' font-size='12' text-anchor='middle'>1,000</text><text x='300' y='370' font-size='12' text-anchor='middle'>10,000</text><text x='500' y='370' font-size='12' text-anchor='middle'>100,000</text><text x='700' y='370' font-size='12' text-anchor='middle'>1,000,000</text>
+    <rect x="600" y="50" width="20" height="20" fill="#4CAF50"/>
+    <text x="630" y="65" font-size="12">主键搜索</text>
+    <rect x="600" y="80" width="20" height="20" fill="#2196F3"/>
+    <text x="630" y="95" font-size="12">插入性能</text>
+</svg>

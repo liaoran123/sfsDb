@@ -1,0 +1,11 @@
+<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+    <rect width="800" height="500" fill="#f9f9f9"/>
+    <text x="400" y="40" font-size="20" text-anchor="middle" font-weight="bold">sfsDb 与其他数据库事务性能对比</text>
+<rect x='100' y='114.0' width='60' height='36.0' fill='#4CAF50'/><text x='130.0' y='170' font-size='12' text-anchor='middle'>1.2ms</text><rect x='170' y='297.37' width='60' height='52.63' fill='#2196F3'/><text x='200.0' y='370' font-size='12' text-anchor='middle'>26315 ops/s</text><text x='165' y='400' font-size='12' text-anchor='middle'>sfsDb</text><rect x='260' y='75.0' width='60' height='75.0' fill='#4CAF50'/><text x='290.0' y='170' font-size='12' text-anchor='middle'>2.5ms</text><rect x='330' y='333.0' width='60' height='17.0' fill='#2196F3'/><text x='360.0' y='370' font-size='12' text-anchor='middle'>8500 ops/s</text><text x='325' y='400' font-size='12' text-anchor='middle'>SQLite</text><rect x='420' y='96.0' width='60' height='54.0' fill='#4CAF50'/><text x='450.0' y='170' font-size='12' text-anchor='middle'>1.8ms</text><rect x='490' y='319.6' width='60' height='30.4' fill='#2196F3'/><text x='520.0' y='370' font-size='12' text-anchor='middle'>15200 ops/s</text><text x='485' y='400' font-size='12' text-anchor='middle'>BoltDB</text><rect x='580' y='105.0' width='60' height='45.0' fill='#4CAF50'/><text x='610.0' y='170' font-size='12' text-anchor='middle'>1.5ms</text><rect x='650' y='312.6' width='60' height='37.4' fill='#2196F3'/><text x='680.0' y='370' font-size='12' text-anchor='middle'>18700 ops/s</text><text x='645' y='400' font-size='12' text-anchor='middle'>BadgerDB</text>
+    <rect x="600" y="80" width="20" height="20" fill="#4CAF50"/>
+    <text x="630" y="95" font-size="12">单事务性能 (ms)</text>
+    <rect x="600" y="110" width="20" height="20" fill="#2196F3"/>
+    <text x="630" y="125" font-size="12">并发性能 (ops/s)</text>
+    <text x="400" y="130" font-size="14" text-anchor="middle" font-weight="bold">单事务性能</text>
+    <text x="400" y="330" font-size="14" text-anchor="middle" font-weight="bold">并发性能 (10线程)</text>
+</svg>
