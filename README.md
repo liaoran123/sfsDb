@@ -332,11 +332,37 @@ func main() {
 - [基础操作指南](./docs/zh/basic/) - 包含表创建、字段修改等基础操作
 - [Basic Operations Guide](./docs/en/basic/) - Includes table creation, field modification and other basic operations
 
-### 核心功能文档
+### 基础操作文档
+- [表创建指南](./docs/zh/basic/table_creation.md) - 表的创建和基本配置（中文）
+- [Table Creation Guide](./docs/en/basic/table_creation.md) - Table creation and basic configuration (English)
+- [字段修改指南](./docs/zh/basic/field_modification.md) - 字段的添加、修改和删除（中文）
+- [Field Modification Guide](./docs/en/basic/field_modification.md) - Field addition, modification and deletion (English)
+- [初始化指南](./docs/zh/basic/initialization.md) - 数据库初始化和配置（中文）
+- [Initialization Guide](./docs/en/basic/initialization.md) - Database initialization and configuration (English)
+
+### 高级功能文档
 - [全文索引使用指南](./docs/zh/advanced/full_text_search.md) - 全文索引的高级使用方法（中文）
 - [Full Text Search Guide](./docs/en/advanced/full_text_search.md) - Advanced full text search usage (English)
 - [索引管理指南](./docs/zh/advanced/index_management.md) - 索引的创建、管理和优化（中文）
 - [Index Management Guide](./docs/en/advanced/index_management.md) - Index creation, management and optimization (English)
+- [主键管理指南](./docs/zh/advanced/primary_key.md) - 主键的设计和使用（中文）
+- [Primary Key Guide](./docs/en/advanced/primary_key.md) - Primary key design and usage (English)
+- [表管理指南](./docs/zh/advanced/management.md) - 表的创建、修改和管理（中文）
+- [Table Management Guide](./docs/en/advanced/management.md) - Table creation, modification and management (English)
+- [多表查询指南](./docs/zh/advanced/multi_table_query.md) - 多表关联查询的使用方法（中文）
+- [Multi-table Query Guide](./docs/en/advanced/multi_table_query.md) - Multi-table join query usage (English)
+- [时间序列数据指南](./docs/zh/advanced/time_series.md) - 时间序列数据的处理和优化（中文）
+- [Time Series Data Guide](./docs/en/advanced/time_series.md) - Time series data processing and optimization (English)
+- [搜索范围指南](./docs/zh/advanced/search_range.md) - 范围搜索的使用方法（中文）
+- [Search Range Guide](./docs/en/advanced/search_range.md) - Range search usage (English)
+- [跳跃范围指南](./docs/zh/advanced/jump_ranges.md) - 跳跃范围查询的实现和优化（中文）
+- [Jump Ranges Guide](./docs/en/advanced/jump_ranges.md) - Jump ranges query implementation and optimization (English)
+- [快照功能指南](./docs/zh/advanced/snapshot.md) - 数据库快照的创建和使用（中文）
+- [Snapshot Guide](./docs/en/advanced/snapshot.md) - Database snapshot creation and usage (English)
+- [服务支持指南](./docs/zh/advanced/service_support.md) - 服务支持和维护（中文）
+- [Service Support Guide](./docs/en/advanced/service_support.md) - Service support and maintenance (English)
+- [构建指南](./docs/zh/advanced/build.md) - 数据库构建和部署（中文）
+- [Build Guide](./docs/en/advanced/build.md) - Database build and deployment (English)
 
 ### 性能测试报告
 
@@ -387,20 +413,23 @@ func main() {
 - [sfsDb性能优势分析文章](./docs/marketing/performance_advantage_article.md) - 详细分析sfsDb如何通过无SQL设计和嵌入式架构实现性能突破
 
 
-### 资源管理
+### 优化指南
 - [对象池使用指南](./docs/zh/optimization/object_pool.md) - 高效的对象复用机制（中文）
 - [Object Pool Guide](./docs/en/optimization/object_pool.md) - Efficient object reuse mechanism (English)
 - [索引缓存指南](./docs/zh/optimization/index_cache.md) - 提升查询性能的索引缓存机制（中文）
 - [Index Cache Guide](./docs/en/optimization/index_cache.md) - Index caching mechanism for improved query performance (English)
-
-### 高级功能
-- [主键管理指南](./docs/zh/advanced/primary_key.md) - 主键的设计和使用（中文）
-- [Primary Key Guide](./docs/en/advanced/primary_key.md) - Primary key design and usage (English)
-- [表管理指南](./docs/zh/advanced/management.md) - 表的创建、修改和管理（中文）
-- [Table Management Guide](./docs/en/advanced/management.md) - Table creation, modification and management (English)
+- [事务优化指南](./docs/zh/optimization/transaction.md) - 事务处理的优化策略（中文）
+- [Transaction Optimization Guide](./docs/en/optimization/transaction.md) - Transaction processing optimization strategies (English)
 
 ### API 参考
 - [API 参考文档](./docs/api.md) - 详细的 API 文档
+
+### 其他文档
+- [CLI 命令指南](./docs/cli_commands.md) - 命令行工具使用指南（中文）
+- [CLI Commands Guide](./docs/cli_commands.en.md) - Command line tool usage guide (English)
+- [Web 集成示例](./docs/web_integration_example.md) - Web 界面集成示例
+- [开源许可证](./docs/open_source_licenses.md) - 项目使用的开源许可证
+- [文档维护指南](./docs/DOCUMENTATION_MAINTENANCE.md) - 文档维护和贡献指南
 
 ## 联系我们
 
