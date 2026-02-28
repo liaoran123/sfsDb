@@ -85,8 +85,8 @@
                     </li>
 
 
-                    <!-- 数据查询菜单 -->
-                    <li class="nav-item mb-2">
+                    <!-- 数据查询菜单 (已屏蔽) -->
+                    <!-- <li class="nav-item mb-2">
                         <div 
                             class="nav-link menu-item rounded" 
                             :class="{ active: activePage === 'dataQuery' }"
@@ -94,7 +94,7 @@
                         >
                             数据查询
                         </div>
-                    </li>
+                    </li> -->
                     <!-- 导入导出菜单 -->
                     <li class="nav-item mb-2">
                         <div 
@@ -156,10 +156,10 @@
 
 
 
-                    <!-- 数据查询内容 -->
-                    <div v-if="activePage === 'dataQuery'">
+                    <!-- 数据查询内容 (已屏蔽) -->
+                    <!-- <div v-if="activePage === 'dataQuery'">
                         <data-query-component />
-                    </div>
+                    </div> -->
                     <!-- 导入导出内容 -->
                     <div v-if="activePage === 'importExport'">
                         <import-export-component />

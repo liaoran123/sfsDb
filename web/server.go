@@ -168,12 +168,18 @@ func (s *Server) Start() error {
 		api.POST("/metrics/collect", PermissionMiddleware(s.authManager, PermissionRead), s.handleCollectMetrics)
 	}
 
-	// 注册静态文件路由（从本地文件系统读取）
-	router.Static("/static", "./web/static")
+	// 注册静态文件路由（使用嵌入的文件系统）
+	router.StaticFS("/static", getStaticFS())
 
-	// 注册首页路由（从本地文件系统读取）
+	// 注册首页路由（使用嵌入的文件系统）
 	router.GET("/", func(c *gin.Context) {
-		c.File("./web/static/index.html")
+		// 从嵌入的文件系统中读取index.html
+		content, err := staticFiles.ReadFile("static/index.html")
+		if err != nil {
+			c.JSON(500, gin.H{"error": "Failed to read index.html"})
+			return
+		}
+		c.Data(200, "text/html; charset=utf-8", content)
 	})
 
 	// 添加404处理

@@ -63,22 +63,12 @@ export default {
                                         <tr>
                                             <th>表名</th>
                                             <th>表ID</th>
-                                            <th>操作</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr v-for="table in systemData.tables" :key="table.ID">
                                             <td>{{ table.Name }}</td>
                                             <td>{{ table.ID }}</td>
-                                            <td>
-                                                <button 
-                                                    class="btn btn-sm btn-outline-info" 
-                                                    data-bs-toggle="collapse" 
-                                                    :data-bs-target="'#tableDetails_' + table.ID"
-                                                >
-                                                    查看详情
-                                                </button>
-                                            </td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -134,18 +124,12 @@ export default {
                                                                 <tr>
                                                                     <th>索引名</th>
                                                                     <th>索引ID</th>
-                                                                    <th>类型</th>
-                                                                    <th>是否唯一</th>
-                                                                    <th>是否主键</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
                                                                 <tr v-for="index in details.indexes" :key="index.ID">
                                                                     <td>{{ index.Name }}</td>
                                                                     <td>{{ index.ID }}</td>
-                                                                    <td>{{ index.Type || '普通' }}</td>
-                                                                    <td>{{ index.IsUnique ? '是' : '否' }}</td>
-                                                                    <td>{{ index.IsPrimary ? '是' : '否' }}</td>
                                                                 </tr>
                                                             </tbody>
                                                         </table>
