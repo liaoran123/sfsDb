@@ -1,6 +1,7 @@
 # sfsDb
 
 <div align="center">
+  <img src="docs/performance/logo.png" alt="sfsDb Logo" width="200" />
   <h1>📊 sfsDb：以边缘计算为核心场景的通用嵌入式数据库</h1>
   
   <p>🚀 以 工业物联网(IIoT) 和 边缘计算 为核心场景，同时具备通用嵌入式数据库能力的轻量级关系型数据库</p>
