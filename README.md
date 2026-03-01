@@ -32,7 +32,7 @@
 ### 🔧 Industrial Grade Reliability
 - Optimized for Industrial Internet of Things (IIoT) scenarios
 - Supports high-concurrency time-series data writing
--具备 power failure protection and data persistence capabilities
+- With power failure protection and data persistence capabilities
 - Ensures data reliability in industrial environments
 
 ### 🌍 Wide Hardware Compatibility
@@ -49,9 +49,9 @@
 - Surpasses the capability boundaries of traditional embedded databases, providing more powerful data processing capabilities for applications
 - Achieves the goal of "having both fish and bear's paw", meeting the dual needs of modern applications for data processing
 
-### ✅ Native Support for考据级 Full-Text Indexing
+### ✅ Native Support for Scholarly-Grade Full-Text Indexing
 - Built-in high-performance full-text indexing engine, providing precise text search capabilities
-- Supports complex text matching and retrieval requirements, meeting考据级 application scenarios
+- Supports complex text matching and retrieval requirements, meeting scholarly-grade application scenarios
 
 ### ✅ Based on LevelDB Encapsulation
 - Uses `github.com/syndtr/goleveldb/leveldb` library as the storage engine foundation
@@ -74,13 +74,14 @@
 
 ## Production Application Examples
 
-### 考据级 Document Search Engine
+### Scholarly-Grade Document Search Engine
 
-sfsDb has been applied in actual production environments, with the most typical case being **ReSearchCMS** - a professional 考据级 document search engine.
+
+sfsDb has been applied in actual production environments, with the most typical case being **ReSearchCMS** - a professional scholarly-grade document search engine.
 
 - **Project address**: [https://github.com/liaoran123/ReSearchCMS](https://github.com/liaoran123/ReSearchCMS)
 - **Application scenario**: Provides high-precision, high-performance document search functionality, supporting complex text matching and retrieval requirements
-- **Technical highlights**: Fully utilizes sfsDb's native full-text indexing and high-performance query capabilities, achieving a 考据级 document search experience
+- **Technical highlights**: Fully utilizes sfsDb's native full-text indexing and high-performance query capabilities, achieving a scholarly-grade document search experience
 
 ### Example Projects
 - [sfsDbIIoT](https://github.com/liaoran123/sfsDbIIoT) - Smart factory equipment monitoring system implemented using sfsDb, demonstrating sfsDb's application in the industrial IoT field
