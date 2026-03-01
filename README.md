@@ -1,127 +1,128 @@
 # sfsDb
 
+[中文版本 (Chinese Version)](README_CN.md)
+
 <div align="center">
   <img src="docs/performance/logo.png" alt="sfsDb Logo" width="200" />
-  <h1>📊 sfsDb：以边缘计算为核心场景的通用嵌入式数据库</h1>
+  <h1>📊 sfsDb: A Universal Embedded Database with Edge Computing as Core Scenario</h1>
   
-  <p>🚀 以 工业物联网(IIoT) 和 边缘计算 为核心场景，同时具备通用嵌入式数据库能力的轻量级关系型数据库</p>
+  <p>🚀 A lightweight relational database designed for Industrial Internet of Things (IIoT) and edge computing scenarios, while also providing general embedded database capabilities</p>
   
-  <p>基于 纯 Go (Golang) 语言开发，无 CGO 依赖，编译后仅为单个静态二进制文件，极致轻量，启动内存仅数 MB。完美适配各类 ARM 及 x86 架构的边缘网关与工业设备，解决资源受限环境下的数据持久化存储难题。</p>
+  <p>Developed in pure Go (Golang) with no CGO dependencies, compiled into a single static binary file, extremely lightweight with only a few MB of startup memory. Perfectly adapted to various ARM and x86 architecture edge gateways and industrial devices, solving data persistence storage challenges in resource-constrained environments.</p>
   
 </div>
 
-## 核心特性 (Key Features)
+## Core Features
 
-### 🎯 纯 Go 开发 (Pure Go)
-- 无 CGO 依赖，零配置，无需外部依赖库
-- 支持交叉编译，部署极其简单
-- 适合工业物联网和边缘计算场景的技术栈
+### 🎯 Pure Go Development
+- No CGO dependencies, zero configuration, no external dependency libraries
+- Support for cross-compilation, extremely simple deployment
+- Suitable for industrial IoT and edge computing technology stacks
 
-### 📦 极致轻量 (Lightweight)
-- 启动占用内存极低（仅数 MB）
-- 对 CPU 和磁盘 I/O 消耗极小
-- 专为资源受限设备优化，适合边缘网关数据存储
+### 📦 Ultra Lightweight
+- Extremely low startup memory usage (only a few MB)
+- Minimal CPU and disk I/O consumption
+- Optimized for resource-constrained devices, suitable for edge gateway data storage
 
-### 🚀 单文件部署 (Single Binary)
-- 编译后为单一可执行文件
-- 可轻松集成到 Docker 容器或直接运行在边缘网关上
-- 简化工业设备的部署和维护流程
+### 🚀 Single Binary Deployment
+- Compiled into a single executable file
+- Can be easily integrated into Docker containers or run directly on edge gateways
+- Simplifies deployment and maintenance processes for industrial equipment
 
-### 🔧 工业级可靠 (Industrial Ready)
-- 针对 工业物联网(IIoT) 场景优化
-- 支持高并发时序数据写入
-- 具备断电保护与数据持久化能力
-- 确保工业环境下的数据可靠性
+### 🔧 Industrial Grade Reliability
+- Optimized for Industrial Internet of Things (IIoT) scenarios
+- Supports high-concurrency time-series data writing
+-具备 power failure protection and data persistence capabilities
+- Ensures data reliability in industrial environments
 
-### 🌍 广泛硬件兼容
-- 支持 ARM (ARM64/ARMv7) 和 x86 架构
-- 通用于主流工业网关、PLC 和边缘服务器
-- 适应各种边缘侧存储环境
+### 🌍 Wide Hardware Compatibility
+- Supports ARM (ARM64/ARMv7) and x86 architectures
+- Universal for mainstream industrial gateways, PLCs, and edge servers
+- Adapts to various edge-side storage environments
 
-## 技术优势
+## Technical Advantages
 
-### ✅ 轻量级设计与多模能力融合
-- 采用创新设计，在保持轻量级的同时，能够支持复杂的查询场景
-- 创新性地将 NoSQL 的高并发写入能力与 SQL 的复杂查询能力融合在一个系统中
-- 避免了传统解决方案中分别部署 NoSQL 和 SQL 数据库带来的一致性、延迟和维护成本问题
-- 超越了传统嵌入式数据库的能力边界，为应用提供更强大的数据处理能力
-- 实现了"鱼与熊掌兼得"的目标，满足现代应用对数据处理的双重需求
+### ✅ Integration of Lightweight Design and Multi-Mode Capabilities
+- Adopts innovative design, maintaining lightweight while supporting complex query scenarios
+- Innovatively integrates NoSQL's high-concurrency write capabilities with SQL's complex query capabilities in one system
+- Avoids consistency, latency, and maintenance cost issues caused by deploying separate NoSQL and SQL databases in traditional solutions
+- Surpasses the capability boundaries of traditional embedded databases, providing more powerful data processing capabilities for applications
+- Achieves the goal of "having both fish and bear's paw", meeting the dual needs of modern applications for data processing
 
-### ✅ 原生支持考据级全文索引
-- 内置高性能全文索引引擎，提供精准的文本搜索能力
-- 支持复杂的文本匹配和检索需求，满足考据级应用场景
+### ✅ Native Support for考据级 Full-Text Indexing
+- Built-in high-performance full-text indexing engine, providing precise text search capabilities
+- Supports complex text matching and retrieval requirements, meeting考据级 application scenarios
 
-### ✅ 基于 LevelDB 封装实现
-- 使用 `github.com/syndtr/goleveldb/leveldb` 库作为存储引擎基础
-- 充分利用 LevelDB 的 LSM-Tree 架构优势，提供高性能的读写操作
+### ✅ Based on LevelDB Encapsulation
+- Uses `github.com/syndtr/goleveldb/leveldb` library as the storage engine foundation
+- Fully leverages the advantages of LevelDB's LSM-Tree architecture, providing high-performance read and write operations
 
-### ✅ 无锁事务系统：性能与可靠性的完美平衡
-- 采用乐观并发控制（OCC）机制，避免了传统锁机制的开销
-- 支持事务创建、提交、回滚等完整事务操作
-- 提供高性能的并发事务处理能力，在10并发下达到26,315 ops/s
-- 支持批量操作和嵌套事务，满足复杂业务场景需求
-- 轻量级设计，内存占用低，适合资源受限环境
+### ✅ Lock-Free Transaction System: Perfect Balance of Performance and Reliability
+- Adopts optimistic concurrency control (OCC) mechanism, avoiding the overhead of traditional locking mechanisms
+- Supports complete transaction operations such as transaction creation, commit, and rollback
+- Provides high-performance concurrent transaction processing capabilities, reaching 26,315 ops/s under 10 concurrency
+- Supports batch operations and nested transactions, meeting complex business scenario requirements
+- Lightweight design, low memory usage, suitable for resource-constrained environments
 
-### ✅ 极致轻量的核心引擎
-- **超低资源占用**：engine包单次操作仅分配约1KB内存，批量操作约11KB内存
-- **高性能**：单次操作仅需约31,000 ns，批量操作约79,000 ns
-- **适合资源受限环境**：完美适配各类ARM及x86架构的边缘网关与工业设备
-- **无需事务开销**：直接使用engine包避免了事务管理带来的额外开销
-- **批量操作优化**：内置批量操作机制确保数据一致性的同时保持高性能
-- **测试验证**：[基准测试代码](./benchmark_test.go) - 详细的性能测试实现，验证engine包与transactionLockFree包的性能对比
+### ✅ Ultra Lightweight Core Engine
+- **Ultra-low resource usage**: engine package only allocates about 1KB memory per operation, about 11KB for batch operations
+- **High performance**: only about 31,000 ns for single operation, about 79,000 ns for batch operations
+- **Suitable for resource-constrained environments**: perfectly adapted to various ARM and x86 architecture edge gateways and industrial devices
+- **No transaction overhead**: directly using the engine package avoids additional overhead from transaction management
+- **Batch operation optimization**: built-in batch operation mechanism ensures data consistency while maintaining high performance
+- **Test verification**: [Benchmark test code](./benchmark_test.go) - Detailed performance test implementation, verifying performance comparison between engine package and transactionLockFree package
 
-## 生产应用示例
+## Production Application Examples
 
-### 考据级文档搜索引擎
+### 考据级 Document Search Engine
 
-sfsDb 已在实际生产环境中得到应用，其中最典型的案例是 **ReSearchCMS** - 一个专业的考据级文档搜索引擎。
+sfsDb has been applied in actual production environments, with the most typical case being **ReSearchCMS** - a professional 考据级 document search engine.
 
-- **项目地址**: [https://github.com/liaoran123/ReSearchCMS](https://github.com/liaoran123/ReSearchCMS)
-- **应用场景**: 提供高精度、高性能的文档搜索功能，支持复杂的文本匹配和检索需求
-- **技术亮点**: 充分利用 sfsDb 的原生全文索引和高性能查询能力，实现了考据级的文档搜索体验
+- **Project address**: [https://github.com/liaoran123/ReSearchCMS](https://github.com/liaoran123/ReSearchCMS)
+- **Application scenario**: Provides high-precision, high-performance document search functionality, supporting complex text matching and retrieval requirements
+- **Technical highlights**: Fully utilizes sfsDb's native full-text indexing and high-performance query capabilities, achieving a 考据级 document search experience
 
-### 示例项目
-- [sfsDbIIoT](https://github.com/liaoran123/sfsDbIIoT) - 使用sfsDb实现的智能工厂设备监控系统，展示了sfsDb在工业IoT领域的应用
-- [sfsDbGateway](https://github.com/liaoran123/sfsDbGateway) - 基于sfsDb的工业网关可靠性测试示例，验证sfsDb在网络波动、电源中断等恶劣工业环境下的可靠性和稳定性
+### Example Projects
+- [sfsDbIIoT](https://github.com/liaoran123/sfsDbIIoT) - Smart factory equipment monitoring system implemented using sfsDb, demonstrating sfsDb's application in the industrial IoT field
+- [sfsDbGateway](https://github.com/liaoran123/sfsDbGateway) - Industrial gateway reliability test example based on sfsDb, verifying sfsDb's reliability and stability in harsh industrial environments such as network fluctuations and power interruptions
 
-## 主要目标用户群体
+## Main Target User Groups
 
-### 1. 🌐 边缘智能与 IoT 场景
-- **边缘计算节点**：为资源受限的边缘设备提供本地数据存储能力，支持离线运行和边缘分析
-- **IoT 网关设备**：高效处理和存储设备产生的时序数据，减少云端依赖，降低网络带宽消耗
-- **智能终端设备**：在本地提供数据持久化能力，确保设备在网络不稳定时仍能正常运行
+### 1. 🌐 Edge Intelligence and IoT Scenarios
+- **Edge computing nodes**: Provide local data storage capabilities for resource-constrained edge devices, supporting offline operation and edge analysis
+- **IoT gateway devices**: Efficiently process and store time-series data generated by devices, reducing cloud dependencies and network bandwidth consumption
+- **Smart terminal devices**: Provide data persistence capabilities locally, ensuring devices can operate normally when network is unstable
 
-### 2. 🚀 微服务与容器化环境
-- **微服务本地状态存储**：为无状态微服务提供轻量级的本地数据持久化方案，简化服务架构
-- **容器化应用**：适合作为容器化应用的嵌入式存储组件，提供快速启动和低资源占用的特性
-- **Serverless 函数**：为需要状态管理的 Serverless 函数提供临时数据存储能力
+### 2. 🚀 Microservices and Containerized Environments
+- **Microservice local state storage**: Provide lightweight local data persistence solutions for stateless microservices, simplifying service architecture
+- **Containerized applications**: Suitable as embedded storage components for containerized applications, providing fast startup and low resource usage characteristics
+- **Serverless functions**: Provide temporary data storage capabilities for Serverless functions that require state management
 
-### 3. ⚡ 实时数据处理场景
-- **实时分析系统**：支持高并发的写入操作，适合实时数据采集和分析场景
-- **在线游戏服务器**：为游戏服务器提供高性能的本地存储，支持快速的玩家数据读写
-- **实时监控系统**：高效存储和查询监控数据，确保系统状态的实时可见性
+### 3. ⚡ Real-time Data Processing Scenarios
+- **Real-time analysis systems**: Support high-concurrency write operations, suitable for real-time data collection and analysis scenarios
+- **Online game servers**: Provide high-performance local storage for game servers, supporting fast player data reading and writing
+- **Real-time monitoring systems**: Efficiently store and query monitoring data, ensuring real-time visibility of system status
 
-### 4. 🔒 安全敏感场景
-- **隐私保护应用**：数据存储在本地，减少数据传输过程中的安全风险
-- **金融科技应用**：满足金融场景对数据安全性和一致性的要求
-- **医疗健康系统**：符合数据隐私法规要求，确保敏感健康数据的本地安全存储
+### 4. 🔒 Security-sensitive Scenarios
+- **Privacy protection applications**: Data stored locally, reducing security risks during data transmission
+- **Fintech applications**: Meet financial scenario requirements for data security and consistency
+- **Healthcare systems**: Comply with data privacy regulations, ensuring local secure storage of sensitive health data
 
-### 5. 🎯 其他场景
-- **嵌入式系统开发者**：轻量级、易部署的特性适合各类嵌入式设备
-- **原型开发与快速迭代**：为项目原型阶段提供快速的数据存储解决方案
-- **教育与研究**：适合作为数据库原理学习和研究的实验平台
+### 5. 🎯 Other Scenarios
+- **Embedded system developers**: Lightweight, easy-to-deploy features suitable for various embedded devices
+- **Prototype development and rapid iteration**: Provide fast data storage solutions for project prototype stages
+- **Education and research**: Suitable as an experimental platform for database principle learning and research
 
+## Quick Start
 
-## 快速开始
-
-### 安装
+### Installation
 
 ```bash
-# 通过 Go 模块安装
+# Install via Go module
 go get github.com/liaoran123/sfsDb
 ```
 
-### 基本使用
+### Basic Usage
 
 ```go
 package main
@@ -134,343 +135,342 @@ import (
 )
 
 func main() {
-	fmt.Println("sfsDb README示例代码测试")
-	fmt.Println("====================")
+	fmt.Println("sfsDb README Example Code Test")
+	fmt.Println("===================")
 
-	// 1. 初始化数据库
-	fmt.Println("\n1. 初始化数据库")
+	// 1. Initialize database
+	fmt.Println("\n1. Initialize database")
 	dbManager := storage.GetDBManager()
 	_, err := dbManager.OpenDB("./readme_example_db")
 	if err != nil {
-		fmt.Printf("打开数据库失败: %v\n", err)
+		fmt.Printf("Failed to open database: %v\n", err)
 		return
 	}
 	defer dbManager.CloseDB()
 
-	// 2. 创建/打开用户表
-	fmt.Println("\n2. 创建用户表")
+	// 2. Create/open user table
+	fmt.Println("\n2. Create user table")
 	userTable, err := engine.TableNew("users")
 	if err != nil {
-		fmt.Printf("创建表失败: %v\n", err)
+		fmt.Printf("Failed to create table: %v\n", err)
 		return
 	}
 
-	// 3. 设置字段
-	fmt.Println("\n3. 设置字段")
+	// 3. Set fields
+	fmt.Println("\n3. Set fields")
 	userFields := map[string]any{
-		"id":      0,  // 用户ID
-		"name":    "", // 用户名
-		"age":     0,  // 年龄
-		"email":   "", // 邮箱
-		"address": "", // 地址
+		"id":      0,  // User ID
+		"name":    "", // User name
+		"age":     0,  // Age
+		"email":   "", // Email
+		"address": "", // Address
 	}
 	err = userTable.SetFields(userFields)
 	if err != nil {
-		fmt.Printf("设置字段失败: %v\n", err)
+		fmt.Printf("Failed to set fields: %v\n", err)
 		return
 	}
 
-	// 4. 创建主键索引
-	fmt.Println("\n4. 创建主键索引")
+	// 4. Create primary key index
+	fmt.Println("\n4. Create primary key index")
 	primaryKey, err := engine.DefaultPrimaryKeyNew("id")
 	if err != nil {
-		fmt.Printf("创建主键索引失败: %v\n", err)
+		fmt.Printf("Failed to create primary key index: %v\n", err)
 		return
 	}
 	primaryKey.AddFields("id")
 	err = userTable.CreateIndex(primaryKey)
 	if err != nil {
-		fmt.Printf("创建索引失败: %v\n", err)
+		fmt.Printf("Failed to create index: %v\n", err)
 		return
 	}
 
-	// 5. 创建普通索引
-	fmt.Println("\n5. 创建普通索引")
+	// 5. Create normal index
+	fmt.Println("\n5. Create normal index")
 	nameIndex, err := engine.DefaultNormalIndexNew("name_index")
 	if err != nil {
-		fmt.Printf("创建普通索引失败: %v\n", err)
+		fmt.Printf("Failed to create normal index: %v\n", err)
 		return
 	}
 	nameIndex.AddFields("name")
 	err = userTable.CreateIndex(nameIndex)
 	if err != nil {
-		fmt.Printf("创建索引失败: %v\n", err)
+		fmt.Printf("Failed to create index: %v\n", err)
 		return
 	}
 
-	// 6. 插入数据
-	fmt.Println("\n6. 插入数据")
+	// 6. Insert data
+	fmt.Println("\n6. Insert data")
 	users := []map[string]any{
-		{"id": 1, "name": "张三", "age": 25, "email": "zhangsan@example.com", "address": "北京市"},
-		{"id": 2, "name": "李四", "age": 30, "email": "lisi@example.com", "address": "上海市"},
-		{"id": 3, "name": "王五", "age": 35, "email": "wangwu@example.com", "address": "广州市"},
+		{"id": 1, "name": "Zhang San", "age": 25, "email": "zhangsan@example.com", "address": "Beijing"},
+		{"id": 2, "name": "Li Si", "age": 30, "email": "lisi@example.com", "address": "Shanghai"},
+		{"id": 3, "name": "Wang Wu", "age": 35, "email": "wangwu@example.com", "address": "Guangzhou"},
 	}
 
 	for _, user := range users {
 		currentID, err := userTable.Insert(&user)
 		if err != nil {
-			fmt.Printf("插入数据失败: %v\n", err)
+			fmt.Printf("Failed to insert data: %v\n", err)
 			return
 		}
-		fmt.Printf("插入用户成功, ID: %d\n", currentID)
+		fmt.Printf("User inserted successfully, ID: %d\n", currentID)
 	}
 
-	// 7. 主键查询
-	fmt.Println("\n7. 主键查询")
+	// 7. Primary key query
+	fmt.Println("\n7. Primary key query")
 	{
 		iter, err := userTable.Search(&map[string]any{"id": 1})
 		defer iter.Release()
 		if err != nil {
-			fmt.Printf("搜索失败: %v\n", err)
+			fmt.Printf("Search failed: %v\n", err)
 			return
 		}
 		records := iter.GetRecordSet(true)
 		defer records.Release()
 
 		if len(records) > 0 {
-			fmt.Printf("查询结果: %v\n", records[0])
+			fmt.Printf("Query result: %v\n", records[0])
 		}
 	}
 
-	// 8. 普通索引查询
-	fmt.Println("\n8. 普通索引查询")
+	// 8. Normal index query
+	fmt.Println("\n8. Normal index query")
 	{
-		nameIter, err := userTable.Search(&map[string]any{"name": "李四"})
+		nameIter, err := userTable.Search(&map[string]any{"name": "Li Si"})
 		defer nameIter.Release()
 		if err != nil {
-			fmt.Printf("搜索失败: %v\n", err)
+			fmt.Printf("Search failed: %v\n", err)
 			return
 		}
 		nameRecords := nameIter.GetRecordSet(true)
 		defer nameRecords.Release()
 
 		if len(nameRecords) > 0 {
-			fmt.Printf("按姓名查询结果: %v\n", nameRecords[0])
+			fmt.Printf("Query result by name: %v\n", nameRecords[0])
 		}
 	}
 
-	// 9. 更新数据
-	fmt.Println("\n9. 更新数据")
+	// 9. Update data
+	fmt.Println("\n9. Update data")
 	updateData := map[string]any{
-		"id":      1,                          // 用于定位记录
-		"email":   "zhangsan_new@example.com", // 更新邮箱
-		"address": "深圳市",                      // 更新地址
+		"id":      1,                          // Used to locate the record
+		"email":   "zhangsan_new@example.com", // Update email
+		"address": "Shenzhen",                  // Update address
 	}
 	err = userTable.Update(&updateData)
 	if err != nil {
-		fmt.Printf("更新数据失败: %v\n", err)
+		fmt.Printf("Failed to update data: %v\n", err)
 		return
 	}
-	fmt.Println("更新数据成功")
+	fmt.Println("Data updated successfully")
 
-	// 验证更新
+	// Verify update
 	{
 		iter, err := userTable.Search(&map[string]any{"id": 1})
 		defer iter.Release()
 		if err != nil {
-			fmt.Printf("搜索失败: %v\n", err)
+			fmt.Printf("Search failed: %v\n", err)
 			return
 		}
 		records := iter.GetRecordSet(true)
 		defer records.Release()
 		if len(records) > 0 {
-			fmt.Printf("更新后的数据: %v\n", records[0])
+			fmt.Printf("Updated data: %v\n", records[0])
 		}
 	}
 
-	// 10. 删除数据
-	fmt.Println("\n10. 删除数据")
+	// 10. Delete data
+	fmt.Println("\n10. Delete data")
 	deleteData := map[string]any{
-		"id": 3, // 用于定位要删除的记录
+		"id": 3, // Used to locate the record to delete
 	}
 	err = userTable.Delete(&deleteData)
 	if err != nil {
-		fmt.Printf("删除数据失败: %v\n", err)
+		fmt.Printf("Failed to delete data: %v\n", err)
 		return
 	}
-	fmt.Println("删除数据成功")
+	fmt.Println("Data deleted successfully")
 
-	// 验证删除
+	// Verify deletion
 	{
 		iter, err := userTable.Search(&map[string]any{"id": 3})
 		defer iter.Release()
 		if err != nil {
-			fmt.Printf("搜索失败: %v\n", err)
+			fmt.Printf("Search failed: %v\n", err)
 			return
 		}
 		records := iter.GetRecordSet(true)
 		defer records.Release()
-		fmt.Printf("删除后查询结果数: %d\n", len(records))
+		fmt.Printf("Number of results after deletion: %d\n", len(records))
 	}
 
-	// 11. 查询所有数据
-	fmt.Println("\n11. 查询所有数据")
+	// 11. Query all data
+	fmt.Println("\n11. Query all data")
 	{
 		allIter, err := userTable.Search(&map[string]any{})
 		defer allIter.Release()
 		if err != nil {
-			fmt.Printf("搜索失败: %v\n", err)
+			fmt.Printf("Search failed: %v\n", err)
 			return
 		}
 		allRecords := allIter.GetRecordSet(true)
 		defer allRecords.Release()
-		fmt.Printf("当前表中共有 %d 条记录\n", len(allRecords))
+		fmt.Printf("There are %d records in the table\n", len(allRecords))
 		for i, r := range allRecords {
-			fmt.Printf("记录 %d: %v\n", i+1, r)
+			fmt.Printf("Record %d: %v\n", i+1, r)
 		}
 	}
 
-	fmt.Println("\n测试完成，所有操作均成功执行！")
+	fmt.Println("\nTest completed, all operations executed successfully!")
 }
 
 ```
-## 文档
+## Documentation
 
-### 使用指南
-- [中文文档首页](./docs/zh/README.md) - 中文文档总览
+### User Guides
+- [Chinese Documentation Home](./docs/zh/README.md) - Chinese documentation overview
 - [English Documentation Home](./docs/en/README.md) - English documentation overview
-- [基础操作指南](./docs/zh/basic/) - 包含表创建、字段修改等基础操作
-- [Basic Operations Guide](./docs/en/basic/) - Includes table creation, field modification and other basic operations
+- [Basic Operations Guide](./docs/zh/basic/) - Includes table creation, field modification and other basic operations (Chinese)
+- [Basic Operations Guide](./docs/en/basic/) - Includes table creation, field modification and other basic operations (English)
 
-### 基础操作文档
-- [表创建指南](./docs/zh/basic/table_creation.md) - 表的创建和基本配置（中文）
+### Basic Operation Documentation
+- [Table Creation Guide](./docs/zh/basic/table_creation.md) - Table creation and basic configuration (Chinese)
 - [Table Creation Guide](./docs/en/basic/table_creation.md) - Table creation and basic configuration (English)
-- [字段修改指南](./docs/zh/basic/field_modification.md) - 字段的添加、修改和删除（中文）
+- [Field Modification Guide](./docs/zh/basic/field_modification.md) - Field addition, modification and deletion (Chinese)
 - [Field Modification Guide](./docs/en/basic/field_modification.md) - Field addition, modification and deletion (English)
-- [初始化指南](./docs/zh/basic/initialization.md) - 数据库初始化和配置（中文）
+- [Initialization Guide](./docs/zh/basic/initialization.md) - Database initialization and configuration (Chinese)
 - [Initialization Guide](./docs/en/basic/initialization.md) - Database initialization and configuration (English)
 
-### 高级功能文档
-- [全文索引使用指南](./docs/zh/advanced/full_text_search.md) - 全文索引的高级使用方法（中文）
+### Advanced Feature Documentation
+- [Full Text Search Guide](./docs/zh/advanced/full_text_search.md) - Advanced full text search usage (Chinese)
 - [Full Text Search Guide](./docs/en/advanced/full_text_search.md) - Advanced full text search usage (English)
-- [索引管理指南](./docs/zh/advanced/index_management.md) - 索引的创建、管理和优化（中文）
+- [Index Management Guide](./docs/zh/advanced/index_management.md) - Index creation, management and optimization (Chinese)
 - [Index Management Guide](./docs/en/advanced/index_management.md) - Index creation, management and optimization (English)
-- [主键管理指南](./docs/zh/advanced/primary_key.md) - 主键的设计和使用（中文）
+- [Primary Key Guide](./docs/zh/advanced/primary_key.md) - Primary key design and usage (Chinese)
 - [Primary Key Guide](./docs/en/advanced/primary_key.md) - Primary key design and usage (English)
-- [表管理指南](./docs/zh/advanced/management.md) - 表的创建、修改和管理（中文）
+- [Table Management Guide](./docs/zh/advanced/management.md) - Table creation, modification and management (Chinese)
 - [Table Management Guide](./docs/en/advanced/management.md) - Table creation, modification and management (English)
-- [多表查询指南](./docs/zh/advanced/multi_table_query.md) - 多表关联查询的使用方法（中文）
+- [Multi-table Query Guide](./docs/zh/advanced/multi_table_query.md) - Multi-table join query usage (Chinese)
 - [Multi-table Query Guide](./docs/en/advanced/multi_table_query.md) - Multi-table join query usage (English)
-- [时间序列数据指南](./docs/zh/advanced/time_series.md) - 时间序列数据的处理和优化（中文）
+- [Time Series Data Guide](./docs/zh/advanced/time_series.md) - Time series data processing and optimization (Chinese)
 - [Time Series Data Guide](./docs/en/advanced/time_series.md) - Time series data processing and optimization (English)
-- [搜索范围指南](./docs/zh/advanced/search_range.md) - 范围搜索的使用方法（中文）
+- [Search Range Guide](./docs/zh/advanced/search_range.md) - Range search usage (Chinese)
 - [Search Range Guide](./docs/en/advanced/search_range.md) - Range search usage (English)
-- [跳跃范围指南](./docs/zh/advanced/jump_ranges.md) - 跳跃范围查询的实现和优化（中文）
+- [Jump Ranges Guide](./docs/zh/advanced/jump_ranges.md) - Jump ranges query implementation and optimization (Chinese)
 - [Jump Ranges Guide](./docs/en/advanced/jump_ranges.md) - Jump ranges query implementation and optimization (English)
-- [快照功能指南](./docs/zh/advanced/snapshot.md) - 数据库快照的创建和使用（中文）
+- [Snapshot Guide](./docs/zh/advanced/snapshot.md) - Database snapshot creation and usage (Chinese)
 - [Snapshot Guide](./docs/en/advanced/snapshot.md) - Database snapshot creation and usage (English)
-- [服务支持指南](./docs/zh/advanced/service_support.md) - 服务支持和维护（中文）
+- [Service Support Guide](./docs/zh/advanced/service_support.md) - Service support and maintenance (Chinese)
 - [Service Support Guide](./docs/en/advanced/service_support.md) - Service support and maintenance (English)
-- [构建指南](./docs/zh/advanced/build.md) - 数据库构建和部署（中文）
+- [Build Guide](./docs/zh/advanced/build.md) - Database build and deployment (Chinese)
 - [Build Guide](./docs/en/advanced/build.md) - Database build and deployment (English)
 
-### 性能测试报告
+### Performance Test Reports
 
-#### 性能对比图表
+#### Performance Comparison Charts
 
 <div align="center">
-  <img src="./docs/performance/database_comparison.svg" alt="数据库性能比较" width="600">
-  <p>sfsDb 与其他嵌入式数据库性能比较</p>
+  <img src="./docs/performance/database_comparison.svg" alt="Database Performance Comparison" width="600">
+  <p>sfsDb vs Other Embedded Databases Performance Comparison</p>
 </div>
 
 
 <div align="center">
-  <img src="./docs/performance/concurrency_impact.svg" alt="并发对性能的影响" width="600">
-  <p>并发增长对性能的影响</p>
+  <img src="./docs/performance/concurrency_impact.svg" alt="Impact of Concurrency on Performance" width="600">
+  <p>Impact of Concurrency Growth on Performance</p>
 </div>
 
 
-#### 事务性能图表
+#### Transaction Performance Charts
 
 <div align="center">
-  <img src="./docs/performance/transaction_database_comparison.svg" alt="事务性能与其他数据库比较" width="600">
-  <p>事务性能与其他数据库比较</p>
-</div>
-
-
-<div align="center">
-  <img src="./docs/performance/transaction_operations.svg" alt="事务操作性能" width="600">
-  <p>事务操作性能</p>
+  <img src="./docs/performance/transaction_database_comparison.svg" alt="Transaction Performance vs Other Databases" width="600">
+  <p>Transaction Performance vs Other Databases</p>
 </div>
 
 
 <div align="center">
-  <img src="./docs/performance/transaction_batch_operations.svg" alt="批量操作性能" width="600">
-  <p>批量操作性能</p>
+  <img src="./docs/performance/transaction_operations.svg" alt="Transaction Operation Performance" width="600">
+  <p>Transaction Operation Performance</p>
 </div>
 
 
 <div align="center">
-  <img src="./docs/performance/transaction_concurrency_performance.svg" alt="并发事务性能" width="600">
-  <p>并发事务性能</p>
+  <img src="./docs/performance/transaction_batch_operations.svg" alt="Batch Operation Performance" width="600">
+  <p>Batch Operation Performance</p>
 </div>
 
-- [综合性能基准测试报告](./engine/comprehensive_benchmark_report.md) - 全面的性能测试和分析，包括读写性能、并发性能、不同数据量下的表现，以及与其他数据库的性能比较
-- [事务基准测试报告](./engine/transaction_benchmark_report.md) - 详细的事务性能测试和分析，包括单事务和多事务场景下的性能表现，以及事务优化效果
-- [时序数据库性能比较报告](./docs/performance/time_series_benchmark.md) - time包基准测试与其他时序数据库性能比较，包括单线程和并发性能测试，以及时间序列数据处理的效率分析
 
-### 性能优势分析
-- [sfsDb性能优势分析文章](./docs/marketing/performance_advantage_article.md) - 详细分析sfsDb如何通过无SQL设计和嵌入式架构实现性能突破
+<div align="center">
+  <img src="./docs/performance/transaction_concurrency_performance.svg" alt="Concurrent Transaction Performance" width="600">
+  <p>Concurrent Transaction Performance</p>
+</div>
+
+- [Comprehensive Performance Benchmark Report](./engine/comprehensive_benchmark_report.md) - Comprehensive performance testing and analysis, including read/write performance, concurrent performance, performance under different data volumes, and performance comparison with other databases
+- [Transaction Benchmark Report](./engine/transaction_benchmark_report.md) - Detailed transaction performance testing and analysis, including performance in single transaction and multi-transaction scenarios, as well as transaction optimization effects
+- [Time Series Database Performance Comparison Report](./docs/performance/time_series_benchmark.md) - time package benchmark and performance comparison with other time series databases, including single-thread and concurrent performance tests, and efficiency analysis of time series data processing
+
+### Performance Advantage Analysis
+- [sfsDb Performance Advantage Analysis Article](./docs/marketing/performance_advantage_article.md) - Detailed analysis of how sfsDb achieves performance breakthroughs through SQL-free design and embedded architecture
 
 
-### 优化指南
-- [对象池使用指南](./docs/zh/optimization/object_pool.md) - 高效的对象复用机制（中文）
+### Optimization Guides
+- [Object Pool Guide](./docs/zh/optimization/object_pool.md) - Efficient object reuse mechanism (Chinese)
 - [Object Pool Guide](./docs/en/optimization/object_pool.md) - Efficient object reuse mechanism (English)
-- [索引缓存指南](./docs/zh/optimization/index_cache.md) - 提升查询性能的索引缓存机制（中文）
+- [Index Cache Guide](./docs/zh/optimization/index_cache.md) - Index caching mechanism for improved query performance (Chinese)
 - [Index Cache Guide](./docs/en/optimization/index_cache.md) - Index caching mechanism for improved query performance (English)
-- [事务优化指南](./docs/zh/optimization/transaction.md) - 事务处理的优化策略（中文）
+- [Transaction Optimization Guide](./docs/zh/optimization/transaction.md) - Transaction processing optimization strategies (Chinese)
 - [Transaction Optimization Guide](./docs/en/optimization/transaction.md) - Transaction processing optimization strategies (English)
 
-### API 参考
-- [API 参考文档](./docs/api.md) - 详细的 API 文档
+### API Reference
+- [API Reference Documentation](./docs/api.md) - Detailed API documentation
 
-### 其他文档
-- [CLI 命令指南](./docs/cli_commands.md) - 命令行工具使用指南（中文）
+### Other Documentation
+- [CLI Commands Guide](./docs/cli_commands.md) - Command line tool usage guide (Chinese)
 - [CLI Commands Guide](./docs/cli_commands.en.md) - Command line tool usage guide (English)
-- [Web 集成示例](./docs/web_integration_example.md) - Web 界面集成示例
-- [开源许可证](./docs/open_source_licenses.md) - 项目使用的开源许可证
-- [文档维护指南](./docs/DOCUMENTATION_MAINTENANCE.md) - 文档维护和贡献指南
+- [Web Integration Example](./docs/web_integration_example.md) - Web interface integration example
+- [Open Source Licenses](./docs/open_source_licenses.md) - Open source licenses used in the project
+- [Documentation Maintenance Guide](./docs/DOCUMENTATION_MAINTENANCE.md) - Documentation maintenance and contribution guide
 
-## 联系我们
+## Contact Us
 
-如果您有任何问题或建议，欢迎通过以下方式联系我们：
-- **邮箱**: sfsweb@qq.com
+If you have any questions or suggestions, please contact us through the following methods:
+- **Email**: sfsweb@qq.com
 
-- **商业服务**：根据客户具体需求提供定制化技术支持，包括但不限于：
-  - 技术咨询与故障排查
-  - 性能优化与配置调整
-  - 定制功能开发
-  - 边缘环境适配
-  - 技术培训
-  具体方案与价格请通过以下方式联系咨询：
-  - 邮箱：sfsweb@qq.com
+- **Commercial Services**: Provide customized technical support according to specific customer needs, including but not limited to:
+  - Technical consultation and troubleshooting
+  - Performance optimization and configuration adjustment
+  - Custom feature development
+  - Edge environment adaptation
+  - Technical training
+  For specific plans and prices, please contact us through:
+  - Email: sfsweb@qq.com
   
 
-## 贡献
+## Contribution
 
-欢迎提交 Issue 和 Pull Request 来帮助改进 sfsDb！
+Welcome to submit Issues and Pull Requests to help improve sfsDb!
 
-## 许可证
+## License
 
-sfsDb 采用双许可证模式：
+sfsDb adopts a dual-license model:
 
-### 核心引擎 - MIT 许可证
-- **开源免费**: 核心数据库引擎使用 MIT 开源许可证
-- **商业友好**: 允许自由使用、修改和商业分发
-- **简洁灵活**: 许可证文本简洁，限制少，易于理解和使用
-- **许可证文本**: 详见 [LICENSE](./LICENSE) 文件
+### Core Engine - MIT License
+- **Open Source Free**: The core database engine uses MIT open source license
+- **Business Friendly**: Allows free use, modification, and commercial distribution
+- **Concise and Flexible**: The license text is concise, with few restrictions, easy to understand and use
+- **License Text**: See [LICENSE](./LICENSE) file for details
 
 
-### 依赖库许可证
-- **LevelDB**: 使用 BSD 2-clause 开源许可证，与 MIT 许可证兼容
-- **其他依赖**: 详见 `go.mod` 文件中的依赖声明
+### Dependency Library Licenses
+- **LevelDB**: Uses BSD 2-clause open source license, compatible with MIT license
+- **Other Dependencies**: See dependency declarations in `go.mod` file
 
-### 许可证兼容性
-MIT 许可证是一种广泛使用的开源许可证，具有以下优势：
-- **简洁明了**: 许可证文本简洁，易于理解和使用
-- **高度兼容**: 与几乎所有其他开源许可证兼容
-- **商业友好**: 允许在商业项目中自由使用和修改
-- **社区广泛采用**: 被众多开源项目采用，是最受欢迎的开源许可证之一
+### License Compatibility
+The MIT license is a widely used open source license with the following advantages:
+- **Concise and Clear**: The license text is concise, easy to understand and use
+- **Highly Compatible**: Compatible with almost all other open source licenses
+- **Business Friendly**: Allows free use and modification in commercial projects
+- **Widely Adopted by Community**: Adopted by many open source projects, one of the most popular open source licenses
 
-这意味着 sfsDb 可以自由地基于 LevelDB 进行封装和商业开发，用户可以放心在商业项目中使用 sfsDb。
-
+This means sfsDb can be freely encapsulated and commercially developed based on LevelDB, and users can safely use sfsDb in commercial projects.
