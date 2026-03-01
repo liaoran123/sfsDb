@@ -1,4 +1,4 @@
-package transactionLockANT
+package transactionANT
 
 import (
 	"fmt"
@@ -22,22 +22,22 @@ const (
 
 // Permission 权限结构体
 type Permission struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
 	ResourceType string    `json:"resourceType"`
-	ResourceID  string    `json:"resourceId"`
-	Action      string    `json:"action"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ResourceID   string    `json:"resourceId"`
+	Action       string    `json:"action"`
+	CreatedAt    time.Time `json:"createdAt"`
 }
 
 // Role 角色结构体
 type Role struct {
-	ID          string       `json:"id"`
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
+	ID          string        `json:"id"`
+	Name        string        `json:"name"`
+	Description string        `json:"description"`
 	Permissions []*Permission `json:"permissions"`
-	CreatedAt   time.Time    `json:"createdAt"`
+	CreatedAt   time.Time     `json:"createdAt"`
 }
 
 // User 用户结构体
@@ -51,10 +51,10 @@ type User struct {
 
 // AccessControlManager 访问控制管理器
 type AccessControlManager struct {
-	users      map[string]*User
-	roles      map[string]*Role
+	users       map[string]*User
+	roles       map[string]*Role
 	permissions map[string]*Permission
-	mutex      sync.RWMutex
+	mutex       sync.RWMutex
 }
 
 // NewAccessControlManager 创建访问控制管理器
@@ -97,40 +97,40 @@ func (acm *AccessControlManager) initDefaultRoles() error {
 	// 创建默认权限
 	defaultPermissions := []*Permission{
 		{
-			ID:          "perm:read:table",
-			Name:        "Read Table",
-			Description: "允许读取表数据",
+			ID:           "perm:read:table",
+			Name:         "Read Table",
+			Description:  "允许读取表数据",
 			ResourceType: ResourceTypeTable,
-			ResourceID:  "*",
-			Action:      PermissionRead,
-			CreatedAt:   time.Now(),
+			ResourceID:   "*",
+			Action:       PermissionRead,
+			CreatedAt:    time.Now(),
 		},
 		{
-			ID:          "perm:write:table",
-			Name:        "Write Table",
-			Description: "允许写入表数据",
+			ID:           "perm:write:table",
+			Name:         "Write Table",
+			Description:  "允许写入表数据",
 			ResourceType: ResourceTypeTable,
-			ResourceID:  "*",
-			Action:      PermissionWrite,
-			CreatedAt:   time.Now(),
+			ResourceID:   "*",
+			Action:       PermissionWrite,
+			CreatedAt:    time.Now(),
 		},
 		{
-			ID:          "perm:delete:table",
-			Name:        "Delete Table",
-			Description: "允许删除表数据",
+			ID:           "perm:delete:table",
+			Name:         "Delete Table",
+			Description:  "允许删除表数据",
 			ResourceType: ResourceTypeTable,
-			ResourceID:  "*",
-			Action:      PermissionDelete,
-			CreatedAt:   time.Now(),
+			ResourceID:   "*",
+			Action:       PermissionDelete,
+			CreatedAt:    time.Now(),
 		},
 		{
-			ID:          "perm:create:table",
-			Name:        "Create Table",
-			Description: "允许创建表",
+			ID:           "perm:create:table",
+			Name:         "Create Table",
+			Description:  "允许创建表",
 			ResourceType: ResourceTypeSystem,
-			ResourceID:  "*",
-			Action:      PermissionCreate,
-			CreatedAt:   time.Now(),
+			ResourceID:   "*",
+			Action:       PermissionCreate,
+			CreatedAt:    time.Now(),
 		},
 	}
 
@@ -360,9 +360,9 @@ func (acm *AccessControlManager) CheckPermission(userID, resourceType, resourceI
 	for _, role := range user.Roles {
 		for _, permission := range role.Permissions {
 			// 检查权限是否匹配
-			if permission.ResourceType == resourceType && 
-			   (permission.ResourceID == "*" || permission.ResourceID == resourceID) && 
-			   permission.Action == action {
+			if permission.ResourceType == resourceType &&
+				(permission.ResourceID == "*" || permission.ResourceID == resourceID) &&
+				permission.Action == action {
 				return true, nil
 			}
 		}

@@ -1,4 +1,4 @@
-package transactionLockANT
+package transactionANT
 
 import (
 	"fmt"

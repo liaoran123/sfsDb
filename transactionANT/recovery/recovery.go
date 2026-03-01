@@ -5,14 +5,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liaoran123/sfsDb/transactionLockANT/wal"
+	"github.com/liaoran123/sfsDb/transactionANT/wal"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
 // RecoveryManager 恢复管理器
 type RecoveryManager struct {
-	db         *leveldb.DB
-	wal        *wal.WAL
+	db                 *leveldb.DB
+	wal                *wal.WAL
 	checkpointInterval time.Duration
 	recoveryMutex      sync.Mutex
 	checkpointMutex    sync.Mutex

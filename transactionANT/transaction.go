@@ -1,4 +1,4 @@
-package transactionLockANT
+package transactionANT
 
 import (
 	"fmt"
@@ -7,8 +7,8 @@ import (
 
 	"github.com/liaoran123/sfsDb/engine"
 	"github.com/liaoran123/sfsDb/storage"
-	"github.com/liaoran123/sfsDb/transactionLockANT/recovery"
-	"github.com/liaoran123/sfsDb/transactionLockANT/wal"
+	"github.com/liaoran123/sfsDb/transactionANT/recovery"
+	"github.com/liaoran123/sfsDb/transactionANT/wal"
 	"github.com/liaoran123/sfsDb/util"
 )
 
@@ -44,9 +44,9 @@ var GlobalEncryptionManager *EncryptionManager
 
 // 全局活跃事务跟踪
 var activeTransactions = struct {
-	sfsTransactions    map[*SfsTransaction]bool
-	tableTransactions  map[*TableTransaction]bool
-	mutex              sync.RWMutex
+	sfsTransactions   map[*SfsTransaction]bool
+	tableTransactions map[*TableTransaction]bool
+	mutex             sync.RWMutex
 }{
 	sfsTransactions:   make(map[*SfsTransaction]bool),
 	tableTransactions: make(map[*TableTransaction]bool),
@@ -56,7 +56,7 @@ var activeTransactions = struct {
 func addActiveTransaction(tx interface{}) {
 	activeTransactions.mutex.Lock()
 	defer activeTransactions.mutex.Unlock()
-	
+
 	switch t := tx.(type) {
 	case *SfsTransaction:
 		activeTransactions.sfsTransactions[t] = true
@@ -69,7 +69,7 @@ func addActiveTransaction(tx interface{}) {
 func removeActiveTransaction(tx interface{}) {
 	activeTransactions.mutex.Lock()
 	defer activeTransactions.mutex.Unlock()
-	
+
 	switch t := tx.(type) {
 	case *SfsTransaction:
 		delete(activeTransactions.sfsTransactions, t)
@@ -82,17 +82,17 @@ func removeActiveTransaction(tx interface{}) {
 func getActiveTransactions() ([]*SfsTransaction, []*TableTransaction) {
 	activeTransactions.mutex.RLock()
 	defer activeTransactions.mutex.RUnlock()
-	
+
 	sfsTx := make([]*SfsTransaction, 0, len(activeTransactions.sfsTransactions))
 	for tx := range activeTransactions.sfsTransactions {
 		sfsTx = append(sfsTx, tx)
 	}
-	
+
 	tableTx := make([]*TableTransaction, 0, len(activeTransactions.tableTransactions))
 	for tx := range activeTransactions.tableTransactions {
 		tableTx = append(tableTx, tx)
 	}
-	
+
 	return sfsTx, tableTx
 }
 
@@ -476,9 +476,9 @@ func NewTableTransactionWithBatchAndOptions(table *engine.Table, batch storage.B
 	tx.Committed = false
 	tx.Snapshot = snapshot
 	tx.OriginalStore = storage.GetDBManager().GetDB()
-	tx.Cache = make(map[string][]byte)  // 初始化事务内缓存
-	tx.ReadSet = make(map[string]bool)  // 初始化读集
-	tx.WriteSet = make(map[string]bool) // 初始化写集
+	tx.Cache = make(map[string][]byte)        // 初始化事务内缓存
+	tx.ReadSet = make(map[string]bool)        // 初始化读集
+	tx.WriteSet = make(map[string]bool)       // 初始化写集
 	tx.ReadVersions = make(map[string]uint64) // 初始化读版本号
 	tx.Options = options
 	tx.TxID = txID

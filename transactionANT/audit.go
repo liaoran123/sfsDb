@@ -1,4 +1,4 @@
-package transactionLockANT
+package transactionANT
 
 import (
 	"fmt"
@@ -10,24 +10,24 @@ import (
 
 // 审计操作类型
 const (
-	AuditActionCreate   = "CREATE"
-	AuditActionRead     = "READ"
-	AuditActionUpdate   = "UPDATE"
-	AuditActionDelete   = "DELETE"
-	AuditActionCommit   = "COMMIT"
-	AuditActionRollback = "ROLLBACK"
-	AuditActionLogin    = "LOGIN"
-	AuditActionLogout   = "LOGOUT"
+	AuditActionCreate     = "CREATE"
+	AuditActionRead       = "READ"
+	AuditActionUpdate     = "UPDATE"
+	AuditActionDelete     = "DELETE"
+	AuditActionCommit     = "COMMIT"
+	AuditActionRollback   = "ROLLBACK"
+	AuditActionLogin      = "LOGIN"
+	AuditActionLogout     = "LOGOUT"
 	AuditActionPermission = "PERMISSION"
 )
 
 // 审计资源类型
 const (
-	AuditResourceTable    = "TABLE"
-	AuditResourceField    = "FIELD"
-	AuditResourceSystem   = "SYSTEM"
+	AuditResourceTable       = "TABLE"
+	AuditResourceField       = "FIELD"
+	AuditResourceSystem      = "SYSTEM"
 	AuditResourceTransaction = "TRANSACTION"
-	AuditResourceSession   = "SESSION"
+	AuditResourceSession     = "SESSION"
 )
 
 // 审计状态
@@ -44,9 +44,9 @@ type AuditLog struct {
 	ResourceID string    `json:"resourceId"` // 具体资源ID
 	UserID     string    `json:"userId"`
 	Timestamp  time.Time `json:"timestamp"`
-	Details    string    `json:"details"`    // 操作详情
-	Status     string    `json:"status"`     // 操作状态
-	Hash       string    `json:"hash"`       // 日志哈希，用于防篡改
+	Details    string    `json:"details"` // 操作详情
+	Status     string    `json:"status"`  // 操作状态
+	Hash       string    `json:"hash"`    // 日志哈希，用于防篡改
 }
 
 // AuditManager 审计日志管理器
@@ -127,8 +127,8 @@ func (am *AuditManager) Log(log *AuditLog) error {
 	// 序列化日志
 	// 这里简化实现，实际应该使用JSON或其他格式
 	logKey := []byte(fmt.Sprintf("audit:%s", log.ID))
-	logValue := []byte(fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s", 
-		log.Action, log.Resource, log.ResourceID, log.UserID, 
+	logValue := []byte(fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+		log.Action, log.Resource, log.ResourceID, log.UserID,
 		log.Timestamp.Format(time.RFC3339), log.Details, log.Status, log.Hash))
 
 	// 加密日志（如果启用了加密）

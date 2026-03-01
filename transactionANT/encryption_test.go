@@ -1,4 +1,4 @@
-package transactionLockANT
+package transactionANT
 
 import (
 	"bytes"
@@ -13,9 +13,9 @@ func TestEncryptionManager(t *testing.T) {
 	// 创建加密配置
 	config := &TransactionEncryptionConfig{
 		BaseConfig: storage.EncryptionConfig{
-			Enabled:      true,
-			Algorithm:    "AES-256-GCM",
-			MasterKey:    []byte("01234567890123456789012345678901"), // 32字节密钥
+			Enabled:   true,
+			Algorithm: "AES-256-GCM",
+			MasterKey: []byte("01234567890123456789012345678901"), // 32字节密钥
 		},
 	}
 
@@ -59,9 +59,9 @@ func TestFieldEncryption(t *testing.T) {
 	// 创建加密配置
 	config := &TransactionEncryptionConfig{
 		BaseConfig: storage.EncryptionConfig{
-			Enabled:      true,
-			Algorithm:    "AES-256-GCM",
-			MasterKey:    []byte("01234567890123456789012345678901"), // 32字节密钥
+			Enabled:   true,
+			Algorithm: "AES-256-GCM",
+			MasterKey: []byte("01234567890123456789012345678901"), // 32字节密钥
 		},
 		FieldEncryption: map[string]FieldEncryptionConfig{
 			"password": {
@@ -112,9 +112,9 @@ func TestEncryptionAccessControl(t *testing.T) {
 	// 创建加密配置
 	config := &TransactionEncryptionConfig{
 		BaseConfig: storage.EncryptionConfig{
-			Enabled:      true,
-			Algorithm:    "AES-256-GCM",
-			MasterKey:    []byte("01234567890123456789012345678901"), // 32字节密钥
+			Enabled:   true,
+			Algorithm: "AES-256-GCM",
+			MasterKey: []byte("01234567890123456789012345678901"), // 32字节密钥
 		},
 		AccessControl: AccessControlConfig{
 			Enabled: true,
@@ -123,22 +123,22 @@ func TestEncryptionAccessControl(t *testing.T) {
 					Name: "admin",
 					Permissions: []*Permission{
 						{
-							ID:          "perm:admin:read:users",
-							Name:        "Read Users",
-							Description: "Allow read access to users table",
+							ID:           "perm:admin:read:users",
+							Name:         "Read Users",
+							Description:  "Allow read access to users table",
 							ResourceType: "table",
-							ResourceID:  "users",
-							Action:      "read",
-							CreatedAt:   time.Now(),
+							ResourceID:   "users",
+							Action:       "read",
+							CreatedAt:    time.Now(),
 						},
 						{
-							ID:          "perm:admin:write:users",
-							Name:        "Write Users",
-							Description: "Allow write access to users table",
+							ID:           "perm:admin:write:users",
+							Name:         "Write Users",
+							Description:  "Allow write access to users table",
 							ResourceType: "table",
-							ResourceID:  "users",
-							Action:      "write",
-							CreatedAt:   time.Now(),
+							ResourceID:   "users",
+							Action:       "write",
+							CreatedAt:    time.Now(),
 						},
 					},
 				},
@@ -146,13 +146,13 @@ func TestEncryptionAccessControl(t *testing.T) {
 					Name: "user",
 					Permissions: []*Permission{
 						{
-							ID:          "perm:user:read:users",
-							Name:        "Read Users",
-							Description: "Allow read access to users table",
+							ID:           "perm:user:read:users",
+							Name:         "Read Users",
+							Description:  "Allow read access to users table",
 							ResourceType: "table",
-							ResourceID:  "users",
-							Action:      "read",
-							CreatedAt:   time.Now(),
+							ResourceID:   "users",
+							Action:       "read",
+							CreatedAt:    time.Now(),
 						},
 					},
 				},

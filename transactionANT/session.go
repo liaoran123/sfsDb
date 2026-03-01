@@ -1,4 +1,4 @@
-package transactionLockANT
+package transactionANT
 
 import (
 	"fmt"
@@ -8,10 +8,10 @@ import (
 
 // Session 会话结构体
 type Session struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"userId"`
-	CreatedAt time.Time `json:"createdAt"`
-	ExpiresAt time.Time `json:"expiresAt"`
+	ID        string                 `json:"id"`
+	UserID    string                 `json:"userId"`
+	CreatedAt time.Time              `json:"createdAt"`
+	ExpiresAt time.Time              `json:"expiresAt"`
 	Data      map[string]interface{} `json:"data"`
 }
 
