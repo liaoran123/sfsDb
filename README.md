@@ -83,6 +83,14 @@ sfsDb has been applied in actual production environments, with the most typical 
 - **Application scenario**: Provides high-precision, high-performance document search functionality, supporting complex text matching and retrieval requirements
 - **Technical highlights**: Fully utilizes sfsDb's native full-text indexing and high-performance query capabilities, achieving a scholarly-grade document search experience
 
+### EdgeX Adapter
+
+**sfsdb-edgex-adapter** is the official EdgeX adapter for sfsDb, ready for production use, providing seamless integration between EdgeX Foundry and sfsDb embedded database.
+
+- **Project address**: [https://github.com/liaoran123/sfsdb-edgex-adapter](https://github.com/liaoran123/sfsdb-edgex-adapter)
+- **Application scenario**: Enables efficient storage and retrieval of device data at the edge, supporting the EdgeX Foundry ecosystem
+- **Technical highlights**: Automatic database management, real-time data processing, efficient time-range queries, fully compatible with EdgeX Foundry standards
+
 ### Example Projects
 - [sfsDbIIoT](https://github.com/liaoran123/sfsDbIIoT) - Smart factory equipment monitoring system implemented using sfsDb, demonstrating sfsDb's application in the industrial IoT field
 - [sfsDbGateway](https://github.com/liaoran123/sfsDbGateway) - Industrial gateway reliability test example based on sfsDb, verifying sfsDb's reliability and stability in harsh industrial environments such as network fluctuations and power interruptions
