@@ -39,10 +39,9 @@ type Table struct {
 
 // 缓存结构体
 type TableCache struct {
-	timeFields          map[string]bool  // 标记字段是否为时间类型
-	primaryFields       []string         // 缓存的主键字段列表
-	primaryFieldsLoaded bool             // 主键字段列表是否已加载
-	fieldTypeLen        map[string]uint8 // 缓存字段类型长度映射
+	timeFields          map[string]bool // 标记字段是否为时间类型
+	primaryFields       []string        // 缓存的主键字段列表
+	primaryFieldsLoaded bool            // 主键字段列表是否已加载
 }
 
 // 创建或获取一个表
@@ -63,7 +62,6 @@ func TableNew(name string) (*Table, error) {
 		kvStore:  dbMgr.GetDB(),
 	}
 	tb.timeFields = make(map[string]bool)
-	tb.fieldTypeLen = make(map[string]uint8)
 	tb.indexs = NewIndexs(&tb.fields)
 	if TableIDManager == nil {
 		TableIDManager = NewIDManager(tb.kvStore)
@@ -452,30 +450,15 @@ func (t *Table) prepareBatch(batchs ...storage.Batch) (storage.Batch, bool) {
 // 获取主键字段的总长度
 // 组合主键时只支持固定长度的类型的组合。
 // 字符串类型，必须指定长度。否则无法解析或存在转义问题导致bug。
-// DynFields，注册动态字段类型的长度，例如自定义类型。一般是字符串。注册后，该字段必须与注册长度一致，否则会导致解析错误。
-// 如果表结构更新，需要调用ResetFieldTypeLen重置字段类型长度映射。
-func (t *Table) GetfieldTypeLen(DynFields ...*map[string]uint8) *map[string]uint8 {
-	if len(t.fieldTypeLen) > 0 {
-		return &t.fieldTypeLen
-	}
+func (t *Table) GetfieldTypeLen() *map[string]uint8 {
+	r := make(map[string]uint8)
 	flen := 0
-	for _, n := range t.GetPrimaryFields() {
+	for _, n := range t.primaryFields {
 		if val, ok := (t.fields[n]); ok {
 			//固定长度类型，系统字段提取，字符串类型需要注册指定长度util.RegisterTypeSize。
 			flen = util.TypeSize(val)
-			t.fieldTypeLen[n] = uint8(flen)
+			r[n] = uint8(flen)
 		}
 	}
-	// 处理动态类型字段
-	for _, dynFields := range DynFields {
-		for field, val := range *dynFields {
-			t.fieldTypeLen[field] = val
-		}
-	}
-	return &t.fieldTypeLen
-}
-
-// 重置fieldTypeLen
-func (t *Table) ResetFieldTypeLen() {
-	t.fieldTypeLen = make(map[string]uint8)
+	return &r
 }

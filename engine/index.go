@@ -253,7 +253,7 @@ type PrimaryKey interface {
 	Index
 	// 设置主键ID
 	GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte
-	GetfieldTypeLen(tablefields *map[string]any) *map[string]uint8
+	//GetfieldTypeLen1(tablefields *map[string]any) *map[string]uint8
 	Parse(fieldsid map[uint8]string, value []byte) (*map[string][]byte, error)
 }
 
@@ -277,10 +277,11 @@ func DefaultPrimaryKeyNew(name string) (*DefaultPrimaryKey, error) {
 	return dpk, nil
 }
 
+/*
 // 获取主键字段的总长度
 // 组合主键时只支持固定长度的类型的组合。
 // 字符串类型，必须指定长度。否则无法解析或存在转义问题导致bug。
-func (dpk *DefaultPrimaryKey) GetfieldTypeLen(tablefields *map[string]any) *map[string]uint8 {
+func (dpk *DefaultPrimaryKey) GetfieldTypeLen1(tablefields *map[string]any) *map[string]uint8 {
 	r := make(map[string]uint8)
 	flen := 0
 	for _, fit := range dpk.fields {
@@ -292,7 +293,7 @@ func (dpk *DefaultPrimaryKey) GetfieldTypeLen(tablefields *map[string]any) *map[
 	}
 	return &r
 }
-
+*/
 // 過濾存在的字段
 // 系統設計爲過濾key存在的字段不在value中儲存。
 func (dpk *DefaultPrimaryKey) GetID(fieldsBytes *map[string][]byte, existFields ...string) []byte {

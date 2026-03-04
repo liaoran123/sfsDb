@@ -96,7 +96,8 @@ func (t *TableIter) ParseBytes(k, v []byte) *map[string][]byte {
 	var err error
 
 	pk := t.table.GetPrimaryKey()
-	pktylen := pk.GetfieldTypeLen(&t.table.fields)
+	//pktylen := pk.GetfieldTypeLen(&t.table.fields)
+	pktylen := t.table.GetfieldTypeLen()
 	switch t.index.(type) {
 	case FullTextIndex:
 		//全文索引时，value值为空，需要从key中提取主键

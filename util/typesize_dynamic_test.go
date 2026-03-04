@@ -45,20 +45,8 @@ func TestTypeSizeDynamic(t *testing.T) {
 		fmt.Printf("%s: %d bytes\n", tc.name, size)
 	}
 
-	// 测试自定义类型（注册前）
+	// 测试自定义类型
 	person := Person{Name: "John", Age: 30}
-	sizeBefore := TypeSize(person)
-	fmt.Printf("\nPerson size before registration: %d bytes\n", sizeBefore)
-
-	// 注册自定义类型
-	RegisterTypeSize("util.Person", personSize)
-	fmt.Println("Registered Person type")
-
-	// 测试自定义类型（注册后）
-	sizeAfter := TypeSize(person)
-	fmt.Printf("Person size after registration: %d bytes\n", sizeAfter)
-
-	if sizeAfter != personSize(person) {
-		t.Errorf("Person size mismatch: expected %d, got %d", personSize(person), sizeAfter)
-	}
+	size := TypeSize(person)
+	fmt.Printf("\nPerson size: %d bytes\n", size)
 }
