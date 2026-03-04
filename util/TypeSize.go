@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+/*
 // TypeSizeFunc 定义计算类型大小的函数类型
 type TypeSizeFunc func(value any) int
 
@@ -12,7 +13,7 @@ type TypeSizeFunc func(value any) int
 func init() {
 	// 静态类型判断，无需动态注册
 }
-
+*/
 // TypeSize 根据传入的值的类型返回相应的字节长度
 func TypeSize(value any) int {
 	if value == nil {
@@ -60,5 +61,13 @@ func TypeSize(value any) int {
 	}
 
 	// 默认返回 0
-	return 0
+	return defaultTypeSize
+}
+
+var defaultTypeSize = 0
+
+// 可以创建一个全局默认大小。用于不定长类型一般就是特指字符串类型作为组合主键时使用。
+// 如果需要在表的局部使用，可以使用表的函数GetfieldTypeLen 精准设定。
+func SetDefaultTypeSize(size int) {
+	defaultTypeSize = size
 }

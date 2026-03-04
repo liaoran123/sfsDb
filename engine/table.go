@@ -454,7 +454,7 @@ func (t *Table) prepareBatch(batchs ...storage.Batch) (storage.Batch, bool) {
 // 字符串类型，必须指定长度。否则无法解析或存在转义问题导致bug。
 // DynFields，注册动态字段类型的长度，例如自定义类型。一般是字符串。注册后，该字段必须与注册长度一致，否则会导致解析错误。
 // 如果表结构更新，需要调用ResetFieldTypeLen重置字段类型长度映射。
-func (t *Table) GetfieldTypeLen(DynFields ...*map[string]uint8) *map[string]uint8 {
+func (t *Table) GetfieldTypeLen(fieldTypeLens ...*map[string]uint8) *map[string]uint8 {
 	if len(t.fieldTypeLen) > 0 {
 		return &t.fieldTypeLen
 	}
@@ -467,8 +467,8 @@ func (t *Table) GetfieldTypeLen(DynFields ...*map[string]uint8) *map[string]uint
 		}
 	}
 	// 处理动态类型字段
-	for _, dynFields := range DynFields {
-		for field, val := range *dynFields {
+	for _, fieldTypeLen := range fieldTypeLens {
+		for field, val := range *fieldTypeLen {
 			t.fieldTypeLen[field] = val
 		}
 	}
