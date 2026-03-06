@@ -1,0 +1,565 @@
+package storage
+
+import (
+	"bytes"
+	"os"
+	"testing"
+)
+
+// TestEncryptionBasic 测试基本的加密解密功能
+func TestEncryptionBasic(t *testing.T) {
+	// 生成测试密钥
+	masterKey := make([]byte, 32)
+	for i := range masterKey {
+		masterKey[i] = byte(i)
+	}
+
+	// 创建加密配置
+	encryptConfig := &EncryptionConfig{
+		Enabled:   true,
+		Algorithm: "AES-256-GCM",
+		MasterKey: masterKey,
+	}
+
+	// 创建加密存储
+	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_db", nil, encryptConfig)
+	if err != nil {
+		t.Fatalf("Failed to create encrypted store: %v", err)
+	}
+	defer encryptedStore.Close()
+	defer RemoveDir("./test_encrypted_db")
+
+	// 测试基本的Put和Get操作
+	testKey := []byte("test_key")
+	testValue := []byte("test_value")
+
+	// 存储加密数据
+	err = encryptedStore.Put(testKey, testValue)
+	if err != nil {
+		t.Fatalf("Failed to put encrypted data: %v", err)
+	}
+
+	// 获取解密数据
+	retrievedValue, err := encryptedStore.Get(testKey)
+	if err != nil {
+		t.Fatalf("Failed to get encrypted data: %v", err)
+	}
+
+	// 验证数据一致性
+	if !bytes.Equal(retrievedValue, testValue) {
+		t.Fatalf("Retrieved value does not match original: got %s, want %s", retrievedValue, testValue)
+	}
+
+	// 测试删除操作
+	err = encryptedStore.Delete(testKey)
+	if err != nil {
+		t.Fatalf("Failed to delete encrypted data: %v", err)
+	}
+
+	// 验证数据已删除
+	_, err = encryptedStore.Get(testKey)
+	if err == nil {
+		t.Fatal("Expected ErrNotFound after deletion, got nil")
+	}
+	if err != ErrNotFound {
+		t.Fatalf("Expected ErrNotFound after deletion, got %v", err)
+	}
+}
+
+// TestEncryptionBatch 测试加密批量操作
+func TestEncryptionBatch(t *testing.T) {
+	// 生成测试密钥
+	masterKey := make([]byte, 32)
+	for i := range masterKey {
+		masterKey[i] = byte(i)
+	}
+
+	// 创建加密配置
+	encryptConfig := &EncryptionConfig{
+		Enabled:   true,
+		Algorithm: "AES-256-GCM",
+		MasterKey: masterKey,
+	}
+
+	// 创建加密存储
+	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_batch_db", nil, encryptConfig)
+	if err != nil {
+		t.Fatalf("Failed to create encrypted store: %v", err)
+	}
+	defer encryptedStore.Close()
+	defer RemoveDir("./test_encrypted_batch_db")
+
+	// 创建批量操作
+	batch := encryptedStore.GetBatch()
+
+	// 添加多个操作到批量
+	testData := map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+		"key3": "value3",
+	}
+
+	for k, v := range testData {
+		batch.Put([]byte(k), []byte(v))
+	}
+
+	// 执行批量操作
+	err = encryptedStore.WriteBatch(batch)
+	if err != nil {
+		t.Fatalf("Failed to write encrypted batch: %v", err)
+	}
+
+	// 验证所有数据都已正确存储和加密
+	for k, v := range testData {
+		retrievedValue, err := encryptedStore.Get([]byte(k))
+		if err != nil {
+			t.Fatalf("Failed to get encrypted batch data for key %s: %v", k, err)
+		}
+
+		if !bytes.Equal(retrievedValue, []byte(v)) {
+			t.Fatalf("Retrieved value for key %s does not match original: got %s, want %s", k, retrievedValue, v)
+		}
+	}
+}
+
+// TestEncryptionIterator 测试加密迭代器
+func TestEncryptionIterator(t *testing.T) {
+	// 生成测试密钥
+	masterKey := make([]byte, 32)
+	for i := range masterKey {
+		masterKey[i] = byte(i)
+	}
+
+	// 创建加密配置
+	encryptConfig := &EncryptionConfig{
+		Enabled:   true,
+		Algorithm: "AES-256-GCM",
+		MasterKey: masterKey,
+	}
+
+	// 创建加密存储
+	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_iterator_db", nil, encryptConfig)
+	if err != nil {
+		t.Fatalf("Failed to create encrypted store: %v", err)
+	}
+	defer encryptedStore.Close()
+	defer RemoveDir("./test_encrypted_iterator_db")
+
+	// 存储测试数据
+	testData := map[string]string{
+		"a_key": "a_value",
+		"b_key": "b_value",
+		"c_key": "c_value",
+	}
+
+	for k, v := range testData {
+		err = encryptedStore.Put([]byte(k), []byte(v))
+		if err != nil {
+			t.Fatalf("Failed to put encrypted data: %v", err)
+		}
+	}
+
+	// 使用迭代器遍历数据
+	iter := encryptedStore.Iterator(nil, nil)
+	defer iter.Release()
+
+	// 收集迭代结果
+	iteratedData := make(map[string]string)
+	for iter.First(); iter.Valid(); iter.Next() {
+		key := string(iter.Key())
+		value := string(iter.Value())
+		iteratedData[key] = value
+	}
+
+	// 验证迭代结果与原始数据一致
+	if len(iteratedData) != len(testData) {
+		t.Fatalf("Iterated data count mismatch: got %d, want %d", len(iteratedData), len(testData))
+	}
+
+	for k, v := range testData {
+		if iteratedData[k] != v {
+			t.Fatalf("Iterated value for key %s does not match original: got %s, want %s", k, iteratedData[k], v)
+		}
+	}
+}
+
+// TestEncryptionSnapshot 测试加密快照
+func TestEncryptionSnapshot(t *testing.T) {
+	// 生成测试密钥
+	masterKey := make([]byte, 32)
+	for i := range masterKey {
+		masterKey[i] = byte(i)
+	}
+
+	// 创建加密配置
+	encryptConfig := &EncryptionConfig{
+		Enabled:   true,
+		Algorithm: "AES-256-GCM",
+		MasterKey: masterKey,
+	}
+
+	// 创建加密存储
+	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_snapshot_db", nil, encryptConfig)
+	if err != nil {
+		t.Fatalf("Failed to create encrypted store: %v", err)
+	}
+	defer encryptedStore.Close()
+	defer RemoveDir("./test_encrypted_snapshot_db")
+
+	// 存储初始数据
+	testKey := []byte("test_key")
+	testValue1 := []byte("test_value1")
+	testValue2 := []byte("test_value2")
+
+	err = encryptedStore.Put(testKey, testValue1)
+	if err != nil {
+		t.Fatalf("Failed to put initial data: %v", err)
+	}
+
+	// 创建快照
+	snapshot, err := encryptedStore.Snapshot()
+	if err != nil {
+		t.Fatalf("Failed to create snapshot: %v", err)
+	}
+	defer snapshot.Release()
+
+	// 更新数据
+	err = encryptedStore.Put(testKey, testValue2)
+	if err != nil {
+		t.Fatalf("Failed to update data: %v", err)
+	}
+
+	// 从快照读取数据，应该得到旧值
+	snapshotValue, err := snapshot.Get(testKey)
+	if err != nil {
+		t.Fatalf("Failed to get data from snapshot: %v", err)
+	}
+
+	if !bytes.Equal(snapshotValue, testValue1) {
+		t.Fatalf("Snapshot value does not match initial value: got %s, want %s", snapshotValue, testValue1)
+	}
+
+	// 从主存储读取数据，应该得到新值
+	storeValue, err := encryptedStore.Get(testKey)
+	if err != nil {
+		t.Fatalf("Failed to get data from store: %v", err)
+	}
+
+	if !bytes.Equal(storeValue, testValue2) {
+		t.Fatalf("Store value does not match updated value: got %s, want %s", storeValue, testValue2)
+	}
+}
+
+// TestEncryptionReEncrypt 测试密钥轮换功能
+func TestEncryptionReEncrypt(t *testing.T) {
+	// 生成初始密钥
+	oldKey := make([]byte, 32)
+	for i := range oldKey {
+		oldKey[i] = byte(i)
+	}
+
+	// 生成新密钥
+	newKey := make([]byte, 32)
+	for i := range newKey {
+		newKey[i] = byte(255 - i)
+	}
+
+	// 创建初始加密配置
+	oldEncryptConfig := &EncryptionConfig{
+		Enabled:   true,
+		Algorithm: "AES-256-GCM",
+		MasterKey: oldKey,
+	}
+
+	// 创建加密存储
+	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_reencrypt_db", nil, oldEncryptConfig)
+	if err != nil {
+		t.Fatalf("Failed to create encrypted store: %v", err)
+	}
+	defer encryptedStore.Close()
+	defer RemoveDir("./test_encrypted_reencrypt_db")
+
+	// 存储测试数据
+	testData := map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+	}
+
+	for k, v := range testData {
+		err = encryptedStore.Put([]byte(k), []byte(v))
+		if err != nil {
+			t.Fatalf("Failed to put data: %v", err)
+		}
+	}
+
+	// 执行密钥轮换
+	encryptedWrapper, ok := encryptedStore.(*EncryptedStoreWrapper)
+	if !ok {
+		t.Fatal("Failed to convert to EncryptedStoreWrapper")
+	}
+
+	err = encryptedWrapper.ReEncrypt(newKey)
+	if err != nil {
+		t.Fatalf("Failed to re-encrypt data: %v", err)
+	}
+
+	// 验证数据仍然可以正确读取
+	for k, v := range testData {
+		retrievedValue, err := encryptedStore.Get([]byte(k))
+		if err != nil {
+			t.Fatalf("Failed to get data after re-encryption: %v", err)
+		}
+
+		if !bytes.Equal(retrievedValue, []byte(v)) {
+			t.Fatalf("Retrieved value after re-encryption does not match original: got %s, want %s", retrievedValue, v)
+		}
+	}
+}
+
+// TestEncryptionWithPassword 测试使用密码派生密钥
+func TestEncryptionWithPassword(t *testing.T) {
+	// 创建加密配置，使用密码派生密钥
+	encryptConfig := &EncryptionConfig{
+		Enabled:    true,
+		Algorithm:  "AES-256-GCM",
+		Password:   "test_password",
+		Salt:       []byte("test_salt"),
+		Iterations: 100000,
+	}
+
+	// 创建加密存储
+	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_password_db", nil, encryptConfig)
+	if err != nil {
+		t.Fatalf("Failed to create encrypted store with password: %v", err)
+	}
+	defer encryptedStore.Close()
+	defer RemoveDir("./test_encrypted_password_db")
+
+	// 测试基本的Put和Get操作
+	testKey := []byte("test_key")
+	testValue := []byte("test_value")
+
+	err = encryptedStore.Put(testKey, testValue)
+	if err != nil {
+		t.Fatalf("Failed to put encrypted data with password: %v", err)
+	}
+
+	retrievedValue, err := encryptedStore.Get(testKey)
+	if err != nil {
+		t.Fatalf("Failed to get encrypted data with password: %v", err)
+	}
+
+	if !bytes.Equal(retrievedValue, testValue) {
+		t.Fatalf("Retrieved value does not match original: got %s, want %s", retrievedValue, testValue)
+	}
+}
+
+// TestEncryptionDisabled 测试未启用加密的情况
+func TestEncryptionDisabled(t *testing.T) {
+	// 创建加密配置，但禁用加密
+	encryptConfig := &EncryptionConfig{
+		Enabled: false,
+	}
+
+	// 创建存储，应该返回普通的LevelDBStore
+	store, err := dbManager.NewLevelDBStore("./test_encrypted_disabled_db", nil, encryptConfig)
+	if err != nil {
+		t.Fatalf("Failed to create store with encryption disabled: %v", err)
+	}
+	defer store.Close()
+	defer RemoveDir("./test_encrypted_disabled_db")
+
+	// 验证返回的是LevelDBStore而不是EncryptedStoreWrapper
+	_, isEncrypted := store.(*EncryptedStoreWrapper)
+	if isEncrypted {
+		t.Fatal("Expected LevelDBStore, got EncryptedStoreWrapper when encryption is disabled")
+	}
+
+	// 测试基本操作
+	testKey := []byte("test_key")
+	testValue := []byte("test_value")
+
+	err = store.Put(testKey, testValue)
+	if err != nil {
+		t.Fatalf("Failed to put data: %v", err)
+	}
+
+	retrievedValue, err := store.Get(testKey)
+	if err != nil {
+		t.Fatalf("Failed to get data: %v", err)
+	}
+
+	if !bytes.Equal(retrievedValue, testValue) {
+		t.Fatalf("Retrieved value does not match original: got %s, want %s", retrievedValue, testValue)
+	}
+}
+
+// TestScenarioConfig 测试场景配置
+func TestScenarioConfig(t *testing.T) {
+	/*
+			const (
+			ScenarioEmbedded = "embedded" // 嵌入式场景，低延迟、高并发
+			ScenarioIoT      = "iot"      // 物联网场景，低功耗、高并发
+			ScenarioEdge     = "edge"     // 边缘场景，低延迟、高并发
+			ScenarioGame     = "game"     // 游戏场景，低延迟、高并发
+			ScenarioDefault  = "default"  // 默认场景，平衡配置
+		)
+	*/
+	// 测试各个场景配置
+	testScenarios := []struct {
+		name     string
+		scenario string
+	}{
+		{"Embedded", ScenarioEmbedded},
+		{"IoT", ScenarioIoT},
+		{"Edge", ScenarioEdge},
+		{"Game", ScenarioGame},
+	}
+
+	for _, ts := range testScenarios {
+		t.Run(ts.name, func(t *testing.T) {
+			// 使用场景配置创建存储
+			store, err := dbManager.NewLevelDBStoreWithScenario("./test_scenario_"+ts.name, ts.scenario)
+			if err != nil {
+				t.Fatalf("Failed to create store with scenario %s: %v", ts.name, err)
+			}
+			defer store.Close()
+			defer RemoveDir("./test_scenario_" + ts.name)
+
+			// 测试基本的Put和Get操作
+			testKey := []byte("test_key")
+			testValue := []byte("test_value")
+
+			err = store.Put(testKey, testValue)
+			if err != nil {
+				t.Fatalf("Failed to put data with scenario %s: %v", ts.name, err)
+			}
+
+			retrievedValue, err := store.Get(testKey)
+			if err != nil {
+				t.Fatalf("Failed to get data with scenario %s: %v", ts.name, err)
+			}
+
+			if !bytes.Equal(retrievedValue, testValue) {
+				t.Fatalf("Retrieved value with scenario %s does not match: got %s, want %s", ts.name, retrievedValue, testValue)
+			}
+		})
+	}
+}
+
+// TestScenarioConfigWithEncryption 测试场景配置与加密结合
+func TestScenarioConfigWithEncryption(t *testing.T) {
+	// 生成测试密钥
+	masterKey := make([]byte, 32)
+	for i := range masterKey {
+		masterKey[i] = byte(i)
+	}
+
+	// 创建加密配置
+	encryptConfig := &EncryptionConfig{
+		Enabled:   true,
+		Algorithm: "AES-256-GCM",
+		MasterKey: masterKey,
+	}
+
+	// 测试各个场景配置与加密结合
+	testScenarios := []struct {
+		name     string
+		scenario string
+	}{
+		{"Embedded", ScenarioEmbedded},
+		{"IoT", ScenarioIoT},
+		{"Edge", ScenarioEdge},
+		{"Game", ScenarioGame},
+	}
+
+	for _, ts := range testScenarios {
+		t.Run(ts.name, func(t *testing.T) {
+			// 使用场景配置和加密创建存储（使用简化 API）
+			store, err := dbManager.NewLevelDBStoreWithScenario("./test_scenario_enc_"+ts.name, ts.scenario, encryptConfig)
+			if err != nil {
+				t.Fatalf("Failed to create store with scenario %s and encryption: %v", ts.name, err)
+			}
+			defer store.Close()
+			defer RemoveDir("./test_scenario_enc_" + ts.name)
+
+			// 测试基本的Put和Get操作
+			testKey := []byte("test_key")
+			testValue := []byte("test_value")
+
+			err = store.Put(testKey, testValue)
+			if err != nil {
+				t.Fatalf("Failed to put encrypted data with scenario %s: %v", ts.name, err)
+			}
+
+			retrievedValue, err := store.Get(testKey)
+			if err != nil {
+				t.Fatalf("Failed to get encrypted data with scenario %s: %v", ts.name, err)
+			}
+
+			if !bytes.Equal(retrievedValue, testValue) {
+				t.Fatalf("Retrieved encrypted value with scenario %s does not match: got %s, want %s", ts.name, retrievedValue, testValue)
+			}
+
+			// 测试删除操作
+			err = store.Delete(testKey)
+			if err != nil {
+				t.Fatalf("Failed to delete encrypted data with scenario %s: %v", ts.name, err)
+			}
+
+			// 验证数据已删除
+			_, err = store.Get(testKey)
+			if err == nil {
+				t.Fatal("Expected ErrNotFound after deletion, got nil")
+			}
+			if err != ErrNotFound {
+				t.Fatalf("Expected ErrNotFound after deletion, got %v", err)
+			}
+		})
+	}
+}
+
+// TestScenarioConfigWithEncryptionDisabled 测试场景配置与禁用加密
+func TestScenarioConfigWithEncryptionDisabled(t *testing.T) {
+	// 创建加密配置，但禁用加密
+	encryptConfig := &EncryptionConfig{
+		Enabled: false,
+	}
+
+	// 使用场景配置和禁用加密创建存储（使用简化 API）
+	store, err := dbManager.NewLevelDBStoreWithScenario("./test_scenario_enc_disabled", ScenarioEdge, encryptConfig)
+	if err != nil {
+		t.Fatalf("Failed to create store with scenario and encryption disabled: %v", err)
+	}
+	defer store.Close()
+	defer RemoveDir("./test_scenario_enc_disabled")
+
+	// 验证返回的是LevelDBStore而不是EncryptedStoreWrapper
+	_, isEncrypted := store.(*EncryptedStoreWrapper)
+	if isEncrypted {
+		t.Fatal("Expected LevelDBStore, got EncryptedStoreWrapper when encryption is disabled")
+	}
+
+	// 测试基本操作
+	testKey := []byte("test_key")
+	testValue := []byte("test_value")
+
+	err = store.Put(testKey, testValue)
+	if err != nil {
+		t.Fatalf("Failed to put data: %v", err)
+	}
+
+	retrievedValue, err := store.Get(testKey)
+	if err != nil {
+		t.Fatalf("Failed to get data: %v", err)
+	}
+
+	if !bytes.Equal(retrievedValue, testValue) {
+		t.Fatalf("Retrieved value does not match: got %s, want %s", retrievedValue, testValue)
+	}
+}
+
+// RemoveDir 删除目录（用于测试清理）
+func RemoveDir(path string) {
+	os.RemoveAll(path)
+}

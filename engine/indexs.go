@@ -7,9 +7,12 @@ import (
 
 // 索引管理结构
 type Indexs struct {
-	id                   uint8
-	indexs               []Index
-	fields               *map[string]any //表字段
+	id     uint8
+	indexs []Index
+	fields *map[string]any //表字段
+	IndexsCache
+}
+type IndexsCache struct {
 	primaryKey           PrimaryKey
 	primaryKeyLoaded     bool
 	normalIndexs         []NormalIndex
@@ -73,10 +76,20 @@ func (i *Indexs) createIndex(index Index, idxid uint8) error {
 	index.setId(idxid)
 	i.indexs = append(i.indexs, index)
 	// 重置缓存
+	i.ResetCache()
+	/*
+		i.primaryKeyLoaded = false
+		i.normalIndexsLoaded = false
+		i.fullTextIndexsLoaded = false
+	*/
+	return nil
+}
+
+// 重置// 重置缓存，用于删除索引后，重新加载索引
+func (i *Indexs) ResetCache() {
 	i.primaryKeyLoaded = false
 	i.normalIndexsLoaded = false
 	i.fullTextIndexsLoaded = false
-	return nil
 }
 
 // 返回PrimaryKey索引

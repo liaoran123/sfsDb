@@ -120,6 +120,11 @@ func (dm *DBManager) NewLevelDBStore(Path string, opts *opt.Options, encryptConf
 }
 
 // NewLevelDBStoreWithScenario 根据场景创建新的LevelDB存储实例
+/*
+- 创建 独立 的 Store 实例
+- 不设置 到 dm.db
+- 用于需要多个独立存储实例的场景
+*/
 func (dm *DBManager) NewLevelDBStoreWithScenario(Path string, scenario string, encryptConfig ...*EncryptionConfig) (Store, error) {
 	opts := GetScenarioOptions(scenario)
 	return dm.NewLevelDBStore(Path, opts, encryptConfig...)

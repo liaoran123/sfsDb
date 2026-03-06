@@ -145,6 +145,9 @@ func (t *Table) MatchIndexCached(fields []string) Index {
 
 	// 尝试从缓存获取
 	if idx, ok := indexMatchCache.Get(cacheKey); ok {
+		if idx == nil {
+			return nil
+		}
 		return idx.(Index)
 	}
 
