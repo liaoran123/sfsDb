@@ -11,7 +11,7 @@ func TestLevelDBStore_ACIDTransaction(t *testing.T) {
 	testDBPath := t.TempDir()
 
 	// 创建LevelDBStore实例
-	db, err := NewLevelDBStore(testDBPath, nil)
+	db, err := dbManager.NewLevelDBStore(testDBPath, nil)
 	if err != nil {
 		t.Fatalf("创建LevelDBStore实例失败: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestLevelDBStore_ACIDTransaction(t *testing.T) {
 	db.Close()
 
 	// 4.3 重新打开数据库
-	db2, err := NewLevelDBStore(testDBPath, nil)
+	db2, err := dbManager.NewLevelDBStore(testDBPath, nil)
 	if err != nil {
 		t.Fatalf("重新打开数据库失败: %v", err)
 	}
@@ -362,7 +362,7 @@ func TestLevelDBStore_ACIDTransaction(t *testing.T) {
 	// 5.5 验证持久性
 	db2.Close()
 
-	db3, err := NewLevelDBStore(testDBPath, nil)
+	db3, err := dbManager.NewLevelDBStore(testDBPath, nil)
 	if err != nil {
 		t.Fatalf("重新打开数据库失败: %v", err)
 	}

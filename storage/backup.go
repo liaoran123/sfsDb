@@ -9,7 +9,7 @@ func BackupDb(Path string) error {
 	}
 
 	//打开备份目标数据库，不修改全局KVDb
-	backupDb, err := NewLevelDBStore(Path, nil)
+	backupDb, err := dbManager.NewLevelDBStore(Path, nil)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func BatchBackupDb(Path string, batchSize ...int) error {
 	}
 
 	//打开备份目标数据库，不修改全局KVDb
-	backupDb, err := NewLevelDBStore(Path, nil)
+	backupDb, err := dbManager.NewLevelDBStore(Path, nil)
 	if err != nil {
 		return err
 	}

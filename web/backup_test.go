@@ -26,7 +26,7 @@ func TestBackupEndpoint(t *testing.T) {
 	}()
 
 	// 创建测试数据库
-	testDb, err := storage.OpenDefaultDb(testDbPath)
+	testDb, err := storage.GetDBManager().OpenDB(testDbPath)
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestBackupRestoreEndpoint(t *testing.T) {
 	}()
 
 	// 创建源测试数据库
-	sourceDb, err := storage.OpenDefaultDb(testDbPath)
+	sourceDb, err := storage.GetDBManager().OpenDB(testDbPath)
 	if err != nil {
 		t.Fatalf("Failed to open source database: %v", err)
 	}
@@ -165,10 +165,10 @@ func TestBackupRestoreEndpoint(t *testing.T) {
 
 	// 关闭源数据库
 	sourceDb.Close()
-	storage.KVDb = nil
+	storage.GetDBManager().SetDB(nil)
 
 	// 创建恢复目标数据库
-	restoreDb, err := storage.OpenDefaultDb(restoreDbPath)
+	restoreDb, err := storage.GetDBManager().OpenDB(restoreDbPath)
 	if err != nil {
 		t.Fatalf("Failed to open restore database: %v", err)
 	}

@@ -16,7 +16,7 @@ func TestTable_SearchRange(t *testing.T) {
 	defer os.RemoveAll("./test_search_range_db")
 
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./test_search_range_db")
+	_, err := storage.GetDBManager().OpenDB("./test_search_range_db")
 	if err != nil {
 		t.Fatalf("打开数据库失败: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestTable_SearchRange_PrimaryKey(t *testing.T) {
 	defer os.RemoveAll("./test_search_range_pk_db")
 
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./test_search_range_pk_db")
+	_, err := storage.GetDBManager().OpenDB("./test_search_range_pk_db")
 	if err != nil {
 		t.Fatalf("打开数据库失败: %v", err)
 	}
@@ -326,7 +326,7 @@ func TestTable_SearchRange_CommentValidation(t *testing.T) {
 	defer os.RemoveAll("./test_search_range_comment_db")
 
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./test_search_range_comment_db")
+	_, err := storage.GetDBManager().OpenDB("./test_search_range_comment_db")
 	if err != nil {
 		t.Fatalf("打开数据库失败: %v", err)
 	}
@@ -468,7 +468,7 @@ func TestTable_SearchRange_Performance(t *testing.T) {
 	defer os.RemoveAll("./test_search_range_perf_db")
 
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./test_search_range_perf_db")
+	_, err := storage.GetDBManager().OpenDB("./test_search_range_perf_db")
 	if err != nil {
 		t.Fatalf("打开数据库失败: %v", err)
 	}

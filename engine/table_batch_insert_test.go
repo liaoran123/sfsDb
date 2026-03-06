@@ -11,7 +11,7 @@ import (
 // TestBatchInsert 测试批量插入功能
 func TestBatchInsert(t *testing.T) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./batch_test_db")
+	_, err := storage.GetDBManager().OpenDB("./batch_test_db")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestBatchInsert(t *testing.T) {
 // TestBatchInsertWithSize 测试带批量大小控制的批量插入
 func TestBatchInsertWithSize(t *testing.T) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./batch_test_db")
+	_, err := storage.GetDBManager().OpenDB("./batch_test_db")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestBatchInsertWithSize(t *testing.T) {
 // TestBatchInsertConcurrent 测试并发批量插入
 func TestBatchInsertConcurrent(t *testing.T) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./batch_test_db")
+	_, err := storage.GetDBManager().OpenDB("./batch_test_db")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestBatchInsertConcurrent(t *testing.T) {
 // TestBatchAndSingleInsertConcurrent 测试批量添加和单个添加交叉进行
 func TestBatchAndSingleInsertConcurrent(t *testing.T) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./batch_single_test_db")
+	_, err := storage.GetDBManager().OpenDB("./batch_single_test_db")
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}

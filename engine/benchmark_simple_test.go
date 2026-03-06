@@ -10,7 +10,7 @@ import (
 // BenchmarkSimpleOperations 简单基准测试，确保资源正确释放
 func BenchmarkSimpleOperations(b *testing.B) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./benchmark_simple_db")
+	_, err := storage.GetDBManager().OpenDB("./benchmark_simple_db")
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}

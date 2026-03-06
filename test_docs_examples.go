@@ -19,7 +19,7 @@ func testMultiTableQuery() error {
 	defer os.RemoveAll("./test_multi_table_db")
 
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./test_multi_table_db")
+	_, err := storage.GetDBManager().OpenDB("./test_multi_table_db")
 	if err != nil {
 		return fmt.Errorf("打开数据库失败: %v", err)
 	}
@@ -160,7 +160,7 @@ func testFullTextSearch() error {
 	defer os.RemoveAll("./test_full_text_db")
 
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./test_full_text_db")
+	_, err := storage.GetDBManager().OpenDB("./test_full_text_db")
 	if err != nil {
 		return fmt.Errorf("打开数据库失败: %v", err)
 	}
@@ -249,7 +249,7 @@ func testBasicUsage() error {
 	defer os.RemoveAll("./test_basic_usage_db")
 
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./test_basic_usage_db")
+	_, err := storage.GetDBManager().OpenDB("./test_basic_usage_db")
 	if err != nil {
 		return fmt.Errorf("打开数据库失败: %v", err)
 	}

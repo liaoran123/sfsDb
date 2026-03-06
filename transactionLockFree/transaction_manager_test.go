@@ -14,17 +14,17 @@ func TestTransactionManager(t *testing.T) {
 	testPath := t.TempDir()
 
 	// 创建数据库存储
-	db, err := storage.NewLevelDBStore(testPath, nil)
+	db, err := storage.GetDBManager().NewLevelDBStore(testPath, nil)
 	if err != nil {
 		t.Fatalf("创建数据库存储失败: %v", err)
 	}
 	defer db.Close()
 
 	// 设置全局存储
-	originalKVDb := storage.KVDb
-	storage.KVDb = db
+	originalDB := storage.GetDBManager().GetDB()
+	storage.GetDBManager().SetDB(db)
 	defer func() {
-		storage.KVDb = originalKVDb
+		storage.GetDBManager().SetDB(originalDB)
 	}()
 
 	// 创建产品表
@@ -302,4 +302,3 @@ func testEmptyTransaction(t *testing.T) {
 
 	fmt.Println("✓ 空事务测试通过")
 }
-

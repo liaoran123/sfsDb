@@ -22,7 +22,7 @@ func TestEncryptionBasic(t *testing.T) {
 	}
 
 	// 创建加密存储
-	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_db", nil, encryptConfig)
+	encryptedStore, err := NewLevelDBStoreWithEncryption("./test_encrypted_db", encryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to create encrypted store: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestEncryptionBatch(t *testing.T) {
 	}
 
 	// 创建加密存储
-	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_batch_db", nil, encryptConfig)
+	encryptedStore, err := NewLevelDBStoreWithEncryption("./test_encrypted_batch_db", encryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to create encrypted store: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestEncryptionIterator(t *testing.T) {
 	}
 
 	// 创建加密存储
-	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_iterator_db", nil, encryptConfig)
+	encryptedStore, err := NewLevelDBStoreWithEncryption("./test_encrypted_iterator_db", encryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to create encrypted store: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestEncryptionSnapshot(t *testing.T) {
 	}
 
 	// 创建加密存储
-	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_snapshot_db", nil, encryptConfig)
+	encryptedStore, err := NewLevelDBStoreWithEncryption("./test_encrypted_snapshot_db", encryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to create encrypted store: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestEncryptionReEncrypt(t *testing.T) {
 	}
 
 	// 创建加密存储
-	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_reencrypt_db", nil, oldEncryptConfig)
+	encryptedStore, err := NewLevelDBStoreWithEncryption("./test_encrypted_reencrypt_db", oldEncryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to create encrypted store: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestEncryptionWithPassword(t *testing.T) {
 	}
 
 	// 创建加密存储
-	encryptedStore, err := dbManager.NewLevelDBStore("./test_encrypted_password_db", nil, encryptConfig)
+	encryptedStore, err := NewLevelDBStoreWithEncryption("./test_encrypted_password_db", encryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to create encrypted store with password: %v", err)
 	}
@@ -362,7 +362,7 @@ func TestEncryptionDisabled(t *testing.T) {
 	}
 
 	// 创建存储，应该返回普通的LevelDBStore
-	store, err := dbManager.NewLevelDBStore("./test_encrypted_disabled_db", nil, encryptConfig)
+	store, err := NewLevelDBStoreWithEncryption("./test_encrypted_disabled_db", encryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to create store with encryption disabled: %v", err)
 	}
@@ -419,7 +419,7 @@ func TestScenarioConfig(t *testing.T) {
 	for _, ts := range testScenarios {
 		t.Run(ts.name, func(t *testing.T) {
 			// 使用场景配置创建存储
-			store, err := dbManager.NewLevelDBStoreWithScenario("./test_scenario_"+ts.name, ts.scenario)
+			store, err := NewLevelDBStoreWithScenario("./test_scenario_"+ts.name, ts.scenario)
 			if err != nil {
 				t.Fatalf("Failed to create store with scenario %s: %v", ts.name, err)
 			}
@@ -475,8 +475,8 @@ func TestScenarioConfigWithEncryption(t *testing.T) {
 
 	for _, ts := range testScenarios {
 		t.Run(ts.name, func(t *testing.T) {
-			// 使用场景配置和加密创建存储（使用简化 API）
-			store, err := dbManager.NewLevelDBStoreWithScenario("./test_scenario_enc_"+ts.name, ts.scenario, encryptConfig)
+			// 使用场景配置和加密创建存储
+			store, err := NewLevelDBStoreWithScenarioAndEncryption("./test_scenario_enc_"+ts.name, ts.scenario, encryptConfig)
 			if err != nil {
 				t.Fatalf("Failed to create store with scenario %s and encryption: %v", ts.name, err)
 			}
@@ -526,8 +526,8 @@ func TestScenarioConfigWithEncryptionDisabled(t *testing.T) {
 		Enabled: false,
 	}
 
-	// 使用场景配置和禁用加密创建存储（使用简化 API）
-	store, err := dbManager.NewLevelDBStoreWithScenario("./test_scenario_enc_disabled", ScenarioEdge, encryptConfig)
+	// 使用场景配置和禁用加密创建存储
+	store, err := NewLevelDBStoreWithScenarioAndEncryption("./test_scenario_enc_disabled", ScenarioEdge, encryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to create store with scenario and encryption disabled: %v", err)
 	}

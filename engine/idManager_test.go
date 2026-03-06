@@ -15,7 +15,7 @@ func TestIDManager_GetOrCreateID(t *testing.T) {
 	os.RemoveAll(testPath)
 
 	// 打开存储，使用全新的唯一路径，避免与其他测试冲突
-	kvStore, err := storage.NewLevelDBStore(testPath, nil)
+	kvStore, err := storage.GetDBManager().NewLevelDBStore(testPath, nil)
 	if err != nil {
 		t.Fatalf("Failed to open storage: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestIDManager_GetOrCreateID(t *testing.T) {
 
 func TestIDManager_AutoIncrement(t *testing.T) {
 	// 打开存储，使用全新的唯一路径，避免与其他测试冲突
-	kvStore, err := storage.NewLevelDBStore("./test_idmanager_auto_increment_"+t.Name(), nil)
+	kvStore, err := storage.GetDBManager().NewLevelDBStore("./test_idmanager_auto_increment_"+t.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to open storage: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestIDManager_AutoIncrement(t *testing.T) {
 
 func TestIDManager_DifferentTypes(t *testing.T) {
 	// 打开存储，使用全新的唯一路径，避免与其他测试冲突
-	kvStore, err := storage.NewLevelDBStore("./test_idmanager_different_types_"+t.Name(), nil)
+	kvStore, err := storage.GetDBManager().NewLevelDBStore("./test_idmanager_different_types_"+t.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to open storage: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestIDManager_DifferentTypes(t *testing.T) {
 
 func TestIDManager_Concurrent(t *testing.T) {
 	// 打开存储，使用全新的唯一路径，避免与其他测试冲突
-	kvStore, err := storage.NewLevelDBStore("./test_idmanager_concurrent_"+t.Name(), nil)
+	kvStore, err := storage.GetDBManager().NewLevelDBStore("./test_idmanager_concurrent_"+t.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to open storage: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestIDManager_Concurrent(t *testing.T) {
 
 func TestIDManager_UpdateName(t *testing.T) {
 	// 打开存储，使用全新的唯一路径，避免与其他测试冲突
-	kvStore, err := storage.NewLevelDBStore("./test_idmanager_update_name_"+t.Name(), nil)
+	kvStore, err := storage.GetDBManager().NewLevelDBStore("./test_idmanager_update_name_"+t.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to open storage: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestIDManager_KeyAutoIncrement(t *testing.T) {
 	os.RemoveAll(storePath)
 
 	// 打开存储，使用全新的唯一路径，避免与其他测试冲突
-	kvStore, err := storage.NewLevelDBStore(storePath, nil)
+	kvStore, err := storage.GetDBManager().NewLevelDBStore(storePath, nil)
 	if err != nil {
 		t.Fatalf("Failed to open storage: %v", err)
 	}
@@ -399,7 +399,7 @@ func TestIDManager_KeyAutoIncrement(t *testing.T) {
 
 func TestIDManager_GetPreviousID(t *testing.T) {
 	// 打开存储，使用全新的唯一路径，避免与其他测试冲突
-	kvStore, err := storage.NewLevelDBStore("./test_idmanager_get_previous_id_"+t.Name(), nil)
+	kvStore, err := storage.GetDBManager().NewLevelDBStore("./test_idmanager_get_previous_id_"+t.Name(), nil)
 	if err != nil {
 		t.Fatalf("Failed to open storage: %v", err)
 	}

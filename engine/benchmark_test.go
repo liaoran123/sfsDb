@@ -10,7 +10,7 @@ import (
 // BenchmarkTableOperations 基准测试表操作性能
 func BenchmarkTableOperations(b *testing.B) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./benchmark_db")
+	_, err := storage.GetDBManager().OpenDB("./benchmark_db")
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -114,7 +114,7 @@ func BenchmarkTableOperations(b *testing.B) {
 	b.Run("BatchInsert", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			batch := storage.KVDb.GetBatch()
+			batch := storage.GetDBManager().GetDB().GetBatch()
 			if batch == nil {
 				b.Fatal("Failed to get batch")
 			}
@@ -130,7 +130,7 @@ func BenchmarkTableOperations(b *testing.B) {
 				}
 			}
 
-			err := storage.KVDb.WriteBatch(batch)
+			err := storage.GetDBManager().GetDB().WriteBatch(batch)
 			if err != nil {
 				b.Fatalf("Failed to write batch: %v", err)
 			}
@@ -141,7 +141,7 @@ func BenchmarkTableOperations(b *testing.B) {
 // BenchmarkObjectPoolUsage 基准测试对象池使用性能
 func BenchmarkObjectPoolUsage(b *testing.B) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./benchmark_pool_db")
+	_, err := storage.GetDBManager().OpenDB("./benchmark_pool_db")
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -230,7 +230,7 @@ func BenchmarkObjectPoolUsage(b *testing.B) {
 // BenchmarkIteratorBatchUpdate 基准测试迭代器批量更新性能
 func BenchmarkIteratorBatchUpdate(b *testing.B) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./benchmark_batch_update_db")
+	_, err := storage.GetDBManager().OpenDB("./benchmark_batch_update_db")
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}

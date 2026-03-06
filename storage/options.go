@@ -36,11 +36,11 @@ const (
 
 // 场景常量
 const (
-	ScenarioEmbedded = "embedded"
-	ScenarioIoT      = "iot"
-	ScenarioEdge     = "edge"
-	ScenarioGame     = "game"
-	ScenarioDefault  = "default"
+	ScenarioEmbedded = "embedded" // 嵌入式场景，低延迟、高并发
+	ScenarioIoT      = "iot"      // 物联网场景，低功耗、高并发
+	ScenarioEdge     = "edge"     // 边缘场景，低延迟、高并发
+	ScenarioGame     = "game"     // 游戏场景，低延迟、高并发
+	ScenarioDefault  = "default"  // 默认场景，平衡配置
 )
 
 // Config 存储数据库配置参数

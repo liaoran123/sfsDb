@@ -152,6 +152,144 @@ func main() {
 - 确保在不再使用时正确关闭存储实例
 - 外部存储实现必须完整实现`Store`接口的所有方法
 
+## 1.6 使用场景配置
+
+sfsDb 提供了预定义的场景配置，可以根据不同的使用场景选择合适的内存和性能配置，特别适合边缘计算和 IoT 设备。
+
+### 1.6.1 可用场景
+
+| 场景常量 | 说明 | 总内存 | 适用场景 |
+|---------|------|--------|----------|
+| `ScenarioEmbedded` | 嵌入式设备 | ~6MB | 智能终端设备 |
+| `ScenarioIoT` | IoT 设备 | ~12MB | IoT 网关设备 |
+| `ScenarioEdge` | 边缘计算节点 | ~48MB | 边缘计算节点 ⭐ |
+| `ScenarioGame` | 游戏服务器 | ~192MB | 高性能场景 |
+
+### 1.6.2 使用场景配置打开数据库
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // 方式1：使用 DBManager 并指定场景
+    dbManager := storage.GetDBManager()
+    db, err := dbManager.OpenDBWithScenario("./edge_db", storage.ScenarioEdge)
+    if err != nil {
+        panic(err)
+    }
+    defer dbManager.CloseDB()
+    
+    fmt.Println("数据库初始化成功，使用边缘计算场景配置")
+}
+```
+
+### 1.6.3 使用向后兼容的全局函数
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // 使用全局函数并指定场景
+    _, err := storage.OpenDefaultDbWithScenario("./edge_db", storage.ScenarioEdge)
+    if err != nil {
+        panic(err)
+    }
+    defer storage.CloseDb()
+    
+    fmt.Println("数据库初始化成功，使用边缘计算场景配置")
+}
+```
+
+### 1.6.4 场景配置与加密结合使用
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // 创建加密配置
+    encryptConfig := &storage.EncryptionConfig{
+        Enabled: true,
+        Key:     []byte("your-secure-encryption-key-32bytes"),
+    }
+    
+    // 方式1：使用 DBManager 同时指定场景和加密
+    dbManager := storage.GetDBManager()
+    db, err := dbManager.OpenDBWithScenarioAndEncryption(
+        "./edge_db", 
+        storage.ScenarioEdge, 
+        encryptConfig
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer dbManager.CloseDB()
+    
+    fmt.Println("数据库初始化成功，使用边缘计算场景配置并启用加密")
+}
+```
+
+### 1.6.5 直接使用场景配置创建 LevelDB 存储
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // 方式1：仅使用场景配置
+    db, err := storage.NewLevelDBStoreWithScenario("./edge_db", storage.ScenarioEdge)
+    if err != nil {
+        panic(err)
+    }
+    defer db.Close()
+    
+    fmt.Println("LevelDB 存储初始化成功，使用边缘计算场景配置")
+    
+    // 方式2：同时使用场景配置和加密
+    encryptConfig := &storage.EncryptionConfig{
+        Enabled: true,
+        Key:     []byte("your-secure-encryption-key-32bytes"),
+    }
+    
+    db, err = storage.NewLevelDBStoreWithScenarioAndEncryption(
+        "./edge_db_encrypted", 
+        storage.ScenarioEdge, 
+        encryptConfig
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer db.Close()
+    
+    fmt.Println("LevelDB 存储初始化成功，使用边缘计算场景配置并启用加密")
+}
+```
+
+### 1.6.6 场景选择建议
+
+- **嵌入式设备**：使用 `ScenarioEmbedded`，内存占用最低，适合资源极度受限的设备
+- **IoT 网关设备**：使用 `ScenarioIoT`，适合处理中等规模的时序数据
+- **边缘计算节点**：使用 `ScenarioEdge`，平衡性能和资源占用，适合大多数边缘场景 ⭐
+- **高性能服务器**：使用 `ScenarioGame`，性能最优，适合需要高吞吐量的场景
+
 ## 1.5 使用DBManager管理数据库
 
 sfsDb 提供了 `DBManager` 结构体，用于更结构化、模块化地管理数据库实例。`DBManager` 保持了与原有 `KVDb` 方式的兼容性，同时提供了更清晰的 API 接口。

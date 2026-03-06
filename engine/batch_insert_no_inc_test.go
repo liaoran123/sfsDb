@@ -2,17 +2,10 @@ package engine
 
 import (
 	"testing"
-
-	"github.com/liaoran123/sfsDb/storage"
 )
 
 // TestBatchInsertNoInc 测试BatchInsertNoInc函数
 func TestBatchInsertNoInc(t *testing.T) {
-	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./batch_no_inc_test_db_1")
-	if err != nil {
-		t.Fatalf("Failed to open database: %v", err)
-	}
 
 	// 创建测试表
 	table, err := TableNew("test_batch_no_inc")
@@ -86,11 +79,6 @@ func TestBatchInsertNoInc(t *testing.T) {
 
 // TestBatchInsertNoIncSkipVersion 测试BatchInsertNoInc函数的skipVersion参数
 func TestBatchInsertNoIncSkipVersion(t *testing.T) {
-	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./batch_no_inc_skip_version_test_db_1")
-	if err != nil {
-		t.Fatalf("Failed to open database: %v", err)
-	}
 
 	// 创建测试表
 	table, err := TableNew("test_batch_no_inc_skip_version")

@@ -14,7 +14,7 @@ func main5() {
 
 	// 1. 初始化数据库
 	fmt.Println("\n1. 初始化数据库")
-	_, err := storage.OpenDefaultDb("./readme_example_db")
+	_, err := storage.GetDBManager().OpenDB("./readme_example_db")
 	if err != nil {
 		fmt.Printf("打开数据库失败: %v\n", err)
 		return

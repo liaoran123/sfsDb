@@ -152,6 +152,144 @@ func main() {
 - Ensure to properly close the storage instance when it's no longer needed
 - The external storage implementation must fully implement all methods of the `Store` interface
 
+## 1.6 Using Scenario Configurations
+
+sfsDb provides predefined scenario configurations to choose appropriate memory and performance settings for different use cases, especially suitable for edge computing and IoT devices.
+
+### 1.6.1 Available Scenarios
+
+| Scenario Constant | Description | Total Memory | Use Case |
+|-------------------|-------------|--------------|----------|
+| `ScenarioEmbedded` | Embedded device | ~6MB | Smart terminal devices |
+| `ScenarioIoT` | IoT device | ~12MB | IoT gateway devices |
+| `ScenarioEdge` | Edge computing node | ~48MB | Edge computing nodes ⭐ |
+| `ScenarioGame` | Game server | ~192MB | High-performance scenarios |
+
+### 1.6.2 Opening Database with Scenario Configuration
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // Method 1: Using DBManager with scenario
+    dbManager := storage.GetDBManager()
+    db, err := dbManager.OpenDBWithScenario("./edge_db", storage.ScenarioEdge)
+    if err != nil {
+        panic(err)
+    }
+    defer dbManager.CloseDB()
+    
+    fmt.Println("Database initialized successfully with edge computing scenario configuration")
+}
+```
+
+### 1.6.3 Using Backward-Compatible Global Function
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // Using global function with scenario
+    _, err := storage.OpenDefaultDbWithScenario("./edge_db", storage.ScenarioEdge)
+    if err != nil {
+        panic(err)
+    }
+    defer storage.CloseDb()
+    
+    fmt.Println("Database initialized successfully with edge computing scenario configuration")
+}
+```
+
+### 1.6.4 Using Scenario Configuration with Encryption
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // Create encryption configuration
+    encryptConfig := &storage.EncryptionConfig{
+        Enabled: true,
+        Key:     []byte("your-secure-encryption-key-32bytes"),
+    }
+    
+    // Method 1: Using DBManager with both scenario and encryption
+    dbManager := storage.GetDBManager()
+    db, err := dbManager.OpenDBWithScenarioAndEncryption(
+        "./edge_db", 
+        storage.ScenarioEdge, 
+        encryptConfig
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer dbManager.CloseDB()
+    
+    fmt.Println("Database initialized successfully with edge computing scenario configuration and encryption enabled")
+}
+```
+
+### 1.6.5 Creating LevelDB Store Directly with Scenario Configuration
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/liaoran123/sfsDb/storage"
+)
+
+func main() {
+    // Method 1: Using only scenario configuration
+    db, err := storage.NewLevelDBStoreWithScenario("./edge_db", storage.ScenarioEdge)
+    if err != nil {
+        panic(err)
+    }
+    defer db.Close()
+    
+    fmt.Println("LevelDB store initialized successfully with edge computing scenario configuration")
+    
+    // Method 2: Using both scenario configuration and encryption
+    encryptConfig := &storage.EncryptionConfig{
+        Enabled: true,
+        Key:     []byte("your-secure-encryption-key-32bytes"),
+    }
+    
+    db, err = storage.NewLevelDBStoreWithScenarioAndEncryption(
+        "./edge_db_encrypted", 
+        storage.ScenarioEdge, 
+        encryptConfig
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer db.Close()
+    
+    fmt.Println("LevelDB store initialized successfully with edge computing scenario configuration and encryption enabled")
+}
+```
+
+### 1.6.6 Scenario Selection Recommendations
+
+- **Embedded devices**: Use `ScenarioEmbedded`, lowest memory footprint, suitable for extremely resource-constrained devices
+- **IoT gateway devices**: Use `ScenarioIoT`, suitable for processing medium-scale time-series data
+- **Edge computing nodes**: Use `ScenarioEdge`, balance between performance and resource usage, suitable for most edge scenarios ⭐
+- **High-performance servers**: Use `ScenarioGame`, optimal performance, suitable for scenarios requiring high throughput
+
 ## 1.5 Using DBManager to Manage Database
 
 sfsDb provides a `DBManager` struct for more structured and modular management of database instances. `DBManager` maintains compatibility with the original `KVDb` approach while providing a clearer API interface.

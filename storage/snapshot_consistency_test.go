@@ -17,7 +17,7 @@ func TestSnapshotConsistency(t *testing.T) {
 	defer cleanup()
 
 	// 打开数据库
-	db, err := NewLevelDBStore(dbPath, nil)
+	db, err := dbManager.NewLevelDBStore(dbPath, nil)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestSnapshotFromSnapshot(t *testing.T) {
 	defer cleanup()
 
 	// 打开数据库
-	db, err := NewLevelDBStore(dbPath, nil)
+	db, err := dbManager.NewLevelDBStore(dbPath, nil)
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}

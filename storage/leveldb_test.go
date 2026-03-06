@@ -11,7 +11,7 @@ func TestSwitchToSnapshotAndDB(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// 创建LevelDBStore实例
-	store, err := NewLevelDBStore(tmpDir, nil)
+	store, err := dbManager.NewLevelDBStore(tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create LevelDBStore: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestSnapshotReadConsistency(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// 创建LevelDBStore实例
-	store, err := NewLevelDBStore(tmpDir, nil)
+	store, err := dbManager.NewLevelDBStore(tmpDir, nil)
 	if err != nil {
 		t.Fatalf("Failed to create LevelDBStore: %v", err)
 	}

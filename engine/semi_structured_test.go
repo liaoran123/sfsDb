@@ -3,17 +3,10 @@ package engine
 import (
 	"fmt"
 	"testing"
-
-	"github.com/liaoran123/sfsDb/storage"
 )
 
 // 测试半结构化数据支持
 func TestSemiStructuredData(t *testing.T) {
-	// 打开默认数据库
-	_, err := storage.OpenDefaultDb("./test_kvdb")
-	if err != nil {
-		t.Fatalf("打开数据库失败: %v", err)
-	}
 
 	// 创建一个表
 	tableName := "test_semi_structured"

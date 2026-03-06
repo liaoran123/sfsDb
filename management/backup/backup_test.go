@@ -22,7 +22,7 @@ func TestBackupAndRestore(t *testing.T) {
 	}()
 
 	// 创建测试数据库
-	testDb, err := storage.OpenDefaultDb(testDbPath)
+	testDb, err := storage.GetDBManager().OpenDB(testDbPath)
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
@@ -65,10 +65,10 @@ func TestBackupAndRestore(t *testing.T) {
 
 	// 关闭测试数据库
 	testDb.Close()
-	storage.KVDb = nil
+	storage.GetDBManager().CloseDB()
 
 	// 创建恢复目标数据库
-	restoreDb, err := storage.OpenDefaultDb(restoreDbPath)
+	restoreDb, err := storage.GetDBManager().OpenDB(restoreDbPath)
 	if err != nil {
 		t.Fatalf("Failed to open restore database: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestBackupWithOptions(t *testing.T) {
 	}()
 
 	// 创建测试数据库
-	testDb, err := storage.OpenDefaultDb(testDbPath)
+	testDb, err := storage.GetDBManager().OpenDB(testDbPath)
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestBatchBackupDb(t *testing.T) {
 	}()
 
 	// 创建测试数据库
-	testDb, err := storage.OpenDefaultDb(testDbPath)
+	testDb, err := storage.GetDBManager().OpenDB(testDbPath)
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
@@ -211,10 +211,10 @@ func TestBatchBackupDb(t *testing.T) {
 
 	// 关闭测试数据库
 	testDb.Close()
-	storage.GetDBManager().SetDB(nil)
+	storage.GetDBManager().CloseDB()
 
 	// 创建恢复目标数据库
-	restoreDb, err := storage.OpenDefaultDb(restoreDbPath)
+	restoreDb, err := storage.GetDBManager().OpenDB(restoreDbPath)
 	if err != nil {
 		t.Fatalf("Failed to open restore database: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestRestoreNonExistentBackup(t *testing.T) {
 	}()
 
 	// 创建测试数据库
-	testDb, err := storage.OpenDefaultDb(testDbPath)
+	testDb, err := storage.GetDBManager().OpenDB(testDbPath)
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
@@ -303,7 +303,7 @@ func TestBackupDirectoryCreation(t *testing.T) {
 	}()
 
 	// 创建测试数据库
-	testDb, err := storage.OpenDefaultDb(testDbPath)
+	testDb, err := storage.GetDBManager().OpenDB(testDbPath)
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}

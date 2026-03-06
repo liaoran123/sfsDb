@@ -33,7 +33,7 @@ func main111() {
 // BenchmarkTableOperations 基准测试表操作性能
 func BenchmarkTableOperations(b *testing.B) {
 	// 初始化数据库
-	_, err := storage.OpenDefaultDb("./benchmark_db")
+	_, err := storage.GetDBManager().OpenDB("./benchmark_db")
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}

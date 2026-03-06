@@ -21,7 +21,7 @@ func TestBatchPoolMemoryUsage(t *testing.T) {
 	const batchSize = 10
 
 	// 创建测试存储
-	store, err := NewLevelDBStore("./test_batch_pool", nil)
+	store, err := dbManager.NewLevelDBStore("./test_batch_pool", nil)
 	if err != nil {
 		t.Fatalf("创建存储失败: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestBatchPoolSizeLimit(t *testing.T) {
 	// 注意：由于sync.Pool的特性，我们无法直接清空，但可以通过创建新对象来测试
 
 	// 创建测试存储
-	store, err := NewLevelDBStore("./test_batch_pool_limit", nil)
+	store, err := dbManager.NewLevelDBStore("./test_batch_pool_limit", nil)
 	if err != nil {
 		t.Fatalf("创建存储失败: %v", err)
 	}

@@ -25,8 +25,7 @@ func TestTableSearch1(t *testing.T) {
 	dbPath := "./test_encrypted_table_db_" + t.Name()
 	tableName := "test_search_" + t.Name()
 	// 初始化加密的全局KVDb
-	_, err := storage.GetDBManager().OpenDBWithEncryption(dbPath, encryptConfig)
-	//_, err := storage.OpenDefaultDbWithEncryption(dbPath, encryptConfig)
+	_, err := storage.GetDBManager().OpenDB(dbPath, encryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to open encrypted database: %v", err)
 	}

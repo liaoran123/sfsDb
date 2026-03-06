@@ -27,7 +27,7 @@ func TestTableEncryption(t *testing.T) {
 	}
 
 	// 初始化加密的全局KVDb
-	_, err := storage.OpenDefaultDbWithEncryption("./test_encrypted_table_db", encryptConfig)
+	_, err := storage.GetDBManager().OpenDB("./test_encrypted_table_db", encryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to open encrypted database: %v", err)
 	}

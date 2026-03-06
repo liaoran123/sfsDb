@@ -11,7 +11,7 @@ import (
 // TestSavepoint 测试保存点功能
 func TestSavepoint(t *testing.T) {
 	// 创建一个内存存储实例用于测试
-	db, err := storage.NewLevelDBStore("./testdb", &opt.Options{})
+	db, err := storage.GetDBManager().NewLevelDBStore("./testdb", &opt.Options{})
 	if err != nil {
 		t.Fatalf("Failed to create LevelDB store: %v", err)
 	}
