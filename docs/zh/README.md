@@ -59,6 +59,7 @@ sfsDb 是一个灵活、高效的嵌入式数据库，支持多种数据类型�
 - [事务管理](./advanced/transaction.md)
 - [管理工具库](./advanced/management.md)
 - [存储配置管理](./advanced/config_management.md)
+- [加密存储](./advanced/encryption.md)
 - [跳跃区间](./advanced/jump_ranges.md)
 - [时序数据处理](./advanced/time_series.md)
 - [服务支持](./advanced/service_support.md)
@@ -84,6 +85,7 @@ sfsDb 是一个灵活、高效的嵌入式数据库，支持多种数据类型�
 8. **半结构化数据支持**：灵活处理复杂数据结构
 9. **管理工具库**：提供数据库监控、配置管理、备份恢复和性能分析功能
 10. **时序数据处理**：内置 time 包，支持时间粒度处理、时间窗口计算、数据聚合和时间戳转换等时序数据相关功能
+11. **加密存储**：支持 AES-256-GCM 加密、PBKDF2 密钥派生和密钥轮换功能
 
 ## 快速开始
 

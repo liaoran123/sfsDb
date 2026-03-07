@@ -151,19 +151,19 @@ type cacheEntry struct {
 	lastAccess int64
 }
 
+// state 包含加密配置和加密器
+type state struct {
+	encryptor Encryptor
+	config    *EncryptionConfig
+}
+
 // EncryptedStoreWrapper 加密存储包装器
 type EncryptedStoreWrapper struct {
 	// 底层存储
 	underlyingStore Store
 
-	// 加密配置和加密器的互斥锁
-	stateMutex sync.RWMutex
-
-	// 加密配置
-	config *EncryptionConfig
-
-	// 加密器
-	encryptor Encryptor
+	// 加密配置和加密器（使用 atomic.Value 保证并发安全）
+	state atomic.Value
 
 	// 解密缓存（使用 sync.Map，无需手动锁）
 	decryptionCache sync.Map
@@ -236,27 +236,30 @@ func NewEncryptedStoreWrapper(underlyingStore Store, config *EncryptionConfig) (
 		return nil, err
 	}
 
-	return &EncryptedStoreWrapper{
+	wrapper := &EncryptedStoreWrapper{
 		underlyingStore: underlyingStore,
-		config:          finalConfig,
-		encryptor:       encryptor,
 		maxCacheEntries: defaultMaxCacheEntries,
-	}, nil
+	}
+	wrapper.state.Store(&state{
+		encryptor: encryptor,
+		config:    finalConfig,
+	})
+	return wrapper, nil
 }
 
 // GetEncryptionConfig 获取加密配置（返回副本，避免外部修改）
 func (es *EncryptedStoreWrapper) GetEncryptionConfig() *EncryptionConfig {
-	es.stateMutex.RLock()
-	defer es.stateMutex.RUnlock()
+	s := es.state.Load().(*state)
+	config := s.config
 
 	// 返回 config 的副本
 	return &EncryptionConfig{
-		Enabled:    es.config.Enabled,
-		Algorithm:  es.config.Algorithm,
-		MasterKey:  append([]byte(nil), es.config.MasterKey...),
-		Password:   es.config.Password,
-		Salt:       append([]byte(nil), es.config.Salt...),
-		Iterations: es.config.Iterations,
+		Enabled:    config.Enabled,
+		Algorithm:  config.Algorithm,
+		MasterKey:  append([]byte(nil), config.MasterKey...),
+		Password:   config.Password,
+		Salt:       append([]byte(nil), config.Salt...),
+		Iterations: config.Iterations,
 	}
 }
 
@@ -268,10 +271,10 @@ func (es *EncryptedStoreWrapper) ReEncrypt(newKey []byte) error {
 		return err
 	}
 
-	// 先读取当前的 encryptor（使用读锁）
-	es.stateMutex.RLock()
-	currentEncryptor := es.encryptor
-	es.stateMutex.RUnlock()
+	// 先读取当前的 state
+	s := es.state.Load().(*state)
+	currentEncryptor := s.encryptor
+	currentConfig := s.config
 
 	// 遍历所有数据
 	iter := es.underlyingStore.Iterator(nil, nil)
@@ -306,19 +309,21 @@ func (es *EncryptedStoreWrapper) ReEncrypt(newKey []byte) error {
 		return err
 	}
 
-	// 更新加密器和 config（使用写锁）
-	es.stateMutex.Lock()
-	es.encryptor = newEncryptor
-	// 创建新的 config 而不是修改原有的（避免竞态）
-	es.config = &EncryptionConfig{
-		Enabled:    es.config.Enabled,
-		Algorithm:  es.config.Algorithm,
+	// 创建新的 config
+	newConfig := &EncryptionConfig{
+		Enabled:    currentConfig.Enabled,
+		Algorithm:  currentConfig.Algorithm,
 		MasterKey:  append([]byte(nil), newKey...),
-		Password:   es.config.Password,
-		Salt:       append([]byte(nil), es.config.Salt...),
-		Iterations: es.config.Iterations,
+		Password:   currentConfig.Password,
+		Salt:       append([]byte(nil), currentConfig.Salt...),
+		Iterations: currentConfig.Iterations,
 	}
-	es.stateMutex.Unlock()
+
+	// 更新 state（使用 atomic.Store 保证原子性）
+	es.state.Store(&state{
+		encryptor: newEncryptor,
+		config:    newConfig,
+	})
 
 	// 清空缓存
 	es.decryptionCache = sync.Map{}
@@ -378,10 +383,9 @@ func (es *EncryptedStoreWrapper) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// 使用读锁安全访问 encryptor
-	es.stateMutex.RLock()
-	encryptor := es.encryptor
-	es.stateMutex.RUnlock()
+	// 使用 atomic.Load 安全访问 encryptor
+	s := es.state.Load().(*state)
+	encryptor := s.encryptor
 
 	// 解密数据
 	value, err := encryptor.Decrypt(encryptedValue)
@@ -405,10 +409,9 @@ func (es *EncryptedStoreWrapper) Get(key []byte) ([]byte, error) {
 
 // Put 加密存储数据
 func (es *EncryptedStoreWrapper) Put(key, value []byte) error {
-	// 使用读锁安全访问 encryptor
-	es.stateMutex.RLock()
-	encryptor := es.encryptor
-	es.stateMutex.RUnlock()
+	// 使用 atomic.Load 安全访问 encryptor
+	s := es.state.Load().(*state)
+	encryptor := s.encryptor
 
 	// 加密值
 	encryptedValue, err := encryptor.Encrypt(value)
@@ -459,10 +462,9 @@ func (es *EncryptedStoreWrapper) Delete(key []byte) error {
 
 // GetBatch 创建批量操作对象
 func (es *EncryptedStoreWrapper) GetBatch() Batch {
-	// 使用读锁安全访问 encryptor
-	es.stateMutex.RLock()
-	encryptor := es.encryptor
-	es.stateMutex.RUnlock()
+	// 使用 atomic.Load 安全访问 encryptor
+	s := es.state.Load().(*state)
+	encryptor := s.encryptor
 
 	// 返回加密批量操作对象
 	return &encryptedBatch{
@@ -512,10 +514,9 @@ func (es *EncryptedStoreWrapper) WriteBatch(batch Batch, put ...bool) error {
 
 // Iterator 创建迭代器
 func (es *EncryptedStoreWrapper) Iterator(start, limit []byte) Iterator {
-	// 使用读锁安全访问 encryptor
-	es.stateMutex.RLock()
-	encryptor := es.encryptor
-	es.stateMutex.RUnlock()
+	// 使用 atomic.Load 安全访问 encryptor
+	s := es.state.Load().(*state)
+	encryptor := s.encryptor
 
 	// 返回加密迭代器
 	return &encryptedIterator{
@@ -526,10 +527,9 @@ func (es *EncryptedStoreWrapper) Iterator(start, limit []byte) Iterator {
 
 // Snapshot 创建快照
 func (es *EncryptedStoreWrapper) Snapshot() (Snapshot, error) {
-	// 使用读锁安全访问 encryptor
-	es.stateMutex.RLock()
-	encryptor := es.encryptor
-	es.stateMutex.RUnlock()
+	// 使用 atomic.Load 安全访问 encryptor
+	s := es.state.Load().(*state)
+	encryptor := s.encryptor
 
 	// 获取底层快照
 	snapshot, err := es.underlyingStore.Snapshot()

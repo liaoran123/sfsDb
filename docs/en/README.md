@@ -61,6 +61,7 @@ sfsDb is a lightweight, high-performance embedded database library for Go. This 
 - [Jump Ranges](advanced/jump_ranges.md) - Skipping specific data ranges during iteration
 - [Management Tool Library](advanced/management.md) - Database monitoring, configuration management, backup/restore, and performance analysis
 - [Configuration Management](advanced/config_management.md) - Scenario-based configuration, custom configuration, and best practices
+- [Encryption Storage](advanced/encryption.md) - AES-256-GCM encryption, key rotation, and secure data storage
 - [Time Series Processing](advanced/time_series.md) - Time granularity handling, time window calculations, data aggregation, and timestamp conversion
 - [Service Support](advanced/service_support.md) - Service levels, support packages and service processes
 - [Range Search](advanced/search_range.md) - Efficient range queries with SearchRange method
@@ -150,6 +151,7 @@ func main() {
 - **Memory Optimization**: Object pooling and cache management
 - **Concurrency Safe**: Thread-safe design for concurrent operations
 - **Time Series Processing**: Built-in time package with support for time granularity handling, time window calculations, data aggregation, and timestamp conversion
+- **Encryption Storage**: AES-256-GCM encryption, PBKDF2 key derivation, and key rotation support
 
 ## Performance Characteristics
 
