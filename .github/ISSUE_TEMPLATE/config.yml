@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 文档
+    url: https://github.com/liaoran123/sfsDb/tree/main/docs
+    about: 请先查看我们的文档
+  - name: 常见问题
+    url: https://github.com/liaoran123/sfsDb#readme
+    about: 请查看 README 了解常见问题
