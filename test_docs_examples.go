@@ -23,7 +23,7 @@ func testMultiTableQuery() error {
 	if err != nil {
 		return fmt.Errorf("打开数据库失败: %v", err)
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 创建表1
 	table1, err := engine.TableNew("table1")
@@ -164,7 +164,7 @@ func testFullTextSearch() error {
 	if err != nil {
 		return fmt.Errorf("打开数据库失败: %v", err)
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 创建表
 	table, err := engine.TableNew("products")
@@ -253,7 +253,7 @@ func testBasicUsage() error {
 	if err != nil {
 		return fmt.Errorf("打开数据库失败: %v", err)
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 创建/打开用户表
 	userTable, err := engine.TableNew("users")

@@ -26,7 +26,7 @@ func TestTableSnapshotSearchConsistency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer storage.CloseDb()
+	defer dbManager.CloseDB()
 
 	// 创建表
 	tableName := "test_users"

@@ -20,7 +20,7 @@ func TestTable_SearchRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开数据库失败: %v", err)
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 创建表，使用时间戳作为主键
 	table, err := TableNew(tableName)
@@ -173,7 +173,7 @@ func TestTable_SearchRange_PrimaryKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开数据库失败: %v", err)
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 创建表
 	table, err := TableNew(tableName)
@@ -330,7 +330,7 @@ func TestTable_SearchRange_CommentValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开数据库失败: %v", err)
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 创建表
 	table, err := TableNew(tableName)
@@ -472,7 +472,7 @@ func TestTable_SearchRange_Performance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开数据库失败: %v", err)
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 创建表
 	table, err := TableNew(tableName)

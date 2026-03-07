@@ -419,7 +419,8 @@ func TestScenarioConfig(t *testing.T) {
 	for _, ts := range testScenarios {
 		t.Run(ts.name, func(t *testing.T) {
 			// 使用场景配置创建存储
-			store, err := dbManager.NewLevelDBStoreWithScenario("./test_scenario_"+ts.name, ts.scenario)
+			opts := GetScenarioOptions(ts.scenario)
+			store, err := dbManager.NewLevelDBStore("./test_scenario_"+ts.name, opts)
 			if err != nil {
 				t.Fatalf("Failed to create store with scenario %s: %v", ts.name, err)
 			}
@@ -475,8 +476,9 @@ func TestScenarioConfigWithEncryption(t *testing.T) {
 
 	for _, ts := range testScenarios {
 		t.Run(ts.name, func(t *testing.T) {
-			// 使用场景配置和加密创建存储（使用简化 API）
-			store, err := dbManager.NewLevelDBStoreWithScenario("./test_scenario_enc_"+ts.name, ts.scenario, encryptConfig)
+			// 使用场景配置和加密创建存储
+			opts := GetScenarioOptions(ts.scenario)
+			store, err := dbManager.NewLevelDBStore("./test_scenario_enc_"+ts.name, opts, encryptConfig)
 			if err != nil {
 				t.Fatalf("Failed to create store with scenario %s and encryption: %v", ts.name, err)
 			}
@@ -526,8 +528,9 @@ func TestScenarioConfigWithEncryptionDisabled(t *testing.T) {
 		Enabled: false,
 	}
 
-	// 使用场景配置和禁用加密创建存储（使用简化 API）
-	store, err := dbManager.NewLevelDBStoreWithScenario("./test_scenario_enc_disabled", ScenarioEdge, encryptConfig)
+	// 使用场景配置和禁用加密创建存储
+	opts := GetScenarioOptions(ScenarioEdge)
+	store, err := dbManager.NewLevelDBStore("./test_scenario_enc_disabled", opts, encryptConfig)
 	if err != nil {
 		t.Fatalf("Failed to create store with scenario and encryption disabled: %v", err)
 	}
@@ -556,6 +559,642 @@ func TestScenarioConfigWithEncryptionDisabled(t *testing.T) {
 
 	if !bytes.Equal(retrievedValue, testValue) {
 		t.Fatalf("Retrieved value does not match: got %s, want %s", retrievedValue, testValue)
+	}
+}
+
+// TestNewEncryptedStoreWrapperEdgeCases 测试 NewEncryptedStoreWrapper 的各种边缘情况
+func TestNewEncryptedStoreWrapperEdgeCases(t *testing.T) {
+	testCases := []struct {
+		name            string
+		config          *EncryptionConfig
+		expectError     bool
+		expectEncrypted bool
+	}{
+		{
+			name: "Encryption not enabled",
+			config: &EncryptionConfig{
+				Enabled: false,
+			},
+			expectError:     false,
+			expectEncrypted: false,
+		},
+		{
+			name: "No master key and no password",
+			config: &EncryptionConfig{
+				Enabled: true,
+			},
+			expectError:     true,
+			expectEncrypted: false,
+		},
+		{
+			name: "Invalid algorithm",
+			config: &EncryptionConfig{
+				Enabled:   true,
+				Algorithm: "INVALID-ALGORITHM",
+				MasterKey: make([]byte, 32),
+			},
+			expectError:     true,
+			expectEncrypted: false,
+		},
+		{
+			name: "With master key",
+			config: &EncryptionConfig{
+				Enabled:   true,
+				Algorithm: "AES-256-GCM",
+				MasterKey: make([]byte, 32),
+			},
+			expectError:     false,
+			expectEncrypted: true,
+		},
+		{
+			name: "With password and salt and iterations",
+			config: &EncryptionConfig{
+				Enabled:    true,
+				Password:   "test_password",
+				Salt:       []byte("test_salt"),
+				Iterations: 50000,
+			},
+			expectError:     false,
+			expectEncrypted: true,
+		},
+		{
+			name: "With password only (no salt, no iterations)",
+			config: &EncryptionConfig{
+				Enabled:  true,
+				Password: "test_password",
+			},
+			expectError:     false,
+			expectEncrypted: true,
+		},
+		{
+			name: "With password and salt only (no iterations)",
+			config: &EncryptionConfig{
+				Enabled:  true,
+				Password: "test_password",
+				Salt:     []byte("test_salt"),
+			},
+			expectError:     false,
+			expectEncrypted: true,
+		},
+		{
+			name: "With password and iterations only (no salt)",
+			config: &EncryptionConfig{
+				Enabled:    true,
+				Password:   "test_password",
+				Iterations: 50000,
+			},
+			expectError:     false,
+			expectEncrypted: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// 直接使用 dbManager.NewLevelDBStore 创建存储
+			store, err := dbManager.NewLevelDBStore("./test_enc_wrapper_"+tc.name, nil, tc.config)
+
+			if tc.expectError && err == nil {
+				t.Fatalf("Expected error, got nil")
+			}
+			if !tc.expectError && err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			defer func() {
+				if store != nil {
+					store.Close()
+				}
+				RemoveDir("./test_enc_wrapper_" + tc.name)
+			}()
+
+			if !tc.expectError && store == nil {
+				t.Fatalf("Expected store, got nil")
+			}
+
+			if !tc.expectError && store != nil {
+				// 验证是否是加密存储
+				wrapper, isEncrypted := store.(*EncryptedStoreWrapper)
+				if tc.expectEncrypted && !isEncrypted {
+					t.Fatalf("Expected EncryptedStoreWrapper, got %T", store)
+				}
+				if !tc.expectEncrypted && isEncrypted {
+					t.Fatalf("Expected LevelDBStore, got EncryptedStoreWrapper")
+				}
+
+				// 如果是加密存储，进行额外验证
+				if tc.expectEncrypted && wrapper != nil {
+					// 验证 config 是否正确保存
+					savedConfig := wrapper.GetEncryptionConfig()
+					if savedConfig == nil {
+						t.Fatalf("Expected saved config, got nil")
+					}
+
+					// 如果是密码派生，验证盐值和迭代次数已保存
+					if len(tc.config.MasterKey) == 0 {
+						if savedConfig.Salt == nil {
+							t.Fatalf("Expected salt to be saved")
+						}
+						if len(savedConfig.Salt) == 0 {
+							t.Fatalf("Expected salt to have length > 0")
+						}
+						if savedConfig.Iterations <= 0 {
+							t.Fatalf("Expected iterations to be > 0, got %d", savedConfig.Iterations)
+						}
+					}
+				}
+
+				// 测试基本的功能
+				testKey := []byte("test_key")
+				testValue := []byte("test_value")
+
+				err = store.Put(testKey, testValue)
+				if err != nil {
+					t.Fatalf("Failed to put data: %v", err)
+				}
+
+				retrievedValue, err := store.Get(testKey)
+				if err != nil {
+					t.Fatalf("Failed to get data: %v", err)
+				}
+
+				if !bytes.Equal(retrievedValue, testValue) {
+					t.Fatalf("Retrieved value does not match: got %s, want %s", retrievedValue, testValue)
+				}
+			}
+		})
+	}
+}
+
+// mockStore 用于测试的模拟 Store
+type mockStore struct {
+	data map[string][]byte
+}
+
+func newMockStore() *mockStore {
+	return &mockStore{
+		data: make(map[string][]byte),
+	}
+}
+
+func (ms *mockStore) Get(key []byte) ([]byte, error) {
+	if val, ok := ms.data[string(key)]; ok {
+		return val, nil
+	}
+	return nil, ErrNotFound
+}
+
+func (ms *mockStore) Put(key, value []byte) error {
+	ms.data[string(key)] = value
+	return nil
+}
+
+func (ms *mockStore) Delete(key []byte) error {
+	delete(ms.data, string(key))
+	return nil
+}
+
+func (ms *mockStore) GetBatch() Batch {
+	return &mockBatch{
+		store: ms,
+	}
+}
+
+func (ms *mockStore) WriteBatch(batch Batch, put ...bool) error {
+	mb, ok := batch.(*mockBatch)
+	if !ok {
+		return NewError("invalid batch type")
+	}
+	for _, op := range mb.ops {
+		if op.isDelete {
+			delete(ms.data, string(op.key))
+		} else {
+			ms.data[string(op.key)] = op.value
+		}
+	}
+	return nil
+}
+
+func (ms *mockStore) Iterator(start, limit []byte) Iterator {
+	return &mockIterator{}
+}
+
+func (ms *mockStore) Snapshot() (Snapshot, error) {
+	return &mockSnapshot{}, nil
+}
+
+func (ms *mockStore) SwitchToSnapshot() error {
+	return nil
+}
+
+func (ms *mockStore) SwitchToDB() error {
+	return nil
+}
+
+func (ms *mockStore) Close() error {
+	return nil
+}
+
+// mockBatch 模拟的批量操作
+type mockBatch struct {
+	store *mockStore
+	ops   []struct {
+		key      []byte
+		value    []byte
+		isDelete bool
+	}
+}
+
+func (mb *mockBatch) Put(key, value []byte) {
+	mb.ops = append(mb.ops, struct {
+		key      []byte
+		value    []byte
+		isDelete bool
+	}{key: key, value: value, isDelete: false})
+}
+
+func (mb *mockBatch) Delete(key []byte) {
+	mb.ops = append(mb.ops, struct {
+		key      []byte
+		value    []byte
+		isDelete bool
+	}{key: key, isDelete: true})
+}
+
+func (mb *mockBatch) Len() int {
+	return len(mb.ops)
+}
+
+func (mb *mockBatch) Reset() {
+	mb.ops = nil
+}
+
+// mockIterator 模拟的迭代器
+type mockIterator struct{}
+
+func (mi *mockIterator) First() bool          { return false }
+func (mi *mockIterator) Last() bool           { return false }
+func (mi *mockIterator) Seek(key []byte) bool { return false }
+func (mi *mockIterator) Next() bool           { return false }
+func (mi *mockIterator) Prev() bool           { return false }
+func (mi *mockIterator) Key() []byte          { return nil }
+func (mi *mockIterator) Value() []byte        { return nil }
+func (mi *mockIterator) Valid() bool          { return false }
+func (mi *mockIterator) Release()             {}
+
+// mockSnapshot 模拟的快照
+type mockSnapshot struct{}
+
+func (ms *mockSnapshot) Get(key []byte) ([]byte, error)        { return nil, nil }
+func (ms *mockSnapshot) Iterator(start, limit []byte) Iterator { return &mockIterator{} }
+func (ms *mockSnapshot) Release() error                        { return nil }
+
+// TestNewEncryptedStoreWrapperDirect 直接测试 NewEncryptedStoreWrapper
+func TestNewEncryptedStoreWrapperDirect(t *testing.T) {
+	mockStore := newMockStore()
+	masterKey := make([]byte, 32)
+	for i := range masterKey {
+		masterKey[i] = byte(i)
+	}
+
+	tests := []struct {
+		name        string
+		config      *EncryptionConfig
+		expectError bool
+	}{
+		{
+			name: "Encryption not enabled",
+			config: &EncryptionConfig{
+				Enabled: false,
+			},
+			expectError: true,
+		},
+		{
+			name: "No master key and no password",
+			config: &EncryptionConfig{
+				Enabled: true,
+			},
+			expectError: true,
+		},
+		{
+			name: "Invalid algorithm",
+			config: &EncryptionConfig{
+				Enabled:   true,
+				Algorithm: "INVALID-ALGORITHM",
+				MasterKey: masterKey,
+			},
+			expectError: true,
+		},
+		{
+			name: "Invalid key length (too short)",
+			config: &EncryptionConfig{
+				Enabled:   true,
+				MasterKey: make([]byte, 16),
+			},
+			expectError: true,
+		},
+		{
+			name: "Invalid key length (too long)",
+			config: &EncryptionConfig{
+				Enabled:   true,
+				MasterKey: make([]byte, 64),
+			},
+			expectError: true,
+		},
+		{
+			name: "Valid master key",
+			config: &EncryptionConfig{
+				Enabled:   true,
+				MasterKey: masterKey,
+			},
+			expectError: false,
+		},
+		{
+			name: "Valid with password",
+			config: &EncryptionConfig{
+				Enabled:  true,
+				Password: "test_password",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wrapper, err := NewEncryptedStoreWrapper(mockStore, tt.config)
+			if tt.expectError && err == nil {
+				t.Fatalf("Expected error, got nil")
+			}
+			if !tt.expectError && err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if !tt.expectError && wrapper == nil {
+				t.Fatalf("Expected wrapper, got nil")
+			}
+
+			if !tt.expectError && wrapper != nil {
+				savedConfig := wrapper.GetEncryptionConfig()
+				if savedConfig == nil {
+					t.Fatalf("Expected config to be saved")
+				}
+			}
+		})
+	}
+}
+
+// TestNewEncryptedStoreWrapperNoSideEffects 测试 NewEncryptedStoreWrapper 不修改传入的 config
+func TestNewEncryptedStoreWrapperNoSideEffects(t *testing.T) {
+	mockStore := newMockStore()
+	originalConfig := &EncryptionConfig{
+		Enabled:    true,
+		Password:   "test_password",
+		Salt:       nil,
+		Iterations: 0,
+	}
+
+	configCopy := *originalConfig
+
+	wrapper, err := NewEncryptedStoreWrapper(mockStore, originalConfig)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	defer wrapper.Close()
+
+	if originalConfig.Salt != nil {
+		t.Fatalf("Original config Salt was modified, expected nil")
+	}
+	if originalConfig.Iterations != 0 {
+		t.Fatalf("Original config Iterations was modified, expected 0")
+	}
+
+	savedConfig := wrapper.GetEncryptionConfig()
+	if savedConfig.Salt == nil || len(savedConfig.Salt) == 0 {
+		t.Fatalf("Expected Salt to be saved in wrapper config")
+	}
+	if savedConfig.Iterations <= 0 {
+		t.Fatalf("Expected Iterations to be saved in wrapper config")
+	}
+
+	if !bytes.Equal(originalConfig.MasterKey, configCopy.MasterKey) ||
+		originalConfig.Password != configCopy.Password ||
+		originalConfig.Enabled != configCopy.Enabled ||
+		originalConfig.Algorithm != configCopy.Algorithm {
+		t.Fatalf("Original config was modified unexpectedly")
+	}
+}
+
+// TestAESGCMEncryptor 测试 AESGCMEncryptor
+func TestAESGCMEncryptor(t *testing.T) {
+	tests := []struct {
+		name        string
+		key         []byte
+		expectError bool
+	}{
+		{
+			name:        "Invalid key length - 16 bytes",
+			key:         make([]byte, 16),
+			expectError: true,
+		},
+		{
+			name:        "Invalid key length - 64 bytes",
+			key:         make([]byte, 64),
+			expectError: true,
+		},
+		{
+			name:        "Valid key - 32 bytes",
+			key:         make([]byte, 32),
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			encryptor, err := NewAESGCMEncryptor(tt.key)
+			if tt.expectError && err == nil {
+				t.Fatalf("Expected error, got nil")
+			}
+			if !tt.expectError && err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if !tt.expectError {
+				if encryptor == nil {
+					t.Fatalf("Expected encryptor, got nil")
+				}
+				if encryptor.Algorithm() != "AES-256-GCM" {
+					t.Fatalf("Expected algorithm AES-256-GCM, got %s", encryptor.Algorithm())
+				}
+			}
+		})
+	}
+}
+
+// TestAESGCMEncryptorEncryptDecrypt 测试加密和解密
+func TestAESGCMEncryptorEncryptDecrypt(t *testing.T) {
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i)
+	}
+
+	encryptor, err := NewAESGCMEncryptor(key)
+	if err != nil {
+		t.Fatalf("Failed to create encryptor: %v", err)
+	}
+
+	testData := []struct {
+		name string
+		data []byte
+	}{
+		{"Empty data", []byte{}},
+		{"Small data", []byte("hello world")},
+		{"Large data", bytes.Repeat([]byte("a"), 10000)},
+		{"Binary data", []byte{0x00, 0x01, 0xFF, 0xFE}},
+	}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			ciphertext, err := encryptor.Encrypt(tt.data)
+			if err != nil {
+				t.Fatalf("Encryption failed: %v", err)
+			}
+
+			if bytes.Equal(ciphertext, tt.data) {
+				t.Fatalf("Ciphertext should not equal plaintext")
+			}
+
+			plaintext, err := encryptor.Decrypt(ciphertext)
+			if err != nil {
+				t.Fatalf("Decryption failed: %v", err)
+			}
+
+			if !bytes.Equal(plaintext, tt.data) {
+				t.Fatalf("Decrypted data doesn't match original: got %x, want %x", plaintext, tt.data)
+			}
+		})
+	}
+}
+
+// TestAESGCMEncryptorDecryptInvalid 测试解密无效数据
+func TestAESGCMEncryptorDecryptInvalid(t *testing.T) {
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i)
+	}
+
+	encryptor, err := NewAESGCMEncryptor(key)
+	if err != nil {
+		t.Fatalf("Failed to create encryptor: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		ciphertext  []byte
+		expectError bool
+	}{
+		{"Too short", []byte{1}, true},
+		{"Corrupted data", bytes.Repeat([]byte{0}, 100), true},
+		{"Wrong nonce", func() []byte {
+			ct, _ := encryptor.Encrypt([]byte("test"))
+			ct[0] ^= 0xFF
+			return ct
+		}(), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := encryptor.Decrypt(tt.ciphertext)
+			if tt.expectError && err == nil {
+				t.Fatalf("Expected error, got nil")
+			}
+			if !tt.expectError && err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestDeriveKey 测试 DeriveKey 函数
+func TestDeriveKey(t *testing.T) {
+	tests := []struct {
+		name        string
+		password    []byte
+		salt        []byte
+		iterations  int
+		expectError bool
+	}{
+		{
+			name:        "All parameters provided",
+			password:    []byte("test_password"),
+			salt:        []byte("test_salt_123456"),
+			iterations:  50000,
+			expectError: false,
+		},
+		{
+			name:        "No salt, should generate",
+			password:    []byte("test_password"),
+			salt:        nil,
+			iterations:  100000,
+			expectError: false,
+		},
+		{
+			name:        "No iterations, should use default",
+			password:    []byte("test_password"),
+			salt:        []byte("test_salt_123456"),
+			iterations:  0,
+			expectError: false,
+		},
+		{
+			name:        "Negative iterations, should use default",
+			password:    []byte("test_password"),
+			salt:        []byte("test_salt_123456"),
+			iterations:  -100,
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key, err := DeriveKey(tt.password, tt.salt, tt.iterations)
+			if tt.expectError && err == nil {
+				t.Fatalf("Expected error, got nil")
+			}
+			if !tt.expectError && err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if !tt.expectError {
+				if len(key) != 32 {
+					t.Fatalf("Expected key length 32, got %d", len(key))
+				}
+			}
+		})
+	}
+}
+
+// TestDeriveKeyConsistency 测试 DeriveKey 的一致性
+func TestDeriveKeyConsistency(t *testing.T) {
+	password := []byte("test_password")
+	salt := []byte("test_salt_123456")
+	iterations := 100000
+
+	key1, err := DeriveKey(password, salt, iterations)
+	if err != nil {
+		t.Fatalf("First derive failed: %v", err)
+	}
+
+	key2, err := DeriveKey(password, salt, iterations)
+	if err != nil {
+		t.Fatalf("Second derive failed: %v", err)
+	}
+
+	if !bytes.Equal(key1, key2) {
+		t.Fatalf("Keys not consistent: %x != %x", key1, key2)
+	}
+
+	key3, err := DeriveKey(password, []byte("different_salt"), iterations)
+	if err != nil {
+		t.Fatalf("Third derive failed: %v", err)
+	}
+
+	if bytes.Equal(key1, key3) {
+		t.Fatalf("Keys should differ with different salts")
 	}
 }
 

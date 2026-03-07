@@ -81,7 +81,7 @@ func (m *Manager) BackupManager() *backup.BackupManager {
 //   *config.ConfigManager: 配置管理器实例
 
 func (m *Manager) ConfigManager() *config.ConfigManager {
-	return config.NewConfigManager(m.store)
+	return config.NewConfigManager()
 }
 
 // Monitor 获取监控器
@@ -226,7 +226,7 @@ func (m *HTTPClientManager) BackupManager() *backup.BackupManager {
 //	*config.ConfigManager: 配置管理器实例
 
 func (m *HTTPClientManager) ConfigManager() *config.ConfigManager {
-	return config.NewConfigManager(nil)
+	return config.NewConfigManager()
 }
 
 // SystemManager 获取系统信息管理器

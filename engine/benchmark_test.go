@@ -14,7 +14,7 @@ func BenchmarkTableOperations(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 创建表
 	table, err := TableNew("benchmark_table")
@@ -145,7 +145,7 @@ func BenchmarkObjectPoolUsage(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 创建表
 	table, err := TableNew("pool_test_table")
@@ -234,7 +234,7 @@ func BenchmarkIteratorBatchUpdate(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 创建表
 	table, err := TableNew("batch_update_table")

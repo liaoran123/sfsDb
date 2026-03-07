@@ -7,8 +7,6 @@ import (
 	"crypto/sha256"
 	"io"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -58,7 +56,6 @@ type Encryptor interface {
 type AESGCMEncryptor struct {
 	key       []byte
 	algorithm string
-	aesgcm    cipher.AEAD
 }
 
 // NewAESGCMEncryptor 创建新的AES-GCM加密器
@@ -68,21 +65,9 @@ func NewAESGCMEncryptor(key []byte) (*AESGCMEncryptor, error) {
 		return nil, ErrInvalidKeyLength
 	}
 
-	// 预先创建并缓存 cipher 和 GCM 对象
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, ErrEncryptionFailed
-	}
-
-	aesgcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, ErrEncryptionFailed
-	}
-
 	return &AESGCMEncryptor{
 		key:       key,
 		algorithm: "AES-256-GCM",
-		aesgcm:    aesgcm,
 	}, nil
 }
 
@@ -93,31 +78,51 @@ func (e *AESGCMEncryptor) Algorithm() string {
 
 // Encrypt 加密数据
 func (e *AESGCMEncryptor) Encrypt(plaintext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(e.key)
+	if err != nil {
+		return nil, ErrEncryptionFailed
+	}
+
+	// 创建GCM模式
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, ErrEncryptionFailed
+	}
+
 	// 生成随机nonce
-	nonce := make([]byte, e.aesgcm.NonceSize())
+	nonce := make([]byte, aesgcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, ErrEncryptionFailed
 	}
 
 	// 加密数据
-	ciphertext := e.aesgcm.Seal(nonce, nonce, plaintext, nil)
+	ciphertext := aesgcm.Seal(nonce, nonce, plaintext, nil)
 	return ciphertext, nil
 }
 
 // Decrypt 解密数据
 func (e *AESGCMEncryptor) Decrypt(ciphertext []byte) ([]byte, error) {
-	nonceSize := e.aesgcm.NonceSize()
+	block, err := aes.NewCipher(e.key)
+	if err != nil {
+		return nil, ErrDecryptionFailed
+	}
+
+	// 创建GCM模式
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, ErrDecryptionFailed
+	}
 
 	// 检查密文长度
-	if len(ciphertext) < nonceSize {
+	if len(ciphertext) < aesgcm.NonceSize() {
 		return nil, ErrDecryptionFailed
 	}
 
 	// 提取nonce和密文
-	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	nonce, ciphertext := ciphertext[:aesgcm.NonceSize()], ciphertext[aesgcm.NonceSize():]
 
 	// 解密数据
-	plaintext, err := e.aesgcm.Open(nil, nonce, ciphertext, nil)
+	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		return nil, ErrDecryptionFailed
 	}
@@ -145,19 +150,10 @@ func DeriveKey(password, salt []byte, iterations int) ([]byte, error) {
 	return key, nil
 }
 
-// cacheEntry 缓存条目
-type cacheEntry struct {
-	value      []byte
-	lastAccess int64
-}
-
 // EncryptedStoreWrapper 加密存储包装器
 type EncryptedStoreWrapper struct {
 	// 底层存储
 	underlyingStore Store
-
-	// 加密配置和加密器的互斥锁
-	stateMutex sync.RWMutex
 
 	// 加密配置
 	config *EncryptionConfig
@@ -165,17 +161,12 @@ type EncryptedStoreWrapper struct {
 	// 加密器
 	encryptor Encryptor
 
-	// 解密缓存（使用 sync.Map，无需手动锁）
-	decryptionCache sync.Map
+	// 解密缓存
+	decryptionCache map[string][]byte
 
-	// 缓存大小（原子计数器）
-	cacheSize int64
-
-	// 缓存最大条目数
-	maxCacheEntries int
+	// 缓存互斥锁
+	cacheMutex sync.RWMutex
 }
-
-const defaultMaxCacheEntries = 1000
 
 // NewEncryptedStoreWrapper 创建新的加密存储包装器
 func NewEncryptedStoreWrapper(underlyingStore Store, config *EncryptionConfig) (*EncryptedStoreWrapper, error) {
@@ -240,24 +231,13 @@ func NewEncryptedStoreWrapper(underlyingStore Store, config *EncryptionConfig) (
 		underlyingStore: underlyingStore,
 		config:          finalConfig,
 		encryptor:       encryptor,
-		maxCacheEntries: defaultMaxCacheEntries,
+		decryptionCache: make(map[string][]byte),
 	}, nil
 }
 
-// GetEncryptionConfig 获取加密配置（返回副本，避免外部修改）
+// GetEncryptionConfig 获取加密配置
 func (es *EncryptedStoreWrapper) GetEncryptionConfig() *EncryptionConfig {
-	es.stateMutex.RLock()
-	defer es.stateMutex.RUnlock()
-
-	// 返回 config 的副本
-	return &EncryptionConfig{
-		Enabled:    es.config.Enabled,
-		Algorithm:  es.config.Algorithm,
-		MasterKey:  append([]byte(nil), es.config.MasterKey...),
-		Password:   es.config.Password,
-		Salt:       append([]byte(nil), es.config.Salt...),
-		Iterations: es.config.Iterations,
-	}
+	return es.config
 }
 
 // ReEncrypt 重新加密所有数据
@@ -267,11 +247,6 @@ func (es *EncryptedStoreWrapper) ReEncrypt(newKey []byte) error {
 	if err != nil {
 		return err
 	}
-
-	// 先读取当前的 encryptor（使用读锁）
-	es.stateMutex.RLock()
-	currentEncryptor := es.encryptor
-	es.stateMutex.RUnlock()
 
 	// 遍历所有数据
 	iter := es.underlyingStore.Iterator(nil, nil)
@@ -286,7 +261,7 @@ func (es *EncryptedStoreWrapper) ReEncrypt(newKey []byte) error {
 		encryptedValue := iter.Value()
 
 		// 解密旧数据
-		plaintext, err := currentEncryptor.Decrypt(encryptedValue)
+		plaintext, err := es.encryptor.Decrypt(encryptedValue)
 		if err != nil {
 			return err
 		}
@@ -306,71 +281,28 @@ func (es *EncryptedStoreWrapper) ReEncrypt(newKey []byte) error {
 		return err
 	}
 
-	// 更新加密器和 config（使用写锁）
-	es.stateMutex.Lock()
+	// 更新加密器
 	es.encryptor = newEncryptor
-	// 创建新的 config 而不是修改原有的（避免竞态）
-	es.config = &EncryptionConfig{
-		Enabled:    es.config.Enabled,
-		Algorithm:  es.config.Algorithm,
-		MasterKey:  append([]byte(nil), newKey...),
-		Password:   es.config.Password,
-		Salt:       append([]byte(nil), es.config.Salt...),
-		Iterations: es.config.Iterations,
-	}
-	es.stateMutex.Unlock()
+	es.config.MasterKey = newKey
 
 	// 清空缓存
-	es.decryptionCache = sync.Map{}
-	atomic.StoreInt64(&es.cacheSize, 0)
+	es.cacheMutex.Lock()
+	es.decryptionCache = make(map[string][]byte)
+	es.cacheMutex.Unlock()
 
 	return nil
 }
 
-// evictLRU 驱逐最久未使用的缓存条目
-func (es *EncryptedStoreWrapper) evictLRU() {
-	currentSize := atomic.LoadInt64(&es.cacheSize)
-	if currentSize < int64(es.maxCacheEntries) {
-		return
-	}
-
-	var oldestKey string
-	var oldestTime int64 = 1<<63 - 1
-
-	es.decryptionCache.Range(func(k, v interface{}) bool {
-		key := k.(string)
-		entry := v.(*cacheEntry)
-		if entry.lastAccess < oldestTime {
-			oldestTime = entry.lastAccess
-			oldestKey = key
-		}
-		return true
-	})
-
-	if oldestKey != "" {
-		es.decryptionCache.Delete(oldestKey)
-		atomic.AddInt64(&es.cacheSize, -1)
-	}
-}
-
 // Get 获取并解密数据
 func (es *EncryptedStoreWrapper) Get(key []byte) ([]byte, error) {
-	cacheKey := string(key)
-	now := time.Now().UnixNano()
-
 	// 从缓存获取
-	if v, ok := es.decryptionCache.Load(cacheKey); ok {
-		entry := v.(*cacheEntry)
-
-		// 更新访问时间
-		newEntry := &cacheEntry{
-			value:      entry.value,
-			lastAccess: now,
-		}
-		es.decryptionCache.Store(cacheKey, newEntry)
-
-		return entry.value, nil
+	cacheKey := string(key)
+	es.cacheMutex.RLock()
+	if value, ok := es.decryptionCache[cacheKey]; ok {
+		es.cacheMutex.RUnlock()
+		return value, nil
 	}
+	es.cacheMutex.RUnlock()
 
 	// 从底层存储获取加密数据
 	encryptedValue, err := es.underlyingStore.Get(key)
@@ -378,40 +310,24 @@ func (es *EncryptedStoreWrapper) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// 使用读锁安全访问 encryptor
-	es.stateMutex.RLock()
-	encryptor := es.encryptor
-	es.stateMutex.RUnlock()
-
 	// 解密数据
-	value, err := encryptor.Decrypt(encryptedValue)
+	value, err := es.encryptor.Decrypt(encryptedValue)
 	if err != nil {
 		return nil, err
 	}
 
 	// 存入缓存
-	es.evictLRU()
-
-	// 检查是否在 evict 期间被其他 goroutine 添加了
-	if _, loaded := es.decryptionCache.LoadOrStore(cacheKey, &cacheEntry{
-		value:      value,
-		lastAccess: now,
-	}); !loaded {
-		atomic.AddInt64(&es.cacheSize, 1)
-	}
+	es.cacheMutex.Lock()
+	es.decryptionCache[cacheKey] = value
+	es.cacheMutex.Unlock()
 
 	return value, nil
 }
 
 // Put 加密存储数据
 func (es *EncryptedStoreWrapper) Put(key, value []byte) error {
-	// 使用读锁安全访问 encryptor
-	es.stateMutex.RLock()
-	encryptor := es.encryptor
-	es.stateMutex.RUnlock()
-
 	// 加密值
-	encryptedValue, err := encryptor.Encrypt(value)
+	encryptedValue, err := es.encryptor.Encrypt(value)
 	if err != nil {
 		return err
 	}
@@ -424,18 +340,9 @@ func (es *EncryptedStoreWrapper) Put(key, value []byte) error {
 
 	// 更新缓存
 	cacheKey := string(key)
-	now := time.Now().UnixNano()
-
-	es.evictLRU()
-
-	newEntry := &cacheEntry{
-		value:      value,
-		lastAccess: now,
-	}
-
-	if _, loaded := es.decryptionCache.Swap(cacheKey, newEntry); !loaded {
-		atomic.AddInt64(&es.cacheSize, 1)
-	}
+	es.cacheMutex.Lock()
+	es.decryptionCache[cacheKey] = value
+	es.cacheMutex.Unlock()
 
 	return nil
 }
@@ -450,24 +357,19 @@ func (es *EncryptedStoreWrapper) Delete(key []byte) error {
 
 	// 从缓存删除
 	cacheKey := string(key)
-	if _, loaded := es.decryptionCache.LoadAndDelete(cacheKey); loaded {
-		atomic.AddInt64(&es.cacheSize, -1)
-	}
+	es.cacheMutex.Lock()
+	delete(es.decryptionCache, cacheKey)
+	es.cacheMutex.Unlock()
 
 	return nil
 }
 
 // GetBatch 创建批量操作对象
 func (es *EncryptedStoreWrapper) GetBatch() Batch {
-	// 使用读锁安全访问 encryptor
-	es.stateMutex.RLock()
-	encryptor := es.encryptor
-	es.stateMutex.RUnlock()
-
 	// 返回加密批量操作对象
 	return &encryptedBatch{
 		underlyingBatch: es.underlyingStore.GetBatch(),
-		encryptor:       encryptor,
+		encryptor:       es.encryptor,
 	}
 }
 
@@ -492,19 +394,11 @@ func (es *EncryptedStoreWrapper) WriteBatch(batch Batch, put ...bool) error {
 
 	// 如果是加密批量操作，更新缓存
 	if isEncrypted {
-		now := time.Now().UnixNano()
+		es.cacheMutex.Lock()
 		for key, value := range encryptedBatch.decryptedValues {
-			es.evictLRU()
-
-			newEntry := &cacheEntry{
-				value:      value,
-				lastAccess: now,
-			}
-
-			if _, loaded := es.decryptionCache.Swap(key, newEntry); !loaded {
-				atomic.AddInt64(&es.cacheSize, 1)
-			}
+			es.decryptionCache[key] = value
 		}
+		es.cacheMutex.Unlock()
 	}
 
 	return nil
@@ -512,25 +406,15 @@ func (es *EncryptedStoreWrapper) WriteBatch(batch Batch, put ...bool) error {
 
 // Iterator 创建迭代器
 func (es *EncryptedStoreWrapper) Iterator(start, limit []byte) Iterator {
-	// 使用读锁安全访问 encryptor
-	es.stateMutex.RLock()
-	encryptor := es.encryptor
-	es.stateMutex.RUnlock()
-
 	// 返回加密迭代器
 	return &encryptedIterator{
 		underlyingIterator: es.underlyingStore.Iterator(start, limit),
-		encryptor:          encryptor,
+		encryptor:          es.encryptor,
 	}
 }
 
 // Snapshot 创建快照
 func (es *EncryptedStoreWrapper) Snapshot() (Snapshot, error) {
-	// 使用读锁安全访问 encryptor
-	es.stateMutex.RLock()
-	encryptor := es.encryptor
-	es.stateMutex.RUnlock()
-
 	// 获取底层快照
 	snapshot, err := es.underlyingStore.Snapshot()
 	if err != nil {
@@ -540,7 +424,7 @@ func (es *EncryptedStoreWrapper) Snapshot() (Snapshot, error) {
 	// 返回加密快照
 	return &encryptedSnapshot{
 		underlyingSnapshot: snapshot,
-		encryptor:          encryptor,
+		encryptor:          es.encryptor,
 	}, nil
 }
 
@@ -557,8 +441,9 @@ func (es *EncryptedStoreWrapper) SwitchToDB() error {
 // Close 关闭存储
 func (es *EncryptedStoreWrapper) Close() error {
 	// 清空缓存
-	es.decryptionCache = sync.Map{}
-	atomic.StoreInt64(&es.cacheSize, 0)
+	es.cacheMutex.Lock()
+	es.decryptionCache = nil
+	es.cacheMutex.Unlock()
 
 	// 关闭底层存储
 	return es.underlyingStore.Close()

@@ -18,19 +18,14 @@ type ConfigInfo struct {
 
 // ConfigManager 配置管理器
 type ConfigManager struct {
-	store storage.Store
 }
 
 // NewConfigManager 创建配置管理器
-// 参数:
-//   store: 存储实例
 // 返回:
 //   *ConfigManager: 配置管理器实例
 
-func NewConfigManager(store storage.Store) *ConfigManager {
-	return &ConfigManager{
-		store: store,
-	}
+func NewConfigManager() *ConfigManager {
+	return &ConfigManager{}
 }
 
 // GetConfig 获取当前配置
@@ -41,7 +36,7 @@ func NewConfigManager(store storage.Store) *ConfigManager {
 func (cm *ConfigManager) GetConfig() (ConfigInfo, error) {
 	// 获取存储的配置
 	config := storage.GetConfig()
-	
+
 	// 转换为 ConfigInfo 格式
 	configInfo := ConfigInfo{
 		StoreType: "LevelDB",
@@ -67,13 +62,11 @@ func (cm *ConfigManager) GetConfig() (ConfigInfo, error) {
 // 参数:
 //   key: 配置键
 //   value: 配置值
-// 返回:
-//   error: 错误信息
 
-func (cm *ConfigManager) SetConfig(key string, value string) error {
+func (cm *ConfigManager) SetConfig(key string, value string) {
 	// 获取当前配置
 	config := storage.GetConfig()
-	
+
 	// 根据键设置值
 	switch key {
 	case "write_buffer":
@@ -97,36 +90,28 @@ func (cm *ConfigManager) SetConfig(key string, value string) error {
 			}
 		}
 	}
-	
+
 	// 设置配置
 	storage.SetConfig(config)
-	
-	// 保存到存储
-	return storage.SaveConfigToStore(".")
 }
 
 // SetScenarioConfig 设置场景配置
 // 参数:
 //   scenario: 场景名称
-// 返回:
-//   error: 错误信息
 
-func (cm *ConfigManager) SetScenarioConfig(scenario string) error {
+func (cm *ConfigManager) SetScenarioConfig(scenario string) {
 	// 获取场景配置
 	scenarioOpts := storage.GetScenarioOptions(scenario)
-	
+
 	// 转换为 Config 格式
 	config := storage.GetConfig()
 	config.WriteBuffer = scenarioOpts.WriteBuffer
 	config.OpenFilesCacheCapacity = scenarioOpts.OpenFilesCacheCapacity
 	config.BlockCacheCapacity = scenarioOpts.BlockCacheCapacity
 	config.Compression = scenarioOpts.Compression
-	
+
 	// 设置配置
 	storage.SetConfig(config)
-	
-	// 保存到存储
-	return storage.SaveConfigToStore(".")
 }
 
 // GetOptimizationSuggestions 获取优化建议
@@ -137,7 +122,7 @@ func (cm *ConfigManager) SetScenarioConfig(scenario string) error {
 func (cm *ConfigManager) GetOptimizationSuggestions() ([]string, error) {
 	// 获取当前配置
 	config := storage.GetConfig()
-	
+
 	suggestions := []string{}
 
 	// 基于当前配置生成优化建议
@@ -181,10 +166,8 @@ func (cm *ConfigManager) ValidateConfig(config ConfigInfo) (bool, error) {
 }
 
 // ResetConfig 重置配置为默认值
-// 返回:
-//   error: 错误信息
 
-func (cm *ConfigManager) ResetConfig() error {
+func (cm *ConfigManager) ResetConfig() {
 	// 重置为默认配置
 	defaultConfig := storage.Config{
 		WriteBuffer:            storage.DefaultWriteBuffer,
@@ -192,11 +175,8 @@ func (cm *ConfigManager) ResetConfig() error {
 		BlockCacheCapacity:     storage.DefaultBlockCacheCapacity,
 		Compression:            opt.DefaultCompression,
 	}
-	
+
 	storage.SetConfig(defaultConfig)
-	
-	// 保存到存储
-	return storage.SaveConfigToStore(".")
 }
 
 // ParseSize 解析大小字符串，支持 "64MB" 或 "67108864" 格式

@@ -4,6 +4,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
+// 默认场景配置常量
 const (
 	DefaultWriteBuffer             = 64 * 1024 * 1024
 	DefaultOpenFilesCacheCapacity  = 200
@@ -22,6 +23,7 @@ const (
 	GameBlockCacheCapacity         = 128 * 1024 * 1024
 )
 
+// 场景名称常量
 const (
 	ScenarioEmbedded = "embedded"
 	ScenarioIoT      = "iot"
@@ -30,6 +32,7 @@ const (
 	ScenarioDefault  = "default"
 )
 
+// Config 数据库配置结构
 type Config struct {
 	WriteBuffer            int
 	OpenFilesCacheCapacity int
@@ -37,32 +40,33 @@ type Config struct {
 	Compression            opt.Compression
 }
 
-var scenarioConfigs = map[string]Config{
-	ScenarioEmbedded: {
-		WriteBuffer:            EmbeddedWriteBuffer,
-		OpenFilesCacheCapacity: EmbeddedOpenFilesCacheCapacity,
-		BlockCacheCapacity:     EmbeddedBlockCacheCapacity,
+// NewConfig 创建一个新的 Config 实例，使用默认值
+func NewConfig() Config {
+	return Config{
+		WriteBuffer:            DefaultWriteBuffer,
+		OpenFilesCacheCapacity: DefaultOpenFilesCacheCapacity,
+		BlockCacheCapacity:     DefaultBlockCacheCapacity,
 		Compression:            opt.DefaultCompression,
-	},
-	ScenarioIoT: {
-		WriteBuffer:            IoTWriteBuffer,
-		OpenFilesCacheCapacity: IoTOpenFilesCacheCapacity,
-		BlockCacheCapacity:     IoTBlockCacheCapacity,
-		Compression:            opt.DefaultCompression,
-	},
-	ScenarioEdge: {
-		WriteBuffer:            EdgeWriteBuffer,
-		OpenFilesCacheCapacity: EdgeOpenFilesCacheCapacity,
-		BlockCacheCapacity:     EdgeBlockCacheCapacity,
-		Compression:            opt.DefaultCompression,
-	},
-	ScenarioGame: {
-		WriteBuffer:            GameWriteBuffer,
-		OpenFilesCacheCapacity: GameOpenFilesCacheCapacity,
-		BlockCacheCapacity:     GameBlockCacheCapacity,
-		Compression:            opt.NoCompression,
-	},
-	ScenarioDefault: {
+	}
+}
+
+// NewConfigWith 创建一个完全自定义的 Config 实例
+func NewConfigWith(writeBuffer int, openFilesCacheCapacity int, blockCacheCapacity int, compression opt.Compression) Config {
+	return Config{
+		WriteBuffer:            writeBuffer,
+		OpenFilesCacheCapacity: openFilesCacheCapacity,
+		BlockCacheCapacity:     blockCacheCapacity,
+		Compression:            compression,
+	}
+}
+
+// ConfigManager 配置管理器
+type ConfigManager struct {
+	config Config
+}
+
+var configManager = &ConfigManager{
+	config: Config{
 		WriteBuffer:            DefaultWriteBuffer,
 		OpenFilesCacheCapacity: DefaultOpenFilesCacheCapacity,
 		BlockCacheCapacity:     DefaultBlockCacheCapacity,
@@ -70,18 +74,12 @@ var scenarioConfigs = map[string]Config{
 	},
 }
 
-type ConfigManager struct {
-	config Config
-}
-
-var configManager = &ConfigManager{
-	config: scenarioConfigs[ScenarioDefault],
-}
-
+// GetConfigManager 获取配置管理器实例
 func GetConfigManager() *ConfigManager {
 	return configManager
 }
 
+// SetConfig 设置配置
 func (cm *ConfigManager) SetConfig(config Config) {
 	if config.WriteBuffer <= 0 {
 		config.WriteBuffer = cm.config.WriteBuffer
@@ -95,10 +93,12 @@ func (cm *ConfigManager) SetConfig(config Config) {
 	cm.config = config
 }
 
+// GetConfig 获取配置
 func (cm *ConfigManager) GetConfig() Config {
 	return cm.config
 }
 
+// GetOptions 获取 LevelDB 选项
 func (cm *ConfigManager) GetOptions() *opt.Options {
 	config := cm.GetConfig()
 	return &opt.Options{
@@ -109,13 +109,50 @@ func (cm *ConfigManager) GetOptions() *opt.Options {
 	}
 }
 
+// GetScenarioConfig 获取内置场景配置
 func GetScenarioConfig(scenario string) Config {
-	if cfg, ok := scenarioConfigs[scenario]; ok {
-		return cfg
+	switch scenario {
+	case ScenarioEmbedded:
+		return Config{
+			WriteBuffer:            EmbeddedWriteBuffer,
+			OpenFilesCacheCapacity: EmbeddedOpenFilesCacheCapacity,
+			BlockCacheCapacity:     EmbeddedBlockCacheCapacity,
+			Compression:            opt.DefaultCompression,
+		}
+	case ScenarioIoT:
+		return Config{
+			WriteBuffer:            IoTWriteBuffer,
+			OpenFilesCacheCapacity: IoTOpenFilesCacheCapacity,
+			BlockCacheCapacity:     IoTBlockCacheCapacity,
+			Compression:            opt.DefaultCompression,
+		}
+	case ScenarioEdge:
+		return Config{
+			WriteBuffer:            EdgeWriteBuffer,
+			OpenFilesCacheCapacity: EdgeOpenFilesCacheCapacity,
+			BlockCacheCapacity:     EdgeBlockCacheCapacity,
+			Compression:            opt.DefaultCompression,
+		}
+	case ScenarioGame:
+		return Config{
+			WriteBuffer:            GameWriteBuffer,
+			OpenFilesCacheCapacity: GameOpenFilesCacheCapacity,
+			BlockCacheCapacity:     GameBlockCacheCapacity,
+			Compression:            opt.NoCompression,
+		}
+	case ScenarioDefault:
+		return Config{
+			WriteBuffer:            DefaultWriteBuffer,
+			OpenFilesCacheCapacity: DefaultOpenFilesCacheCapacity,
+			BlockCacheCapacity:     DefaultBlockCacheCapacity,
+			Compression:            opt.DefaultCompression,
+		}
+	default:
+		return NewConfig()
 	}
-	return scenarioConfigs[ScenarioDefault]
 }
 
+// GetScenarioOptions 获取场景配置的 LevelDB 选项
 func GetScenarioOptions(scenario string) *opt.Options {
 	config := GetScenarioConfig(scenario)
 	return &opt.Options{

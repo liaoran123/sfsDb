@@ -19,7 +19,7 @@ func main5() {
 		fmt.Printf("打开数据库失败: %v\n", err)
 		return
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 2. 创建/打开用户表
 	fmt.Println("\n2. 创建用户表")

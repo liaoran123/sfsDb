@@ -37,7 +37,7 @@ func BenchmarkTableOperations(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 
 	// 创建表
 	table, err := engine.TableNew("benchmark_table")

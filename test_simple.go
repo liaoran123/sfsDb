@@ -17,7 +17,7 @@ func main1() {
 		fmt.Printf("数据库打开失败: %v\n", err)
 		return
 	}
-	defer storage.CloseDb()
+	defer storage.GetDBManager().CloseDB()
 	fmt.Println("数据库打开成功")
 
 	// 2. 创建用户表

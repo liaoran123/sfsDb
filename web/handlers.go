@@ -106,11 +106,7 @@ func (s *Server) handleSetConfig(c *gin.Context) {
 	}
 
 	configMgr := s.manager.ConfigManager()
-	err := configMgr.SetConfig(req.Key, req.Value)
-	if err != nil {
-		s.sendError(c, http.StatusInternalServerError, "config update failed", "Failed to update configuration", err.Error())
-		return
-	}
+	configMgr.SetConfig(req.Key, req.Value)
 
 	s.sendSuccess(c, gin.H{"message": "Configuration updated successfully"})
 }
@@ -128,11 +124,7 @@ func (s *Server) handleSetScenarioConfig(c *gin.Context) {
 	}
 
 	configMgr := s.manager.ConfigManager()
-	err := configMgr.SetScenarioConfig(req.Scenario)
-	if err != nil {
-		s.sendError(c, http.StatusInternalServerError, "scenario config update failed", "Failed to update scenario configuration", err.Error())
-		return
-	}
+	configMgr.SetScenarioConfig(req.Scenario)
 
 	s.sendSuccess(c, gin.H{"message": "Scenario configuration updated successfully"})
 }
@@ -140,11 +132,7 @@ func (s *Server) handleSetScenarioConfig(c *gin.Context) {
 // handleResetConfig 处理重置配置请求
 func (s *Server) handleResetConfig(c *gin.Context) {
 	configMgr := s.manager.ConfigManager()
-	err := configMgr.ResetConfig()
-	if err != nil {
-		s.sendError(c, http.StatusInternalServerError, "config reset failed", "Failed to reset configuration", err.Error())
-		return
-	}
+	configMgr.ResetConfig()
 
 	s.sendSuccess(c, gin.H{"message": "Configuration reset successfully"})
 }
