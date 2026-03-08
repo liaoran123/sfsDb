@@ -82,13 +82,11 @@ sfsDb 已在实际生产环境中得到应用，其中最典型的案例是 **Re
 - **应用场景**: 提供高精度、高性能的文档搜索功能，支持复杂的文本匹配和检索需求
 - **技术亮点**: 充分利用 sfsDb 的原生全文索引和高性能查询能力，实现了考据级的文档搜索体验
 
-### EdgeX 适配器
+### 边缘数据存储适配器
 
-**sfsdb-edgex-adapter** 是 sfsDb 的官方 EdgeX 适配器，可在生产环境中使用，提供 EdgeX Foundry 与 sfsDb 嵌入式数据库之间的无缝集成。
+**sfsEdgeStore** 是典型的"小前端"应用，专为边缘计算场景设计。它作为 EdgeX Foundry 和 sfsDb 数据库之间的桥梁，提供高效的本地数据读写和缓存能力。
 
-- **项目地址**: [https://github.com/liaoran123/sfsdb-edgex-adapter](https://github.com/liaoran123/sfsdb-edgex-adapter)
-- **应用场景**: 实现边缘设备数据的高效存储和检索，支持 EdgeX Foundry 生态系统
-- **技术亮点**: 自动数据库管理、实时数据处理、高效的时间范围查询、与 EdgeX Foundry 标准完全兼容
+- **项目地址**: [https://github.com/liaoran123/sfsEdgeStore](https://github.com/liaoran123/sfsEdgeStore)
 
 ### 示例项目
 - [sfsDbIIoT](https://github.com/liaoran123/sfsDbIIoT) - 使用sfsDb实现的智能工厂设备监控系统，展示了sfsDb在工业IoT领域的应用
