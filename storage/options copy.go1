@@ -1,87 +1,35 @@
 package storage
 
 import (
-	"fmt"
-	"strconv"
-	"strings"
-	"sync"
-
-	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 const (
-	// DefaultWriteBuffer 默认写缓冲区大小（64MB）
-	DefaultWriteBuffer = 64 * 1024 * 1024
-	// DefaultOpenFilesCacheCapacity 默认打开文件缓存数量（200个）
-	DefaultOpenFilesCacheCapacity = 200
-	// DefaultBlockCacheCapacity 默认块缓存大小（128MB）
-	DefaultBlockCacheCapacity = 128 * 1024 * 1024
-
-	// EmbeddedWriteBuffer 嵌入式场景写缓冲区大小（2MB）
-	EmbeddedWriteBuffer = 2 * 1024 * 1024
-	// EmbeddedOpenFilesCacheCapacity 嵌入式场景打开文件缓存数量（5个）
+	DefaultWriteBuffer             = 64 * 1024 * 1024
+	DefaultOpenFilesCacheCapacity  = 200
+	DefaultBlockCacheCapacity      = 128 * 1024 * 1024
+	EmbeddedWriteBuffer            = 2 * 1024 * 1024
 	EmbeddedOpenFilesCacheCapacity = 5
-	// EmbeddedBlockCacheCapacity 嵌入式场景块缓存大小（4MB）
-	EmbeddedBlockCacheCapacity = 4 * 1024 * 1024
-
-	// IoTWriteBuffer IoT场景写缓冲区大小（4MB）
-	IoTWriteBuffer = 4 * 1024 * 1024
-	// IoTOpenFilesCacheCapacity IoT场景打开文件缓存数量（10个）
-	IoTOpenFilesCacheCapacity = 10
-	// IoTBlockCacheCapacity IoT场景块缓存大小（8MB）
-	IoTBlockCacheCapacity = 8 * 1024 * 1024
-
-	// EdgeWriteBuffer 边缘场景写缓冲区大小（16MB）
-	EdgeWriteBuffer = 16 * 1024 * 1024
-	// EdgeOpenFilesCacheCapacity 边缘场景打开文件缓存数量（50个）
-	EdgeOpenFilesCacheCapacity = 50
-	// EdgeBlockCacheCapacity 边缘场景块缓存大小（32MB）
-	EdgeBlockCacheCapacity = 32 * 1024 * 1024
-
-	// GameWriteBuffer 游戏场景写缓冲区大小（64MB）
-	GameWriteBuffer = 64 * 1024 * 1024
-	// GameOpenFilesCacheCapacity 游戏场景打开文件缓存数量（200个）
-	GameOpenFilesCacheCapacity = 200
-	// GameBlockCacheCapacity 游戏场景块缓存大小（128MB）
-	GameBlockCacheCapacity = 128 * 1024 * 1024
-
-	// MinWriteBuffer 最小写缓冲区大小（4MB）
-	MinWriteBuffer = 4 * 1024 * 1024
-	// MinOpenFilesCacheCapacity 最小打开文件缓存数量（10个）
-	MinOpenFilesCacheCapacity = 10
-	// MinBlockCacheCapacity 最小块缓存大小（8MB）
-	MinBlockCacheCapacity = 8 * 1024 * 1024
-
-	// ConfigPrefix 配置键前缀
-	ConfigPrefix = "config:"
+	EmbeddedBlockCacheCapacity     = 4 * 1024 * 1024
+	IoTWriteBuffer                 = 4 * 1024 * 1024
+	IoTOpenFilesCacheCapacity      = 10
+	IoTBlockCacheCapacity          = 8 * 1024 * 1024
+	EdgeWriteBuffer                = 16 * 1024 * 1024
+	EdgeOpenFilesCacheCapacity     = 50
+	EdgeBlockCacheCapacity         = 32 * 1024 * 1024
+	GameWriteBuffer                = 64 * 1024 * 1024
+	GameOpenFilesCacheCapacity     = 200
+	GameBlockCacheCapacity         = 128 * 1024 * 1024
 )
 
 const (
-	// ConfigKeyWriteBuffer 写缓冲区配置键
-	ConfigKeyWriteBuffer = ConfigPrefix + "write_buffer"
-	// ConfigKeyMaxOpenFiles 最大打开文件数配置键
-	ConfigKeyMaxOpenFiles = ConfigPrefix + "max_open_files"
-	// ConfigKeyBlockCache 块缓存配置键
-	ConfigKeyBlockCache = ConfigPrefix + "block_cache"
-	// ConfigKeyCompression 压缩配置键
-	ConfigKeyCompression = ConfigPrefix + "compression"
-)
-
-const (
-	// ScenarioEmbedded 嵌入式场景
 	ScenarioEmbedded = "embedded"
-	// ScenarioIoT 物联网场景
-	ScenarioIoT = "iot"
-	// ScenarioEdge 边缘计算场景
-	ScenarioEdge = "edge"
-	// ScenarioGame 游戏场景
-	ScenarioGame = "game"
-	// ScenarioDefault 默认场景
-	ScenarioDefault = "default"
+	ScenarioIoT      = "iot"
+	ScenarioEdge     = "edge"
+	ScenarioGame     = "game"
+	ScenarioDefault  = "default"
 )
 
-// Config 存储数据库配置参数
 type Config struct {
 	WriteBuffer            int
 	OpenFilesCacheCapacity int
@@ -89,14 +37,7 @@ type Config struct {
 	Compression            opt.Compression
 }
 
-// ConfigManager 管理配置的加载、保存和访问
-type ConfigManager struct {
-	config Config
-	mutex  sync.RWMutex
-}
-
-// scenarioOptions 场景配置映射表
-var scenarioOptions = map[string]*opt.Options{
+var scenarioConfigs = map[string]Config{
 	ScenarioEmbedded: {
 		WriteBuffer:            EmbeddedWriteBuffer,
 		OpenFilesCacheCapacity: EmbeddedOpenFilesCacheCapacity,
@@ -129,26 +70,19 @@ var scenarioOptions = map[string]*opt.Options{
 	},
 }
 
-// configManager 全局配置管理器实例
-var configManager = &ConfigManager{
-	config: Config{
-		WriteBuffer:            DefaultWriteBuffer,
-		OpenFilesCacheCapacity: DefaultOpenFilesCacheCapacity,
-		BlockCacheCapacity:     DefaultBlockCacheCapacity,
-		Compression:            opt.DefaultCompression,
-	},
+type ConfigManager struct {
+	config Config
 }
 
-// GetConfigManager 获取全局配置管理器实例
+var configManager = &ConfigManager{
+	config: scenarioConfigs[ScenarioDefault],
+}
+
 func GetConfigManager() *ConfigManager {
 	return configManager
 }
 
-// SetConfig 设置配置
 func (cm *ConfigManager) SetConfig(config Config) {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
-
 	if config.WriteBuffer <= 0 {
 		config.WriteBuffer = cm.config.WriteBuffer
 	}
@@ -158,18 +92,13 @@ func (cm *ConfigManager) SetConfig(config Config) {
 	if config.BlockCacheCapacity <= 0 {
 		config.BlockCacheCapacity = cm.config.BlockCacheCapacity
 	}
-
 	cm.config = config
 }
 
-// GetConfig 获取当前配置
 func (cm *ConfigManager) GetConfig() Config {
-	cm.mutex.RLock()
-	defer cm.mutex.RUnlock()
 	return cm.config
 }
 
-// GetOptions 获取opt.Options
 func (cm *ConfigManager) GetOptions() *opt.Options {
 	config := cm.GetConfig()
 	return &opt.Options{
@@ -180,149 +109,24 @@ func (cm *ConfigManager) GetOptions() *opt.Options {
 	}
 }
 
-// GetScenarioOptions 根据场景获取配置
-func (cm *ConfigManager) GetScenarioOptions(scenario string) *opt.Options {
-	if opts, ok := scenarioOptions[scenario]; ok {
-		return opts
+func GetScenarioConfig(scenario string) Config {
+	if cfg, ok := scenarioConfigs[scenario]; ok {
+		return cfg
 	}
-	return cm.GetOptions()
+	return scenarioConfigs[ScenarioDefault]
 }
 
-// LoadFromPath 从指定路径的数据库中加载配置
-func (cm *ConfigManager) LoadFromPath(path string) error {
-	tempOpts := &opt.Options{
-		WriteBuffer:            MinWriteBuffer,
-		OpenFilesCacheCapacity: MinOpenFilesCacheCapacity,
-		BlockCacheCapacity:     MinBlockCacheCapacity,
+func GetScenarioOptions(scenario string) *opt.Options {
+	config := GetScenarioConfig(scenario)
+	return &opt.Options{
+		WriteBuffer:            config.WriteBuffer,
+		OpenFilesCacheCapacity: config.OpenFilesCacheCapacity,
+		BlockCacheCapacity:     config.BlockCacheCapacity,
+		Compression:            config.Compression,
 	}
-
-	tempDB, err := leveldb.OpenFile(path, tempOpts)
-	if err != nil {
-		return err
-	}
-	defer tempDB.Close()
-
-	configItems := []struct {
-		key    string
-		parser func(string) (interface{}, error)
-		apply  func(interface{})
-	}{
-		{
-			key: ConfigKeyWriteBuffer,
-			parser: func(s string) (interface{}, error) {
-				return parseSize(s)
-			},
-			apply: func(val interface{}) {
-				if size, ok := val.(int); ok && size > 0 {
-					cm.mutex.Lock()
-					cm.config.WriteBuffer = size
-					cm.mutex.Unlock()
-				}
-			},
-		},
-		{
-			key: ConfigKeyMaxOpenFiles,
-			parser: func(s string) (interface{}, error) {
-				return strconv.Atoi(s)
-			},
-			apply: func(val interface{}) {
-				if size, ok := val.(int); ok && size > 0 {
-					cm.mutex.Lock()
-					cm.config.OpenFilesCacheCapacity = size
-					cm.mutex.Unlock()
-				}
-			},
-		},
-		{
-			key: ConfigKeyBlockCache,
-			parser: func(s string) (interface{}, error) {
-				return parseSize(s)
-			},
-			apply: func(val interface{}) {
-				if size, ok := val.(int); ok && size > 0 {
-					cm.mutex.Lock()
-					cm.config.BlockCacheCapacity = size
-					cm.mutex.Unlock()
-				}
-			},
-		},
-		{
-			key: ConfigKeyCompression,
-			parser: func(s string) (interface{}, error) {
-				return strconv.ParseBool(s)
-			},
-			apply: func(val interface{}) {
-				if enabled, ok := val.(bool); ok {
-					cm.mutex.Lock()
-					if enabled {
-						cm.config.Compression = opt.DefaultCompression
-					} else {
-						cm.config.Compression = opt.NoCompression
-					}
-					cm.mutex.Unlock()
-				}
-			},
-		},
-	}
-
-	for _, item := range configItems {
-		value, err := tempDB.Get([]byte(item.key), nil)
-		if err != nil {
-			continue
-		}
-
-		parsedVal, err := item.parser(string(value))
-		if err != nil {
-			continue
-		}
-
-		item.apply(parsedVal)
-	}
-
-	return nil
-}
-
-// parseSize 解析大小字符串，支持 "64MB" 或 "67108864" 格式
-func parseSize(s string) (int, error) {
-	s = strings.TrimSpace(s)
-	sLower := strings.ToLower(s)
-
-	var multiplier int
-	var valueStr string
-
-	switch {
-	case strings.HasSuffix(sLower, "mb"):
-		multiplier = 1024 * 1024
-		valueStr = strings.TrimSuffix(strings.TrimSuffix(s, "MB"), "mb")
-	case strings.HasSuffix(sLower, "kb"):
-		multiplier = 1024
-		valueStr = strings.TrimSuffix(strings.TrimSuffix(s, "KB"), "kb")
-	case strings.HasSuffix(sLower, "gb"):
-		multiplier = 1024 * 1024 * 1024
-		valueStr = strings.TrimSuffix(strings.TrimSuffix(s, "GB"), "gb")
-	default:
-		size, err := strconv.Atoi(s)
-		if err != nil {
-			return 0, fmt.Errorf("invalid size format: %s", s)
-		}
-		return size, nil
-	}
-
-	size, err := strconv.Atoi(valueStr)
-	if err != nil {
-		return 0, fmt.Errorf("invalid size value: %s", valueStr)
-	}
-
-	return size * multiplier, nil
 }
 
 var (
-	// SetConfig 设置全局配置
 	SetConfig = configManager.SetConfig
-	// GetConfig 获取当前全局配置
 	GetConfig = configManager.GetConfig
-	// GetScenarioOptions 根据场景获取配置
-	GetScenarioOptions = configManager.GetScenarioOptions
-	// LoadConfigFromPath 从指定路径的数据库中加载配置
-	LoadConfigFromPath = configManager.LoadFromPath
 )
