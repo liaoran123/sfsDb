@@ -429,6 +429,18 @@ func main() {
 - [事务优化指南](./docs/zh/optimization/transaction.md) - 事务处理的优化策略（中文）
 - [Transaction Optimization Guide](./docs/en/optimization/transaction.md) - Transaction processing optimization strategies (English)
 
+### 深度教程（Ebook）
+- [sfsDb 深度解析：构建高性能工业物联网边缘计算嵌入式数据库应用](./docs/ebook/README.md) - 完整的 8 章教程，从入门到实战，包含完整的可运行代码示例
+  - 第 1 章：概述与快速开始
+  - 第 2 章：核心概念与架构
+  - 第 3 章：基础 CRUD 操作
+  - 第 4 章：索引与查询优化
+  - 第 5 章：事务处理
+  - 第 6 章：时序数据处理
+  - 第 7 章：加密存储
+  - 第 8 章：工业物联网实战
+- [Ebook 代码示例](./docs/ebook/code/README.md) - 所有章节的完整可运行代码示例
+
 ### API 参考
 - [API 参考文档](./docs/api.md) - 详细的 API 文档
 

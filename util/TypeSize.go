@@ -52,9 +52,6 @@ func TypeSize(value any) int {
 		return 8
 	case complex128:
 		return 16
-	case string:
-		// 固定string类型大小为64
-		return 64
 	case time.Time:
 		// time.DateTime 格式的长度是固定的，例如 "2024-01-01 12:00:00"
 		return len("2006-01-02 15:04:05")

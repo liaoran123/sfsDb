@@ -431,6 +431,18 @@ func main() {
 - [Transaction Optimization Guide](./docs/zh/optimization/transaction.md) - Transaction processing optimization strategies (Chinese)
 - [Transaction Optimization Guide](./docs/en/optimization/transaction.md) - Transaction processing optimization strategies (English)
 
+### In-Depth Tutorial (Ebook)
+- [sfsDb Deep Dive: Building High-Performance Industrial IoT Edge Computing Embedded Database Applications](./docs/ebook/README.md) - Complete 8-chapter tutorial from beginner to practical application, with full runnable code examples
+  - Chapter 1: Overview and Quick Start
+  - Chapter 2: Core Concepts and Architecture
+  - Chapter 3: Basic CRUD Operations
+  - Chapter 4: Indexing and Query Optimization
+  - Chapter 5: Transaction Processing
+  - Chapter 6: Time Series Data Processing
+  - Chapter 7: Encrypted Storage
+  - Chapter 8: Industrial IoT Practical Project
+- [Ebook Code Examples](./docs/ebook/code/README.md) - Complete runnable code examples for all chapters
+
 ### API Reference
 - [API Reference Documentation](./docs/api.md) - Detailed API documentation
 

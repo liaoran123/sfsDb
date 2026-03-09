@@ -133,13 +133,13 @@ func TestTableSearch1(t *testing.T) {
 			"id": 1,
 		}
 		dataIter, _ := table.Search(&fields)
-		defer GlobalTableIterPool.Put(dataIter)
+		defer dataIter.Release()
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
 		//defer GlobalTableIterPool.Put(dataIter)
 		records := dataIter.GetRecords(true)
-		defer record.PutRecords(records)
+		defer records.Release()
 		fmt.Printf("records: %v\n", records)
 		//判断data[0]和records是否相等
 
@@ -162,13 +162,13 @@ func TestTableSearch1(t *testing.T) {
 			"name": "Charlie",
 		}
 		dataIter, _ := table.Search(&fields)
-		defer GlobalTableIterPool.Put(dataIter)
+		defer dataIter.Release()
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
 		//defer GlobalTableIterPool.Put(dataIter)
 		records := dataIter.GetRecords(true)
-		defer record.PutRecords(records)
+		defer records.Release()
 		for _, item := range records.Select("name", "age", "description") {
 			fmt.Printf("records: %v\n", item)
 		}
@@ -185,13 +185,13 @@ func TestTableSearch1(t *testing.T) {
 			"description": "Bob",
 		}
 		dataIter, _ := table.Search(&fields)
-		defer GlobalTableIterPool.Put(dataIter)
+		defer dataIter.Release()
 		if dataIter.iter == nil {
 			t.Fatalf("Search 失败")
 		}
 		//defer GlobalTableIterPool.Put(dataIter)
 		records := dataIter.GetRecords(true)
-		defer record.PutRecords(records)
+		defer records.Release()
 		fmt.Printf("records: %v\n", records)
 		for _, item := range records.Select("name", "age", "description") {
 			fmt.Printf("records: %v\n", item)
@@ -212,14 +212,14 @@ func TestTableSearch1(t *testing.T) {
 				"description": item["description"],
 			}
 			dataIter, _ := table.Search(&fields)
-			defer GlobalTableIterPool.Put(dataIter)
+			defer dataIter.Release()
 			if dataIter.iter == nil {
 				t.Fatalf("Search 失败")
 			}
 			//defer GlobalTableIterPool.Put(dataIter)
 
 			records := dataIter.GetRecords(true)
-			defer record.PutRecords(records)
+			defer records.Release()
 			for _, item := range records.Select("name", "age", "description") {
 				fmt.Printf("搜索:%v -》 records: %v\n", fields["description"], item)
 			}
@@ -251,14 +251,14 @@ func TestTableSearch1(t *testing.T) {
 				"description": item["description"],
 			}
 			dataIter, _ := table.Search(&fields)
-			defer GlobalTableIterPool.Put(dataIter)
+			defer dataIter.Release()
 			if dataIter.iter == nil {
 				t.Fatalf("Search 失败")
 			}
 			//defer GlobalTableIterPool.Put(dataIter)
 
 			records := dataIter.GetRecords(true)
-			defer record.PutRecords(records)
+			defer records.Release()
 			for _, item := range records.Select("name", "age", "description") {
 				fmt.Printf("搜索:%v -》 records: %v\n", fields["description"], item)
 			}
