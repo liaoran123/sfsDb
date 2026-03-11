@@ -164,3 +164,13 @@ func cleanup(path string) {
 - **资源管理**：及时释放迭代器和记录
 
 在下一章中，我们将深入学习索引与查询优化。
+
+
+---
+
+**本书版本**：1.0.0  
+**最后更新**：2026-03-11  
+**sfsDb** - 以工业物联网边缘计算为核心场景的高性能嵌入式数据库！🚀  
+**技术栈** - Go、leveldb。纯golang实现。
+**项目地址**：[GitHub](https://github.com/liaoran123/sfsDb)  
+**GitCode 镜像**：[GitCode](https://gitcode.com/liuyun258369/sfsDb)
