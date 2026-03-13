@@ -80,8 +80,21 @@ func PageNew(No ...int) Page {
 func (t *TableIter) SetJumpRanges(jumpRanges ...storage.Iterator) {
 	t.jumpRanges = jumpRanges
 }
+
+// 重置jumpRanges，用于重用
+func (t *TableIter) ResetJumpRanges() {
+	t.jumpRanges = nil
+	//t.jumpRanges = t.jumpRanges[:0]
+}
+
 func (t *TableIter) SetMatch(match ...match.Match) {
 	t.match = match
+}
+
+// 重置match，用于重用
+func (t *TableIter) ResetMatch() {
+	t.match = nil
+	//t.match = t.match[:0]
 }
 
 // sql语句中的select f0,f1,... from table 要返回的字段
