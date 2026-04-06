@@ -276,6 +276,9 @@ func DefaultPrimaryKeyNew(name string) (*DefaultPrimaryKey, error) {
 	}
 	return dpk, nil
 }
+func NewDefaultPrimaryKey(name string) (*DefaultPrimaryKey, error) {
+	return DefaultPrimaryKeyNew(name)
+}
 
 /*
 // 获取主键字段的总长度
@@ -362,6 +365,9 @@ func DefaultNormalIndexNew(name string) (*DefaultNormalIndex, error) {
 	}
 	return dni, nil
 }
+func NewDefaultNormalIndex(name string) (*DefaultNormalIndex, error) {
+	return DefaultNormalIndexNew(name)
+}
 
 // Tag方法返回true，表示是二级索引。
 func (dni *DefaultNormalIndex) Tag() bool {
@@ -402,6 +408,9 @@ func DefaultFullTextIndexNew(name string) (*DefaultFullTextIndex, error) {
 		return nil, err
 	}
 	return dfi, nil
+}
+func NewDefaultFullTextIndex(name string) (*DefaultFullTextIndex, error) {
+	return DefaultFullTextIndexNew(name)
 }
 func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error) {
 	//检测primaryFields在全文索引的前面还是后面

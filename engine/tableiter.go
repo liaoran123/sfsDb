@@ -51,6 +51,9 @@ func TableIterNew(table *Table, iter storage.Iterator, index Index, selects ...s
 		iter: iter,
 	}
 }
+func NewTableIter(table *Table, iter storage.Iterator, index Index, selects ...string) *TableIter {
+	return TableIterNew(table, iter, index, selects...)
+}
 
 // 分页变量
 type Page struct {
@@ -76,6 +79,9 @@ func PageNew(No ...int) Page {
 		Start: start,
 		Count: count,
 	}
+}
+func NewPage(No ...int) Page {
+	return PageNew(No...)
 }
 func (t *TableIter) SetJumpRanges(jumpRanges ...storage.Iterator) {
 	t.jumpRanges = jumpRanges

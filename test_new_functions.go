@@ -7,14 +7,14 @@ import (
 	"github.com/liaoran123/sfsDb/storage"
 )
 
-func main() {
-	fmt.Println("sfsDb README示例代码测试")
+func main12() {
+	fmt.Println("测试新函数命名模式")
 	fmt.Println("====================")
 
 	// 1. 初始化数据库
 	fmt.Println("\n1. 初始化数据库")
 	dbManager := storage.GetDBManager()
-	_, err := dbManager.OpenDB("./readme_example_db")
+	_, err := dbManager.OpenDB("./test_new_functions_db")
 	if err != nil {
 		fmt.Printf("打开数据库失败: %v\n", err)
 		return
@@ -23,7 +23,7 @@ func main() {
 
 	// 2. 创建/打开用户表
 	fmt.Println("\n2. 创建用户表")
-	userTable, err := engine.TableNew("users")
+	userTable, err := engine.NewTable("users")
 	if err != nil {
 		fmt.Printf("创建表失败: %v\n", err)
 		return
@@ -46,7 +46,7 @@ func main() {
 
 	// 4. 创建主键索引
 	fmt.Println("\n4. 创建主键索引")
-	primaryKey, err := engine.DefaultPrimaryKeyNew("id")
+	primaryKey, err := engine.NewDefaultPrimaryKey("id")
 	if err != nil {
 		fmt.Printf("创建主键索引失败: %v\n", err)
 		return

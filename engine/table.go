@@ -77,6 +77,9 @@ func TableNew(name string) (*Table, error) {
 	tb.InitAuto() //初始化自动增值计数器。支持单一ID生成模式，要么系统自动增长，要么用户自定义ID。
 	return tb, nil
 }
+func NewTable(name string) (*Table, error) {
+	return NewTable(name)
+}
 
 func (t *Table) GetId() uint8 {
 	return t.id

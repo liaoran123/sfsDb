@@ -11,7 +11,7 @@ import (
 	"github.com/liaoran123/sfsDb/storage"
 )
 
-func main111() {
+func main11111() {
 	// 创建性能分析文件
 	f, err := os.Create("cpu.prof")
 	if err != nil {

@@ -195,7 +195,7 @@ func main() {
 
 	// 5. 创建普通索引
 	fmt.Println("\n5. 创建普通索引")
-	nameIndex, err := engine.DefaultNormalIndexNew("name_index")
+	nameIndex, err := engine.NewDefaultNormalIndex("name_index")
 	if err != nil {
 		fmt.Printf("创建普通索引失败: %v\n", err)
 		return
@@ -331,6 +331,7 @@ func main() {
 
 	fmt.Println("\n测试完成，所有操作均成功执行！")
 }
+
 ```
 ## Documentation
 
