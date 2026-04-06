@@ -7,7 +7,7 @@ import (
 // TestTableDelete 测试 Table.Delete 方法的功能
 func TestTableDelete(t *testing.T) {
 	// 创建测试表
-	table, err := TableNew("test_delete")
+	table, err := NewTable("test_delete")
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -26,7 +26,7 @@ func TestTableDelete(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}

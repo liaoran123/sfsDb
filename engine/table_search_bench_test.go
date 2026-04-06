@@ -7,7 +7,7 @@ import (
 // 基准测试 Table.Search 函数的性能（主键搜索）
 func BenchmarkTableSearchPrimaryKey(b *testing.B) {
 	// 创建测试表
-	table, err := TableNew("benchmark_search_pk")
+	table, err := NewTable("benchmark_search_pk")
 	if err != nil {
 		b.Fatalf("Failed to create table: %v", err)
 	}
@@ -20,7 +20,7 @@ func BenchmarkTableSearchPrimaryKey(b *testing.B) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 
@@ -68,12 +68,12 @@ func BenchmarkTableSearchIndex(b *testing.B) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 
 	// 创建普通索引
-	idx, _ := DefaultNormalIndexNew("name_index")
+	idx, _ := NewDefaultNormalIndex("name_index")
 	idx.AddFields("name")
 	table.CreateIndex(idx)
 
@@ -121,7 +121,7 @@ func BenchmarkTableSearchFullScan(b *testing.B) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 

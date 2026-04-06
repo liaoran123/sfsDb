@@ -8,9 +8,9 @@ import (
 func TestBatchInsertNoInc(t *testing.T) {
 
 	// 创建测试表
-	table, err := TableNew("test_batch_no_inc")
+	table, err := NewTable("test_batch_no_inc")
 	if err != nil {
-		t.Fatalf("TableNew failed: %v", err)
+		t.Fatalf("NewTable failed: %v", err)
 	}
 
 	// 设置字段
@@ -18,7 +18,7 @@ func TestBatchInsertNoInc(t *testing.T) {
 	table.SetFields(fields)
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 
@@ -91,7 +91,7 @@ func TestBatchInsertNoIncSkipVersion(t *testing.T) {
 	table.SetFields(fields)
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 

@@ -7,7 +7,7 @@ import (
 // TestTableSchemaSerialization 测试TableSchema的序列化和反序列化功能
 func TestTableSchemaSerialization(t *testing.T) {
 	// 创建一个Table实例
-	table, err := TableNew("test_table")
+	table, err := NewTable("test_table")
 	if err != nil {
 		t.Fatalf("创建表失败: %v", err)
 	}
@@ -23,7 +23,7 @@ func TestTableSchemaSerialization(t *testing.T) {
 	}
 
 	// 创建索引
-	primaryKey, err := DefaultPrimaryKeyNew("id")
+	primaryKey, err := NewDefaultPrimaryKey("id")
 	if err != nil {
 		t.Fatalf("创建主键索引失败: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestTableSchemaSerialization(t *testing.T) {
 		t.Fatalf("添加主键索引失败: %v", err)
 	}
 
-	normalIndex, err := DefaultNormalIndexNew("name_age_index")
+	normalIndex, err := NewDefaultNormalIndex("name_age_index")
 	if err != nil {
 		t.Fatalf("创建普通索引失败: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestTableSchemaSerialization(t *testing.T) {
 		t.Fatalf("添加普通索引失败: %v", err)
 	}
 
-	fulltextIndex, err := DefaultFullTextIndexNew("name_fulltext")
+	fulltextIndex, err := NewDefaultFullTextIndex("name_fulltext")
 	if err != nil {
 		t.Fatalf("创建全文索引失败: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestTableSerializationFull(t *testing.T) {
 	}
 
 	// 手动创建主键索引，确保索引数量的一致性
-	primaryKey, err := DefaultPrimaryKeyNew("pk")
+	primaryKey, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("创建主键索引失败: %v", err)
 	}

@@ -31,7 +31,7 @@ func TestTableSnapshotSearchConsistency(t *testing.T) {
 	// 创建表
 	tableName := "test_users"
 
-	table, err := TableNew(tableName)
+	table, err := NewTable(tableName)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestTableSnapshotSearchConsistency(t *testing.T) {
 	}
 
 	// 创建主键索引
-	PrimaryKeys, err := DefaultPrimaryKeyNew("pk")
+	PrimaryKeys, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestTableSnapshotSearchConsistency(t *testing.T) {
 	}
 
 	// 为 age 字段创建普通索引，用于搜索
-	ageIndex, err := DefaultNormalIndexNew("age_idx")
+	ageIndex, err := NewDefaultNormalIndex("age_idx")
 	if err != nil {
 		t.Fatalf("Failed to create age index: %v", err)
 	}

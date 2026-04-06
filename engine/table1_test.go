@@ -30,27 +30,27 @@ func TestTableSearch1(t *testing.T) {
 		t.Fatalf("Failed to open encrypted database: %v", err)
 	}
 	// 创建测试表
-	table, err := TableNew(tableName)
+	table, err := NewTable(tableName)
 	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
+		t.Fatalf("NewTable failed: %v", err)
 	}
 	if table == nil {
-		t.Fatal("TableNew 失败")
+		t.Fatal("NewTable failed")
 	}
 	// 必须先为表预设字段和数据类型
 	fields := map[string]any{"id": 0, "name": "", "age": uint8(0), "description": ""}
 	table.SetFields(fields)
 
-	PrimaryKeys, err := DefaultPrimaryKeyNew("pk")
+	PrimaryKeys, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
-		t.Fatalf("DefaultPrimaryKeyNew 失败: %v", err)
+		t.Fatalf("NewDefaultPrimaryKey 失败: %v", err)
 	}
 	PrimaryKeys.AddFields("id")    //创建一个id的组合主键
 	table.CreateIndex(PrimaryKeys) //将组合主键设置到表中
 
-	fullText, err := DefaultFullTextIndexNew("ft")
+	fullText, err := NewDefaultFullTextIndex("ft")
 	if err != nil {
-		t.Fatalf("DefaultFullTextIndexNew 失败: %v", err)
+		t.Fatalf("NewDefaultFullTextIndex 失败: %v", err)
 	}
 	//全文索引正常情况下必须带上主键，否则后面的关键词都被覆盖，失去全文索引的意义。
 	fullText.AddFields("description", "id") //创建一个description的组合全文索引
@@ -62,9 +62,9 @@ func TestTableSearch1(t *testing.T) {
 	}
 	table.CreateIndex(fullText) //将组合全文索引设置到表中
 
-	normalIndex, err := DefaultNormalIndexNew("idx")
+	normalIndex, err := NewDefaultNormalIndex("idx")
 	if err != nil {
-		t.Fatalf("DefaultNormalIndexNew 失败: %v", err)
+		t.Fatalf("NewDefaultNormalIndex 失败: %v", err)
 	}
 	normalIndex.AddFields("name", "age") //创建一个name, age的组合普通索引
 	table.CreateIndex(normalIndex)       //将组合普通索引设置到表中
@@ -582,7 +582,7 @@ func TestTableCRUD2(t *testing.T) {
 
 	// 创建普通索引
 	// 创建标题索引
-	titleIndex, err := DefaultNormalIndexNew("title_index")
+	titleIndex, err := NewDefaultNormalIndex("title_index")
 	if err != nil {
 		t.Fatalf("Failed to create title index instance: %v", err)
 	}
@@ -594,7 +594,7 @@ func TestTableCRUD2(t *testing.T) {
 	}
 
 	// 创建复合索引（作者-浏览量）
-	authorViewsIndex, err := DefaultNormalIndexNew("author_views_index")
+	authorViewsIndex, err := NewDefaultNormalIndex("author_views_index")
 	if err != nil {
 		t.Fatalf("Failed to create author_views index instance: %v", err)
 	}
@@ -732,7 +732,7 @@ func TestTableCRUD3(t *testing.T) {
 
 	// 创建普通索引
 	// 创建标题索引
-	titleIndex, err := DefaultNormalIndexNew("title_index")
+	titleIndex, err := NewDefaultNormalIndex("title_index")
 	if err != nil {
 		t.Fatalf("Failed to create title index instance: %v", err)
 	}
@@ -744,7 +744,7 @@ func TestTableCRUD3(t *testing.T) {
 	}
 
 	// 创建复合索引（作者-浏览量）
-	authorViewsIndex, err := DefaultNormalIndexNew("author_views_index")
+	authorViewsIndex, err := NewDefaultNormalIndex("author_views_index")
 	if err != nil {
 		t.Fatalf("Failed to create author_views index instance: %v", err)
 	}
@@ -755,7 +755,7 @@ func TestTableCRUD3(t *testing.T) {
 	}
 
 	// 创建全文索引
-	contentFulltextIndex, err := DefaultFullTextIndexNew("content_fulltext")
+	contentFulltextIndex, err := NewDefaultFullTextIndex("content_fulltext")
 	if err != nil {
 		t.Fatalf("Failed to create content fulltext index instance: %v", err)
 	}

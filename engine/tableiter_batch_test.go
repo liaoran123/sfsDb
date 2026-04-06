@@ -12,7 +12,7 @@ import (
 // 包括批量删除和批量更新
 func TestTableIter_BatchOperations(t *testing.T) {
 	// 创建测试表
-	table, err := TableNew("test_batch_operations")
+	table, err := NewTable("test_batch_operations")
 	if err != nil {
 		t.Fatalf("创建测试表失败: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestTableIter_BatchOperations(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("创建主键索引失败: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestTableIter_BatchPerformance(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("创建主键索引失败: %v", err)
 	}

@@ -9,7 +9,7 @@ import (
 func TestTableInsertWithAllTypes(t *testing.T) {
 	// 使用唯一表名，确保测试之间相互隔离
 	tableName := "test_insert_all_types_" + time.Now().Format("20060102150405")
-	table, err := TableNew(tableName)
+	table, err := NewTable(tableName)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -29,7 +29,7 @@ func TestTableInsertWithAllTypes(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -150,7 +150,7 @@ func TestTableFieldsToBytesWithNil(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -221,7 +221,7 @@ func TestTableUpdateWithAllTypes(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {

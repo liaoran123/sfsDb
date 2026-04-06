@@ -7,7 +7,7 @@ import (
 // 基准测试 Table.Insert 函数的性能
 func BenchmarkTableInsert(b *testing.B) {
 	// 创建测试表
-	table, err := TableNew("benchmark_table")
+	table, err := NewTable("benchmark_table")
 	if err != nil {
 		b.Fatalf("Failed to create table: %v", err)
 	}
@@ -20,7 +20,7 @@ func BenchmarkTableInsert(b *testing.B) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 
@@ -61,7 +61,7 @@ func BenchmarkTableInsertBatch(b *testing.B) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 

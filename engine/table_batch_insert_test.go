@@ -27,7 +27,7 @@ func TestBatchInsert(t *testing.T) {
 	table.SetFields(fields)
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 
@@ -113,7 +113,7 @@ func TestBatchInsertWithSize(t *testing.T) {
 	table.SetFields(fields)
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 
@@ -148,7 +148,7 @@ func TestBatchInsertConcurrent(t *testing.T) {
 	table.SetFields(fields)
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 
@@ -218,7 +218,7 @@ func TestBatchAndSingleInsertConcurrent(t *testing.T) {
 	table.SetFields(fields)
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 

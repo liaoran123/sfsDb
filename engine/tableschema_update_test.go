@@ -8,7 +8,7 @@ import (
 // TestTableSchemaUpdate 测试更新后的 TableSchema 功能
 func TestTableSchemaUpdate(t *testing.T) {
 	// 创建表
-	table, err := TableNew("test_schema_update")
+	table, err := NewTable("test_schema_update")
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -25,7 +25,7 @@ func TestTableSchemaUpdate(t *testing.T) {
 	}
 
 	// 创建主键索引
-	primaryKey, err := DefaultPrimaryKeyNew("id")
+	primaryKey, err := NewDefaultPrimaryKey("id")
 	if err != nil {
 		t.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestTableSchemaUpdate(t *testing.T) {
 	}
 
 	// 创建普通索引
-	normalIndex, err := DefaultNormalIndexNew("name_idx")
+	normalIndex, err := NewDefaultNormalIndex("name_idx")
 	if err != nil {
 		t.Fatalf("Failed to create normal index: %v", err)
 	}

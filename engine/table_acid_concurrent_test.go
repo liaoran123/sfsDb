@@ -13,7 +13,7 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 	// 并发写入测试：多个goroutine同时写入不同的记录，验证原子性和隔离性
 
 	// 1.1 创建表
-	table, err := TableNew("test_acid_concurrent")
+	table, err := NewTable("test_acid_concurrent")
 	if err != nil {
 		t.Fatalf("创建表失败: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, err := DefaultPrimaryKeyNew("pk_id")
+	pk, err := NewDefaultPrimaryKey("pk_id")
 	if err != nil {
 		t.Fatalf("创建主键失败: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk2, err := DefaultPrimaryKeyNew("pk_id")
+	pk2, err := NewDefaultPrimaryKey("pk_id")
 	if err != nil {
 		t.Fatalf("创建主键失败: %v", err)
 	}
@@ -287,15 +287,15 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 				recordID := (j % 10) + 1 // 1-10之间的随机ID
 				readRecord := map[string]any{"id": recordID}
 				iter, err := table2.Search(&readRecord)
-			if err != nil {
-				t.Fatalf("Search 失败: %v", err)
-			}
-			if iter == nil {
-				t.Fatalf("Failed to get iterator: %v", err)
-			}
-			defer GlobalTableIterPool.Put(iter)
+				if err != nil {
+					t.Fatalf("Search 失败: %v", err)
+				}
+				if iter == nil {
+					t.Fatalf("Failed to get iterator: %v", err)
+				}
+				defer GlobalTableIterPool.Put(iter)
 
-			records := iter.GetRecords(true)
+				records := iter.GetRecords(true)
 
 				if len(records) != 1 {
 					t.Errorf("reader %d 期望找到1条记录，实际找到%d条", readerID, len(records))
@@ -327,15 +327,15 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 				// 读取当前记录的版本号
 				readRecord := map[string]any{"id": recordID}
 				iter, err := table2.Search(&readRecord)
-			if err != nil {
-				t.Fatalf("Search 失败: %v", err)
-			}
-			if iter == nil {
-				t.Fatalf("Failed to get iterator: %v", err)
-			}
-			defer GlobalTableIterPool.Put(iter)
+				if err != nil {
+					t.Fatalf("Search 失败: %v", err)
+				}
+				if iter == nil {
+					t.Fatalf("Failed to get iterator: %v", err)
+				}
+				defer GlobalTableIterPool.Put(iter)
 
-			records := iter.GetRecords(true)
+				records := iter.GetRecords(true)
 
 				if len(records) != 1 {
 					t.Errorf("writer %d 期望找到1条记录，实际找到%d条", writerID, len(records))
@@ -429,7 +429,7 @@ func TestTableACIDTransaction_Concurrent(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk3, err := DefaultPrimaryKeyNew("pk_id")
+	pk3, err := NewDefaultPrimaryKey("pk_id")
 	if err != nil {
 		t.Fatalf("创建主键失败: %v", err)
 	}

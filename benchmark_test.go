@@ -19,7 +19,7 @@ func BenchmarkEngineDirectBatchOperations(b *testing.B) {
 	defer dbMgr.CloseDB()
 
 	// 创建测试表
-	table, err := engine.TableNew("test_table")
+	table, err := engine.NewTable("test_table")
 	if err != nil {
 		b.Fatalf("Failed to create table: %v", err)
 	}
@@ -35,7 +35,7 @@ func BenchmarkEngineDirectBatchOperations(b *testing.B) {
 	}
 
 	// 创建主键索引
-	primaryKey, err := engine.DefaultPrimaryKeyNew("id")
+	primaryKey, err := engine.NewDefaultPrimaryKey("id")
 	if err != nil {
 		b.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -100,7 +100,7 @@ func BenchmarkTransactionLockFreeBatchOperations(b *testing.B) {
 	}
 
 	// 创建主键索引
-	primaryKey, err := engine.DefaultPrimaryKeyNew("id")
+	primaryKey, err := engine.NewDefaultPrimaryKey("id")
 	if err != nil {
 		b.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -165,7 +165,7 @@ func BenchmarkEngineDirectSingleOperations(b *testing.B) {
 	}
 
 	// 创建主键索引
-	primaryKey, err := engine.DefaultPrimaryKeyNew("id")
+	primaryKey, err := engine.NewDefaultPrimaryKey("id")
 	if err != nil {
 		b.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -217,7 +217,7 @@ func BenchmarkTransactionLockFreeSingleOperations(b *testing.B) {
 	}
 
 	// 创建主键索引
-	primaryKey, err := engine.DefaultPrimaryKeyNew("id")
+	primaryKey, err := engine.NewDefaultPrimaryKey("id")
 	if err != nil {
 		b.Fatalf("Failed to create primary key: %v", err)
 	}

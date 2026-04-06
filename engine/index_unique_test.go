@@ -9,7 +9,7 @@ import (
 // TestDefaultNormalIndex_IsUnique 测试DefaultNormalIndex的IsUnique方法
 func TestDefaultNormalIndex_IsUnique(t *testing.T) {
 	// 创建一个测试表
-	table, err := TableNew("test_index_unique")
+	table, err := NewTable("test_index_unique")
 	if err != nil {
 		t.Fatalf("创建表失败: %v", err)
 	}
@@ -24,7 +24,7 @@ func TestDefaultNormalIndex_IsUnique(t *testing.T) {
 	}
 
 	// 创建一个普通索引
-	index, err := DefaultNormalIndexNew("test_index")
+	index, err := NewDefaultNormalIndex("test_index")
 	if err != nil {
 		t.Fatalf("创建索引失败: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestDefaultPrimaryKey_IsUnique(t *testing.T) {
 	}
 
 	// 创建一个主键索引
-	primaryKey, err := DefaultPrimaryKeyNew("pk")
+	primaryKey, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("创建主键索引失败: %v", err)
 	}

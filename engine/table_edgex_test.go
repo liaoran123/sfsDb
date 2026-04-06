@@ -21,9 +21,9 @@ func TestEdgeXTable(t *testing.T) {
 	}
 	defer storage.GetDBManager().CloseDB()
 
-	table, err := TableNew("edgex_readings")
+	table, err := NewTable("edgex_readings")
 	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
+		t.Fatalf("NewTable failed: %v", err)
 	}
 
 	fields := map[string]any{
@@ -38,9 +38,9 @@ func TestEdgeXTable(t *testing.T) {
 	}
 	table.SetFields(fields)
 
-	PrimaryKeys, err := DefaultPrimaryKeyNew("pk")
+	PrimaryKeys, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
-		t.Fatalf("DefaultPrimaryKeyNew 失败: %v", err)
+		t.Fatalf("NewDefaultPrimaryKey 失败: %v", err)
 	}
 	PrimaryKeys.AddFields("deviceName", "timestamp")
 	table.CreateIndex(PrimaryKeys)
@@ -52,9 +52,9 @@ func TestEdgeXTable(t *testing.T) {
 	}
 	table.GetfieldTypeLen(&fieldTypeLen) //设置单个表
 
-	deviceNameIndex, err := DefaultNormalIndexNew("idx_deviceName")
+	deviceNameIndex, err := NewDefaultNormalIndex("idx_deviceName")
 	if err != nil {
-		t.Fatalf("DefaultNormalIndexNew 失败: %v", err)
+		t.Fatalf("NewDefaultNormalIndex 失败: %v", err)
 	}
 	deviceNameIndex.AddFields("deviceName")
 	err = table.CreateIndex(deviceNameIndex)
@@ -62,9 +62,9 @@ func TestEdgeXTable(t *testing.T) {
 		t.Fatalf("CreateIndex deviceName 失败: %v", err)
 	}
 
-	timestampIndex, err := DefaultNormalIndexNew("idx_timestamp")
+	timestampIndex, err := NewDefaultNormalIndex("idx_timestamp")
 	if err != nil {
-		t.Fatalf("DefaultNormalIndexNew 失败: %v", err)
+		t.Fatalf("NewDefaultNormalIndex 失败: %v", err)
 	}
 	timestampIndex.AddFields("timestamp")
 	err = table.CreateIndex(timestampIndex)

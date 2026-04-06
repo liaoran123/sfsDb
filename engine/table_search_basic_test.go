@@ -9,7 +9,7 @@ import (
 // TestTableSearchBasic tests basic search functionality
 func TestTableSearchBasic(t *testing.T) {
 	// Create test table
-	table, err := TableNew("test_search_basic")
+	table, err := NewTable("test_search_basic")
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -22,7 +22,7 @@ func TestTableSearchBasic(t *testing.T) {
 	}
 
 	// Create primary key index on id
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -122,7 +122,7 @@ func TestTableSearchWithSecondaryIndex(t *testing.T) {
 	}
 
 	// Create primary key index on id
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -130,7 +130,7 @@ func TestTableSearchWithSecondaryIndex(t *testing.T) {
 	}
 
 	// Create secondary index on age
-	ageIdx, _ := DefaultNormalIndexNew("age_index")
+	ageIdx, _ := NewDefaultNormalIndex("age_index")
 	ageIdx.AddFields("age")
 	err = table.CreateIndex(ageIdx)
 	if err != nil {

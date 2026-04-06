@@ -78,7 +78,7 @@ func TableNew(name string) (*Table, error) {
 	return tb, nil
 }
 func NewTable(name string) (*Table, error) {
-	return NewTable(name)
+	return TableNew(name)
 }
 
 func (t *Table) GetId() uint8 {

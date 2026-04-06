@@ -26,7 +26,7 @@ func testMultiTableQuery() error {
 	defer storage.GetDBManager().CloseDB()
 
 	// 创建表1
-	table1, err := engine.TableNew("table1")
+	table1, err := engine.NewTable("table1")
 	if err != nil {
 		return fmt.Errorf("创建表1失败: %v", err)
 	}
@@ -39,7 +39,7 @@ func testMultiTableQuery() error {
 	}
 
 	// 创建主键索引
-	pk, _ := engine.DefaultPrimaryKeyNew("pk")
+	pk, _ := engine.NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table1.CreateIndex(pk)
 	if err != nil {
@@ -74,7 +74,7 @@ func testMultiTableQuery() error {
 	}
 
 	// 创建主键索引
-	pk2, _ := engine.DefaultPrimaryKeyNew("pk")
+	pk2, _ := engine.NewDefaultPrimaryKey("pk")
 	pk2.AddFields("id")
 	err = table2.CreateIndex(pk2)
 	if err != nil {
@@ -180,7 +180,7 @@ func testFullTextSearch() error {
 	}
 
 	// 创建主键索引
-	pk, _ := engine.DefaultPrimaryKeyNew("pk")
+	pk, _ := engine.NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -188,7 +188,7 @@ func testFullTextSearch() error {
 	}
 
 	// 创建全文索引
-	fullTextIndex, err := engine.DefaultFullTextIndexNew("fulltext_desc")
+	fullTextIndex, err := engine.NewDefaultFullTextIndex("fulltext_desc")
 	if err != nil {
 		return fmt.Errorf("创建全文索引失败: %v", err)
 	}
@@ -275,7 +275,7 @@ func testBasicUsage() error {
 	}
 
 	// 创建主键索引
-	primaryKey, err := engine.DefaultPrimaryKeyNew("id")
+	primaryKey, err := engine.NewDefaultPrimaryKey("id")
 	if err != nil {
 		return fmt.Errorf("创建主键索引失败: %v", err)
 	}
@@ -286,7 +286,7 @@ func testBasicUsage() error {
 	}
 
 	// 创建普通索引
-	nameIndex, err := engine.DefaultNormalIndexNew("name_index")
+	nameIndex, err := engine.NewDefaultNormalIndex("name_index")
 	if err != nil {
 		return fmt.Errorf("创建普通索引失败: %v", err)
 	}

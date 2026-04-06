@@ -34,7 +34,7 @@ func BenchmarkTableOperations(b *testing.B) {
 	}
 
 	// 创建主键索引
-	pk, err := DefaultPrimaryKeyNew("pk_id")
+	pk, err := NewDefaultPrimaryKey("pk_id")
 	if err != nil {
 		b.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -45,7 +45,7 @@ func BenchmarkTableOperations(b *testing.B) {
 	}
 
 	// 创建普通索引
-	normalIndex, err := DefaultNormalIndexNew("idx_name")
+	normalIndex, err := NewDefaultNormalIndex("idx_name")
 	if err != nil {
 		b.Fatalf("Failed to create normal index: %v", err)
 	}
@@ -165,7 +165,7 @@ func BenchmarkObjectPoolUsage(b *testing.B) {
 	}
 
 	// 创建主键索引
-	pk, err := DefaultPrimaryKeyNew("pk_id")
+	pk, err := NewDefaultPrimaryKey("pk_id")
 	if err != nil {
 		b.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -176,7 +176,7 @@ func BenchmarkObjectPoolUsage(b *testing.B) {
 	}
 
 	// 创建普通索引
-	normalIndex, err := DefaultNormalIndexNew("idx_name")
+	normalIndex, err := NewDefaultNormalIndex("idx_name")
 	if err != nil {
 		b.Fatalf("Failed to create normal index: %v", err)
 	}
@@ -255,7 +255,7 @@ func BenchmarkIteratorBatchUpdate(b *testing.B) {
 	}
 
 	// 创建主键索引
-	pk, err := DefaultPrimaryKeyNew("pk_id")
+	pk, err := NewDefaultPrimaryKey("pk_id")
 	if err != nil {
 		b.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -266,7 +266,7 @@ func BenchmarkIteratorBatchUpdate(b *testing.B) {
 	}
 
 	// 创建普通索引
-	normalIndex, err := DefaultNormalIndexNew("idx_name")
+	normalIndex, err := NewDefaultNormalIndex("idx_name")
 	if err != nil {
 		b.Fatalf("Failed to create normal index: %v", err)
 	}

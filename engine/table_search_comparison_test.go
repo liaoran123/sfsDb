@@ -23,7 +23,7 @@ func TestTableSearchComparisonOperatorsSimple(t *testing.T) {
 	}
 
 	// Create primary key index on id
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -124,7 +124,7 @@ func TestTableSearchDefaultOperator(t *testing.T) {
 	}
 
 	// Create primary key index on id
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {

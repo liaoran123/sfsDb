@@ -34,7 +34,7 @@ func (t *Table) CreateIndex(index Index) error {
 
 // 创建普通复合索引
 func (t *Table) CreateCompositeIndex(name string, fields ...string) error {
-	idx, err := DefaultNormalIndexNew(name)
+	idx, err := NewDefaultNormalIndex(name)
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func (t *Table) CreateCompositeIndex(name string, fields ...string) error {
 
 // 创建主键复合索引
 func (t *Table) CreateCompositePrimaryKey(name string, fields ...string) error {
-	idx, err := DefaultPrimaryKeyNew(name)
+	idx, err := NewDefaultPrimaryKey(name)
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func (t *Table) GetPrimaryKey() PrimaryKey {
 	if pk == nil {
 		//没有主键，需要创建一个默认主键。
 		//所以主键必须在表未有数据前创建。
-		pk, _ = DefaultPrimaryKeyNew("id")
+		pk, _ = NewDefaultPrimaryKey("id")
 		pk.AddFields("id")
 		t.CreateIndex(pk)
 	}

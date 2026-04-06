@@ -40,7 +40,7 @@ func TestCompositePrimaryKeySearch(t *testing.T) {
 	}
 
 	// 创建复合主键索引
-	pk, err := DefaultPrimaryKeyNew("pk_id_name")
+	pk, err := NewDefaultPrimaryKey("pk_id_name")
 	if err != nil {
 		t.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestTableForMethod(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk1, err := DefaultPrimaryKeyNew("pk1")
+	pk1, err := NewDefaultPrimaryKey("pk1")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index for table1: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestTableForMethod(t *testing.T) {
 		t.Fatalf("Failed to create primary key index for table1: %v", err)
 	}
 
-	pk2, err := DefaultPrimaryKeyNew("pk2")
+	pk2, err := NewDefaultPrimaryKey("pk2")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index for table2: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestDeleteAllAndAffectOtherTables(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk1, err := DefaultPrimaryKeyNew("pk1")
+	pk1, err := NewDefaultPrimaryKey("pk1")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index for table1: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestDeleteAllAndAffectOtherTables(t *testing.T) {
 		t.Fatalf("Failed to create primary key index for table1: %v", err)
 	}
 
-	pk2, err := DefaultPrimaryKeyNew("pk2")
+	pk2, err := NewDefaultPrimaryKey("pk2")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index for table2: %v", err)
 	}
@@ -460,7 +460,7 @@ func TestDeleteAllWithLargeData(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, err := DefaultPrimaryKeyNew("pk")
+	pk, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -560,7 +560,7 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, err := DefaultPrimaryKeyNew("pk")
+	pk, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -661,7 +661,7 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk2, err := DefaultPrimaryKeyNew("pk")
+	pk2, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -672,7 +672,7 @@ func TestTableCRUD(t *testing.T) {
 	}
 
 	// 创建二级索引
-	secondaryIndex, err := DefaultNormalIndexNew("idx_email")
+	secondaryIndex, err := NewDefaultNormalIndex("idx_email")
 	if err != nil {
 		t.Fatalf("Failed to create secondary index: %v", err)
 	}
@@ -681,7 +681,7 @@ func TestTableCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create secondary index: %v", err)
 	}
-	secondaryIndexage, err := DefaultNormalIndexNew("idx_age")
+	secondaryIndexage, err := NewDefaultNormalIndex("idx_age")
 	if err != nil {
 		t.Fatalf("Failed to create secondary index: %v", err)
 	}
@@ -783,7 +783,7 @@ func TestTable_FullTextSearch(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, err := DefaultPrimaryKeyNew("pk")
+	pk, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -794,7 +794,7 @@ func TestTable_FullTextSearch(t *testing.T) {
 	}
 
 	// 创建全文索引
-	fulltextIdx, err := DefaultFullTextIndexNew("fulltext_desc")
+	fulltextIdx, err := NewDefaultFullTextIndex("fulltext_desc")
 	if err != nil {
 		t.Fatalf("Failed to create fulltext index: %v", err)
 	}
@@ -929,7 +929,7 @@ func TestTable_FullTextSearch_CompositePK(t *testing.T) {
 	}
 
 	// 创建复合主键索引
-	pk, err := DefaultPrimaryKeyNew("pk_mid_secno")
+	pk, err := NewDefaultPrimaryKey("pk_mid_secno")
 	if err != nil {
 		t.Fatalf("Failed to create composite primary key: %v", err)
 	}
@@ -940,7 +940,7 @@ func TestTable_FullTextSearch_CompositePK(t *testing.T) {
 	}
 
 	// 创建全文索引 - 多主键情况
-	fulltextIdx, err := DefaultFullTextIndexNew("fulltext_content")
+	fulltextIdx, err := NewDefaultFullTextIndex("fulltext_content")
 	if err != nil {
 		t.Fatalf("Failed to create fulltext index: %v", err)
 	}
@@ -1037,7 +1037,7 @@ func TestTable_FullTextSearch_CompositePK(t *testing.T) {
 	// 测试不同排列顺序的全文索引（所有主键字段 + 全文索引字段）
 	t.Run("FullTextIndex_CompositePK_ReverseOrder", func(t *testing.T) {
 		// 创建另一个全文索引，使用相反的字段顺序
-		reverseFulltextIdx, err := DefaultFullTextIndexNew("fulltext_content_reverse")
+		reverseFulltextIdx, err := NewDefaultFullTextIndex("fulltext_content_reverse")
 		if err != nil {
 			t.Fatalf("Failed to create reverse fulltext index: %v", err)
 		}
@@ -1094,7 +1094,7 @@ func TestTable_UpdateFieldName_Flow(t *testing.T) {
 	}
 
 	// 2. 创建索引
-	idx, err := DefaultNormalIndexNew("email_idx")
+	idx, err := NewDefaultNormalIndex("email_idx")
 	if err != nil {
 		t.Fatalf("Failed to create index: %v", err)
 	}
@@ -1372,7 +1372,7 @@ func TestTableSearch(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, err := DefaultPrimaryKeyNew("pk")
+	pk, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -1383,7 +1383,7 @@ func TestTableSearch(t *testing.T) {
 	}
 
 	// 创建二级索引（最后一个字段必须是主键）
-	idx, err := DefaultNormalIndexNew("idx_email")
+	idx, err := NewDefaultNormalIndex("idx_email")
 	if err != nil {
 		t.Fatalf("Failed to create secondary index: %v", err)
 	}

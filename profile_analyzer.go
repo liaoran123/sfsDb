@@ -40,7 +40,7 @@ func BenchmarkTableOperations(b *testing.B) {
 	defer storage.GetDBManager().CloseDB()
 
 	// 创建表
-	table, err := engine.TableNew("benchmark_table")
+	table, err := engine.NewTable("benchmark_table")
 	if err != nil {
 		b.Fatalf("Failed to create table: %v", err)
 	}
@@ -57,7 +57,7 @@ func BenchmarkTableOperations(b *testing.B) {
 	}
 
 	// 创建主键索引
-	pk, err := engine.DefaultPrimaryKeyNew("pk_id")
+	pk, err := engine.NewDefaultPrimaryKey("pk_id")
 	if err != nil {
 		b.Fatalf("Failed to create primary key: %v", err)
 	}

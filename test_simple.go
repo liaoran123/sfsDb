@@ -22,7 +22,7 @@ func main1() {
 
 	// 2. 创建用户表
 	fmt.Println("\n2. 创建用户表")
-	userTable, err := engine.TableNew("users")
+	userTable, err := engine.NewTable("users")
 	if err != nil {
 		fmt.Printf("创建表失败: %v\n", err)
 		return
@@ -47,7 +47,7 @@ func main1() {
 
 	// 4. 创建主键索引
 	fmt.Println("\n4. 创建主键索引")
-	primaryKey, err := engine.DefaultPrimaryKeyNew("id")
+	primaryKey, err := engine.NewDefaultPrimaryKey("id")
 	if err != nil {
 		fmt.Printf("创建主键索引失败: %v\n", err)
 		return
@@ -62,7 +62,7 @@ func main1() {
 
 	// 5. 创建普通索引
 	fmt.Println("\n5. 创建普通索引")
-	nameIndex, err := engine.DefaultNormalIndexNew("name_index")
+	nameIndex, err := engine.NewDefaultNormalIndex("name_index")
 	if err != nil {
 		fmt.Printf("创建普通索引失败: %v\n", err)
 		return

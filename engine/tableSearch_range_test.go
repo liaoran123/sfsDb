@@ -23,7 +23,7 @@ func TestTable_SearchRange(t *testing.T) {
 	defer storage.GetDBManager().CloseDB()
 
 	// 创建表，使用时间戳作为主键
-	table, err := TableNew(tableName)
+	table, err := NewTable(tableName)
 	if err != nil {
 		t.Fatalf("创建表失败: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestTable_SearchRange(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("timestamp")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -193,7 +193,7 @@ func TestTable_SearchRange_PrimaryKey(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -350,7 +350,7 @@ func TestTable_SearchRange_CommentValidation(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -492,7 +492,7 @@ func TestTable_SearchRange_Performance(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("timestamp")
 	err = table.CreateIndex(pk)
 	if err != nil {

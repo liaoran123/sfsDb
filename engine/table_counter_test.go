@@ -30,7 +30,7 @@ func TestTableCounterContinuity(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pkIndex, err := DefaultPrimaryKeyNew("pk_id")
+	pkIndex, err := NewDefaultPrimaryKey("pk_id")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestTableCounterContinuity(t *testing.T) {
 	}
 
 	// 重新创建主键索引
-	pkIndex2, err := DefaultPrimaryKeyNew("pk_id")
+	pkIndex2, err := NewDefaultPrimaryKey("pk_id")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index after reopen: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestTableCounterInit(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pkIndex, err := DefaultPrimaryKeyNew("pk_id")
+	pkIndex, err := NewDefaultPrimaryKey("pk_id")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestTableCounterInit(t *testing.T) {
 	}
 
 	// 重新创建主键索引
-	pkIndex2, err := DefaultPrimaryKeyNew("pk_id")
+	pkIndex2, err := NewDefaultPrimaryKey("pk_id")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index after reopen: %v", err)
 	}

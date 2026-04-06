@@ -134,7 +134,7 @@ func TestGetSysNameId(t *testing.T) {
 // TestCreateIndexSameID tests that creating indexes with the same name gets the same ID
 func TestCreateIndexSameID(t *testing.T) {
 	// Create table 1
-	table1, err := TableNew("test_index_table_1")
+	table1, err := NewTable("test_index_table_1")
 	if err != nil {
 		t.Fatalf("Failed to create table 1: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestCreateIndexSameID(t *testing.T) {
 	}
 
 	// Create index on table 1
-	idx1, err := DefaultPrimaryKeyNew("pk")
+	idx1, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create index 1: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestCreateIndexSameID(t *testing.T) {
 	}
 
 	// Create same index on table 2
-	idx2, err := DefaultPrimaryKeyNew("pk")
+	idx2, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create index 2: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestCreateIndexSameID(t *testing.T) {
 		}
 
 		// Create index with same name
-		idx3, err := DefaultNormalIndexNew("test_idx")
+		idx3, err := NewDefaultNormalIndex("test_idx")
 		if err != nil {
 			t.Fatalf("Failed to create index 3: %v", err)
 		}
@@ -270,7 +270,7 @@ func TestCreateIndexSameID(t *testing.T) {
 		}
 
 		// Create index with same name
-		idx4, err := DefaultNormalIndexNew("test_idx")
+		idx4, err := NewDefaultNormalIndex("test_idx")
 		if err != nil {
 			t.Fatalf("Failed to create index 4: %v", err)
 		}
@@ -311,7 +311,7 @@ func TestTable_MultipleFieldUpdates(t *testing.T) {
 	}
 
 	// 创建索引
-	emailIdx, err := DefaultNormalIndexNew("email_idx")
+	emailIdx, err := NewDefaultNormalIndex("email_idx")
 	if err != nil {
 		t.Fatalf("Failed to create email index: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestTable_MultipleFieldUpdates(t *testing.T) {
 		t.Fatalf("Failed to add email index: %v", err)
 	}
 
-	phoneIdx, err := DefaultNormalIndexNew("phone_idx")
+	phoneIdx, err := NewDefaultNormalIndex("phone_idx")
 	if err != nil {
 		t.Fatalf("Failed to create phone index: %v", err)
 	}
@@ -450,7 +450,7 @@ func TestTable_FieldUpdate_DataIntegrity(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, err := DefaultPrimaryKeyNew("pk")
+	pk, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key: %v", err)
 	}
@@ -558,18 +558,18 @@ func TestCompositePrimaryKeySearch1(t *testing.T) {
 		"content": "", //文章内容
 	}
 	table.SetFields(fields)
-	PrimaryKeys, err := DefaultPrimaryKeyNew("pk")
+	PrimaryKeys, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
-		t.Fatalf("DefaultPrimaryKeyNew 失败: %v", err)
+		t.Fatalf("NewDefaultPrimaryKey 失败: %v", err)
 	}
 	PrimaryKeys.AddFields("mid", "secNo") //创建一个mid, secNo的组合主键
 	if err := table.CreateIndex(PrimaryKeys); err != nil {
 		t.Fatalf("CreateIndex 失败: %v", err)
 	}
 
-	fullText, err := DefaultFullTextIndexNew("ft")
+	fullText, err := NewDefaultFullTextIndex("ft")
 	if err != nil {
-		t.Fatalf("DefaultFullTextIndexNew 失败: %v", err)
+		t.Fatalf("NewDefaultFullTextIndex 失败: %v", err)
 	}
 	//全文索引正常情况下必须在前或后带上全量主键，否则后面的关键词都被覆盖，失去全文索引的意义。
 	fullText.AddFields("content", "mid", "secNo")
@@ -583,9 +583,9 @@ func TestCompositePrimaryKeySearch1(t *testing.T) {
 		t.Fatalf("CreateIndex 失败: %v", err)
 	}
 
-	normalIndex, err := DefaultNormalIndexNew("idx")
+	normalIndex, err := NewDefaultNormalIndex("idx")
 	if err != nil {
-		t.Fatalf("DefaultNormalIndexNew 失败: %v", err)
+		t.Fatalf("NewDefaultNormalIndex 失败: %v", err)
 	}
 	//这个是重复索引，不会添加成功
 	normalIndex.AddFields("mid", "secNo") //创建一个普通组合索引
@@ -668,7 +668,7 @@ func TestTableUpdateWithOptimisticLock(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, err := DefaultPrimaryKeyNew("pk")
+	pk, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}

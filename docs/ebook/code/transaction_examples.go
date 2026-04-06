@@ -43,7 +43,7 @@ func main1() {
 
 func basicTransactionExample() {
 	// 创建用户表
-	userTable, err := engine.TableNew("users")
+	userTable, err := engine.NewTable("users")
 	if err != nil {
 		log.Printf("创建用户表失败: %v", err)
 		return
@@ -60,7 +60,7 @@ func basicTransactionExample() {
 		return
 	}
 
-	primaryKey, _ := engine.DefaultPrimaryKeyNew("id")
+	primaryKey, _ := engine.NewDefaultPrimaryKey("id")
 	primaryKey.AddFields("id")
 	userTable.CreateIndex(primaryKey)
 
@@ -103,7 +103,7 @@ func batchOperationExample() {
 		"balance": 0.0,
 	}
 	accountTable.SetFields(accountFields)
-	primaryKey, _ := engine.DefaultPrimaryKeyNew("id")
+	primaryKey, _ := engine.NewDefaultPrimaryKey("id")
 	primaryKey.AddFields("id")
 	accountTable.CreateIndex(primaryKey)
 
@@ -166,7 +166,7 @@ func bankTransferExample() {
 		"balance": 0.0,
 	}
 	accountTable.SetFields(accountFields)
-	primaryKey, _ := engine.DefaultPrimaryKeyNew("id")
+	primaryKey, _ := engine.NewDefaultPrimaryKey("id")
 	primaryKey.AddFields("id")
 	accountTable.CreateIndex(primaryKey)
 
@@ -241,7 +241,7 @@ func orderProcessingExample() {
 		"created_at": int64(0),
 	}
 	orderTable.SetFields(orderFields)
-	orderKey, _ := engine.DefaultPrimaryKeyNew("id")
+	orderKey, _ := engine.NewDefaultPrimaryKey("id")
 	orderKey.AddFields("id")
 	orderTable.CreateIndex(orderKey)
 
@@ -253,7 +253,7 @@ func orderProcessingExample() {
 		"stock":        0,
 	}
 	inventoryTable.SetFields(inventoryFields)
-	inventoryKey, _ := engine.DefaultPrimaryKeyNew("product_id")
+	inventoryKey, _ := engine.NewDefaultPrimaryKey("product_id")
 	inventoryKey.AddFields("product_id")
 	inventoryTable.CreateIndex(inventoryKey)
 

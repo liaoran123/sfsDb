@@ -11,7 +11,7 @@ import (
 // TestTableJoinPerformance 测试多表连接查询性能并输出详细结果
 func TestTableJoinPerformance(t *testing.T) {
 	// 创建测试表
-	table1, err := TableNew("test_table1")
+	table1, err := NewTable("test_table1")
 	if err != nil {
 		t.Fatalf("Failed to create table1: %v", err)
 	}
@@ -24,7 +24,7 @@ func TestTableJoinPerformance(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk1, _ := DefaultPrimaryKeyNew("pk1")
+	pk1, _ := NewDefaultPrimaryKey("pk1")
 	pk1.AddFields("id")
 	err = table1.CreateIndex(pk1)
 	if err != nil {
@@ -32,7 +32,7 @@ func TestTableJoinPerformance(t *testing.T) {
 	}
 
 	// 创建二级索引
-	ageIdx1, _ := DefaultNormalIndexNew("age_index1")
+	ageIdx1, _ := NewDefaultNormalIndex("age_index1")
 	ageIdx1.AddFields("age")
 	err = table1.CreateIndex(ageIdx1)
 	if err != nil {
@@ -53,7 +53,7 @@ func TestTableJoinPerformance(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk2, _ := DefaultPrimaryKeyNew("pk2")
+	pk2, _ := NewDefaultPrimaryKey("pk2")
 	pk2.AddFields("id")
 	err = table2.CreateIndex(pk2)
 	if err != nil {
@@ -61,7 +61,7 @@ func TestTableJoinPerformance(t *testing.T) {
 	}
 
 	// 创建二级索引
-	ageIdx2, _ := DefaultNormalIndexNew("age_index2")
+	ageIdx2, _ := NewDefaultNormalIndex("age_index2")
 	ageIdx2.AddFields("age")
 	err = table2.CreateIndex(ageIdx2)
 	if err != nil {
@@ -81,7 +81,7 @@ func TestTableJoinPerformance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to set fields for table1: %v", err)
 		}
-		pk1, _ = DefaultPrimaryKeyNew("pk1")
+		pk1, _ = NewDefaultPrimaryKey("pk1")
 		pk1.AddFields("id")
 		err = table1.CreateIndex(pk1)
 		if err != nil {
@@ -93,7 +93,7 @@ func TestTableJoinPerformance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to set fields for table2: %v", err)
 		}
-		pk2, _ = DefaultPrimaryKeyNew("pk2")
+		pk2, _ = NewDefaultPrimaryKey("pk2")
 		pk2.AddFields("id")
 		err = table2.CreateIndex(pk2)
 		if err != nil {
@@ -203,7 +203,7 @@ func BenchmarkTableJoinWithDifferentSizes(b *testing.B) {
 			}
 
 			// 创建主键索引
-			pk1, _ := DefaultPrimaryKeyNew("pk1")
+			pk1, _ := NewDefaultPrimaryKey("pk1")
 			pk1.AddFields("id")
 			err = table1.CreateIndex(pk1)
 			if err != nil {
@@ -224,7 +224,7 @@ func BenchmarkTableJoinWithDifferentSizes(b *testing.B) {
 			}
 
 			// 创建主键索引
-			pk2, _ := DefaultPrimaryKeyNew("pk2")
+			pk2, _ := NewDefaultPrimaryKey("pk2")
 			pk2.AddFields("id")
 			err = table2.CreateIndex(pk2)
 			if err != nil {

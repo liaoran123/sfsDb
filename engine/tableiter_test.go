@@ -21,7 +21,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	table3Name := "test_search_comprehensive3_" + t.Name()
 
 	// Create test table
-	table1, err := TableNew(table1Name)
+	table1, err := NewTable(table1Name)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	}
 
 	// Create primary key index on id
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table1.CreateIndex(pk)
 	if err != nil {
@@ -42,7 +42,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	}
 
 	// Create secondary index on age
-	ageIdx, _ := DefaultNormalIndexNew("age_index")
+	ageIdx, _ := NewDefaultNormalIndex("age_index")
 	ageIdx.AddFields("age")
 	err = table1.CreateIndex(ageIdx)
 	if err != nil {
@@ -79,7 +79,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	}
 
 	// Create primary key index on id
-	pk2, _ := DefaultPrimaryKeyNew("pk")
+	pk2, _ := NewDefaultPrimaryKey("pk")
 	pk2.AddFields("id")
 	err = table2.CreateIndex(pk2)
 	if err != nil {
@@ -87,7 +87,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	}
 
 	// Create secondary index on age
-	ageIdx2, _ := DefaultNormalIndexNew("age_index")
+	ageIdx2, _ := NewDefaultNormalIndex("age_index")
 	ageIdx2.AddFields("age")
 	err = table2.CreateIndex(ageIdx2)
 	if err != nil {
@@ -125,7 +125,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	}
 
 	// Create primary key index on id
-	pk3, _ := DefaultPrimaryKeyNew("pk")
+	pk3, _ := NewDefaultPrimaryKey("pk")
 	pk3.AddFields("id")
 	err = table3.CreateIndex(pk3)
 	if err != nil {
@@ -133,7 +133,7 @@ func TestTestSelectForJoin(t *testing.T) {
 	}
 
 	// Create secondary index on age
-	ageIdx3, _ := DefaultNormalIndexNew("age_index")
+	ageIdx3, _ := NewDefaultNormalIndex("age_index")
 	ageIdx3.AddFields("age")
 	err = table3.CreateIndex(ageIdx3)
 	if err != nil {
@@ -320,7 +320,7 @@ func TestTestSelectForJoin1(t *testing.T) {
 	}
 
 	// Create primary key index on id
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table1.CreateIndex(pk)
 	if err != nil {
@@ -328,7 +328,7 @@ func TestTestSelectForJoin1(t *testing.T) {
 	}
 
 	// Create secondary index on age
-	ageIdx, _ := DefaultNormalIndexNew("age_index")
+	ageIdx, _ := NewDefaultNormalIndex("age_index")
 	ageIdx.AddFields("age")
 	err = table1.CreateIndex(ageIdx)
 	if err != nil {
@@ -365,7 +365,7 @@ func TestTestSelectForJoin1(t *testing.T) {
 	}
 
 	// Create primary key index on id
-	pk2, _ := DefaultPrimaryKeyNew("pk")
+	pk2, _ := NewDefaultPrimaryKey("pk")
 	pk2.AddFields("id")
 	err = table2.CreateIndex(pk2)
 	if err != nil {
@@ -373,7 +373,7 @@ func TestTestSelectForJoin1(t *testing.T) {
 	}
 
 	// Create secondary index on age
-	ageIdx2, _ := DefaultNormalIndexNew("age_index")
+	ageIdx2, _ := NewDefaultNormalIndex("age_index")
 	ageIdx2.AddFields("age")
 	err = table2.CreateIndex(ageIdx2)
 	if err != nil {
@@ -411,7 +411,7 @@ func TestTestSelectForJoin1(t *testing.T) {
 	}
 
 	// Create primary key index on id
-	pk3, _ := DefaultPrimaryKeyNew("pk")
+	pk3, _ := NewDefaultPrimaryKey("pk")
 	pk3.AddFields("id")
 	err = table3.CreateIndex(pk3)
 	if err != nil {
@@ -419,7 +419,7 @@ func TestTestSelectForJoin1(t *testing.T) {
 	}
 
 	// Create secondary index on age
-	ageIdx3, _ := DefaultNormalIndexNew("age_index")
+	ageIdx3, _ := NewDefaultNormalIndex("age_index")
 	ageIdx3.AddFields("age")
 	err = table3.CreateIndex(ageIdx3)
 	if err != nil {
@@ -697,7 +697,7 @@ func TestTableIter_MapDataClean(t *testing.T) {
 	}
 
 	// 创建主键索引
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -827,7 +827,7 @@ func TestTableIter_WithFieldComparison(t *testing.T) {
 	}
 
 	// Create primary key index
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -1106,7 +1106,7 @@ func TestTableIter_DeleteUpdate(t *testing.T) {
 	}
 
 	// Create primary key index
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -1221,7 +1221,7 @@ func TestTableIter_Map(t *testing.T) {
 	}
 
 	// Create primary key index
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -1321,7 +1321,7 @@ func TestTableIter_Count(t *testing.T) {
 	}
 
 	// Create primary key index
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -1403,7 +1403,7 @@ func TestTableIter_JumpRange(t *testing.T) {
 	}
 
 	// Create primary key index
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -1487,7 +1487,7 @@ func TestTableIter_Export(t *testing.T) {
 	}
 
 	// Create primary key index
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -1576,7 +1576,7 @@ func TestTableIter_GetPrimaryKeys(t *testing.T) {
 	}
 
 	// Create primary key index
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -1646,7 +1646,7 @@ func setupTestTable(t *testing.T) (*Table, error) {
 		return nil, err
 	}
 
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		return nil, err
 	}
@@ -1706,7 +1706,7 @@ func TestTableIter_UpdatePagination(t *testing.T) {
 	}
 
 	// Create primary key index
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -1930,7 +1930,7 @@ func TestTableIter_DeletePagination(t *testing.T) {
 	}
 
 	// Create primary key index
-	pkIndex, err := DefaultPrimaryKeyNew("pk")
+	pkIndex, err := NewDefaultPrimaryKey("pk")
 	if err != nil {
 		t.Fatalf("Failed to create primary key index: %v", err)
 	}
@@ -2005,7 +2005,7 @@ func TestTableIter_DeletePagination(t *testing.T) {
 			t.Fatalf("Failed to set fields: %v", err)
 		}
 
-		pkIndex2, _ := DefaultPrimaryKeyNew("pk")
+		pkIndex2, _ := NewDefaultPrimaryKey("pk")
 		pkIndex2.AddFields("id")
 		err = table2.CreateIndex(pkIndex2)
 		if err != nil {
@@ -2062,7 +2062,7 @@ func TestTableIter_DeletePagination(t *testing.T) {
 			t.Fatalf("Failed to set fields: %v", err)
 		}
 
-		pkIndex3, _ := DefaultPrimaryKeyNew("pk")
+		pkIndex3, _ := NewDefaultPrimaryKey("pk")
 		pkIndex3.AddFields("id")
 		err = table3.CreateIndex(pkIndex3)
 		if err != nil {
@@ -2115,7 +2115,7 @@ func TestTableIter_DeletePagination(t *testing.T) {
 			t.Fatalf("Failed to set fields: %v", err)
 		}
 
-		pkIndex4, _ := DefaultPrimaryKeyNew("pk")
+		pkIndex4, _ := NewDefaultPrimaryKey("pk")
 		pkIndex4.AddFields("id")
 		err = table4.CreateIndex(pkIndex4)
 		if err != nil {
@@ -2168,7 +2168,7 @@ func TestTableIter_DeletePagination(t *testing.T) {
 			t.Fatalf("Failed to set fields: %v", err)
 		}
 
-		pkIndex5, _ := DefaultPrimaryKeyNew("pk")
+		pkIndex5, _ := NewDefaultPrimaryKey("pk")
 		pkIndex5.AddFields("id")
 		err = table5.CreateIndex(pkIndex5)
 		if err != nil {

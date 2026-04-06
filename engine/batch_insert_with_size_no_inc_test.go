@@ -26,7 +26,7 @@ func TestBatchInsertWithSizeNoInc(t *testing.T) {
 	table.SetFields(fields)
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 
@@ -62,7 +62,7 @@ func TestBatchInsertWithSizeNoIncSkipVersion(t *testing.T) {
 	table.SetFields(fields)
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	table.CreateIndex(pk)
 

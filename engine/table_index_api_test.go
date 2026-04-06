@@ -295,7 +295,7 @@ func TestCreateFullTextIndexWithExistingData(t *testing.T) {
 	}
 
 	// 在已有数据的情况下创建全文索引
-	fullText, err := DefaultFullTextIndexNew("content_ft_idx")
+	fullText, err := NewDefaultFullTextIndex("content_ft_idx")
 	if err != nil {
 		t.Fatalf("Failed to create full text index: %v", err)
 	}

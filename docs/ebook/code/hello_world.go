@@ -23,7 +23,7 @@ func main() {
 
 	// 2. 创建表
 	fmt.Println("\n2. 创建用户表...")
-	userTable, err := engine.TableNew("users")
+	userTable, err := engine.NewTable("users")
 	if err != nil {
 		panic(fmt.Sprintf("创建表失败: %v", err))
 	}
@@ -44,7 +44,7 @@ func main() {
 
 	// 4. 创建主键索引
 	fmt.Println("\n4. 创建主键索引...")
-	primaryKey, err := engine.DefaultPrimaryKeyNew("id")
+	primaryKey, err := engine.NewDefaultPrimaryKey("id")
 	if err != nil {
 		panic(fmt.Sprintf("创建主键索引失败: %v", err))
 	}

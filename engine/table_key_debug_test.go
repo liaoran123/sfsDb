@@ -8,7 +8,7 @@ import (
 // TestTableKeyGenerationDebug debug test to understand what keys are being generated
 func TestTableKeyGenerationDebug(t *testing.T) {
 	// Create test table
-	table, err := TableNew("test_key_debug")
+	table, err := NewTable("test_key_debug")
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -21,7 +21,7 @@ func TestTableKeyGenerationDebug(t *testing.T) {
 	}
 
 	// Create primary key index on id
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {

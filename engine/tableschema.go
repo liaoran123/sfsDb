@@ -108,7 +108,7 @@ func (t *Table) ToSerialization() *TableSerialization {
 // 用于从元数据反序列化Table结构体
 func FromSchema(schema *TableSchema) (*Table, error) {
 	// 创建Table实例
-	table, err := TableNew(schema.Name)
+	table, err := NewTable(schema.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -150,13 +150,13 @@ func FromSchema(schema *TableSchema) (*Table, error) {
 		switch strings.ToLower(indexSchema.Type) {
 		case "primary":
 			// 主键索引
-			index, err = DefaultPrimaryKeyNew(indexSchema.Name)
+			index, err = NewDefaultPrimaryKey(indexSchema.Name)
 		case "normal":
 			// 普通索引
-			index, err = DefaultNormalIndexNew(indexSchema.Name)
+			index, err = NewDefaultNormalIndex(indexSchema.Name)
 		case "fulltext":
 			// 全文索引
-			index, err = DefaultFullTextIndexNew(indexSchema.Name)
+			index, err = NewDefaultFullTextIndex(indexSchema.Name)
 		default:
 			// 未知索引类型，跳过
 			continue
@@ -184,7 +184,7 @@ func FromSchema(schema *TableSchema) (*Table, error) {
 
 	// 如果没有主键索引，创建默认主键索引
 	if !hasPrimaryKey {
-		primaryKey, err := DefaultPrimaryKeyNew("pk")
+		primaryKey, err := NewDefaultPrimaryKey("pk")
 		if err != nil {
 			return nil, err
 		}

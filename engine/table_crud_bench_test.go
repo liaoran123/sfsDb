@@ -19,7 +19,7 @@ func (t *Table) FieldsToBytesNoPool(fields *map[string]any) map[string][]byte {
 // 基准测试：不使用对象池
 func BenchmarkFieldsToBytesNoPool(b *testing.B) {
 	// 创建测试表
-	table, err := TableNew("test_bench")
+	table, err := NewTable("test_bench")
 	if err != nil {
 		b.Fatalf("Failed to create table: %v", err)
 	}
@@ -37,7 +37,7 @@ func BenchmarkFieldsToBytesNoPool(b *testing.B) {
 	}
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -79,7 +79,7 @@ func BenchmarkFieldsToBytesWithPool(b *testing.B) {
 	}
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -121,7 +121,7 @@ func BenchmarkBatchFieldsToBytesNoPool(b *testing.B) {
 	}
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -168,7 +168,7 @@ func BenchmarkBatchFieldsToBytesWithPool(b *testing.B) {
 	}
 
 	// 创建主键
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {

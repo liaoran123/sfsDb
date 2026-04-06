@@ -22,7 +22,7 @@ func TestTableSearchComparisonOperators(t *testing.T) {
 	}
 
 	// Create primary key index
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -164,7 +164,7 @@ func TestTableSearchComparisonOperatorsWithAgeField(t *testing.T) {
 	}
 
 	// Create primary key index
-	pk, _ := DefaultPrimaryKeyNew("pk")
+	pk, _ := NewDefaultPrimaryKey("pk")
 	pk.AddFields("id")
 	err = table.CreateIndex(pk)
 	if err != nil {
@@ -172,7 +172,7 @@ func TestTableSearchComparisonOperatorsWithAgeField(t *testing.T) {
 	}
 
 	// Create age index
-	ageIdx, _ := DefaultNormalIndexNew("age_index")
+	ageIdx, _ := NewDefaultNormalIndex("age_index")
 	ageIdx.AddFields("age")
 	err = table.CreateIndex(ageIdx)
 	if err != nil {
