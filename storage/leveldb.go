@@ -142,9 +142,19 @@ func (s *LevelDBStore) WriteBatch(batch Batch, put ...bool) error {
 	*/
 }
 
+/*
 // WriteBatchIot 执行批量写入操作物联网边缘计算专用
+// &opt.WriteOptions{Sync: true}
+这行代码专门为以下场景设计：
+
+- 金融交易 ：确保订单数据不丢失
+- 订单系统 ：保证交易记录持久化
+- 边缘计算 ：在不稳定供电环境下保护数据
+- 传感器数据 ：确保关键传感器读数被保存
+这行代码的核心作用是 确保批量写入操作的数据持久性 ，通过强制同步写入磁盘，为 IoT/边缘计算等高要求场景提供数据安全保障。
 // batch: 批量操作对象
 // put: 是否将batch放回对象池，默认是true
+*/
 func (s *LevelDBStore) WriteBatchIoT(batch Batch) error {
 	return s.writeBatchWithOptions(batch, &opt.WriteOptions{Sync: true})
 }
