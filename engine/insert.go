@@ -175,7 +175,6 @@ func (i *InsertImpl) PrepareBatch(batchs ...storage.Batch) {
 	} else {
 		i.batch = i.table.kvStore.GetBatch()
 	}
-	//i.table.kvStore.WriteBatchIoT(i.batch)
 }
 func (i *InsertImpl) AddRecord() {
 	fieldsBytes := i.table.FieldsToBytes(i.fields)

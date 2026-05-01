@@ -473,6 +473,59 @@ func (es *EncryptedStoreWrapper) GetBatch() Batch {
 	}
 }
 
+// writeBatchInternal 内部批量写入实现
+func (es *EncryptedStoreWrapper) writeBatchInternal(batch Batch, isIoT bool, put ...bool) error {
+	// 提取底层batch
+	var underlyingBatch Batch
+	encryptedBatch, isEncrypted := batch.(*encryptedBatch)
+	if isEncrypted {
+		underlyingBatch = encryptedBatch.underlyingBatch
+	} else {
+		underlyingBatch = batch
+	}
+
+	// 执行批量操作
+	var err error
+	if isIoT {
+		err = es.underlyingStore.WriteBatchIoT(underlyingBatch)
+	} else {
+		err = es.underlyingStore.WriteBatch(underlyingBatch, put...)
+	}
+	if err != nil {
+		return err
+	}
+
+	// 如果是加密批量操作，更新缓存
+	if isEncrypted {
+		now := time.Now().UnixNano()
+		for key, value := range encryptedBatch.decryptedValues {
+			es.evictLRU()
+
+			newEntry := &cacheEntry{
+				value:      value,
+				lastAccess: now,
+			}
+
+			if _, loaded := es.decryptionCache.Swap(key, newEntry); !loaded {
+				atomic.AddInt64(&es.cacheSize, 1)
+			}
+		}
+	}
+
+	return nil
+}
+
+// WriteBatch 执行批量操作
+func (es *EncryptedStoreWrapper) WriteBatch(batch Batch, put ...bool) error {
+	return es.writeBatchInternal(batch, false, put...)
+}
+
+// WriteBatchIoT 执行批量写入操作（物联网边缘计算专用）
+func (es *EncryptedStoreWrapper) WriteBatchIoT(batch Batch) error {
+	return es.writeBatchInternal(batch, true)
+}
+
+/*
 // WriteBatch 执行批量操作
 func (es *EncryptedStoreWrapper) WriteBatch(batch Batch, put ...bool) error {
 	// 提取底层batch
@@ -550,7 +603,7 @@ func (es *EncryptedStoreWrapper) WriteBatchIoT(batch Batch) error {
 
 	return nil
 }
-
+*/
 // Iterator 创建迭代器
 func (es *EncryptedStoreWrapper) Iterator(start, limit []byte) Iterator {
 	// 使用 atomic.Load 安全访问 encryptor
