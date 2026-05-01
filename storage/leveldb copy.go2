@@ -84,73 +84,6 @@ func (s *LevelDBStore) GetBatch() Batch {
 // batch: 批量操作对象
 // put: 是否将batch放回对象池，默认是true
 func (s *LevelDBStore) WriteBatch(batch Batch, put ...bool) error {
-	return s.writeBatchWithOptions(batch, nil, put...)
-	/*
-		// 检查batch是否为nil
-		if batch == nil {
-			return NewError("batch cannot be nil")
-		}
-
-		// 总是使用originalDB执行写操作，无论当前是否为快照模式
-		db := s.originalDB
-		if db == nil {
-			return NewError("originalDB is nil, cannot perform write operations")
-		}
-
-		// 确保batch是*leveldb.Batch类型
-		ldbBatch, ok := batch.(*leveldb.Batch)
-		if !ok {
-			return NewError("invalid batch type")
-		}
-
-		// 检查batch是否为空
-		if ldbBatch.Len() == 0 {
-			// 空batch直接返回，无需写入
-			if len(put) == 0 || put[0] {
-				LdbBatchPool.Put(ldbBatch)
-			} else {
-				// 即使不放回对象池，也需要重置batch，以便后续使用
-				ldbBatch.Reset()
-			}
-			return nil
-		}
-
-		// 执行批量写入操作
-		err := db.Write(ldbBatch, nil)
-
-		// 处理写入结果
-		if err != nil {
-			// 写入失败，也可以将batch放回池中
-			if len(put) == 0 || put[0] {
-				LdbBatchPool.Put(ldbBatch)
-			} else {
-				// 即使不放回对象池，也需要重置batch，以便后续使用
-				ldbBatch.Reset()
-			}
-			return err
-		}
-
-		// 写入成功，处理batch
-		if len(put) == 0 || put[0] {
-			LdbBatchPool.Put(ldbBatch)
-		} else {
-			// 即使不放回对象池，也需要重置batch，以便后续使用
-			ldbBatch.Reset()
-		}
-
-		return nil
-	*/
-}
-
-// WriteBatchIot 执行批量写入操作物联网边缘计算专用
-// batch: 批量操作对象
-// put: 是否将batch放回对象池，默认是true
-func (s *LevelDBStore) WriteBatchIoT(batch Batch) error {
-	return s.writeBatchWithOptions(batch, &opt.WriteOptions{Sync: true})
-}
-
-// writeBatchWithOptions 内部实现
-func (s *LevelDBStore) writeBatchWithOptions(batch Batch, writeOpts *opt.WriteOptions, put ...bool) error {
 	// 检查batch是否为nil
 	if batch == nil {
 		return NewError("batch cannot be nil")
@@ -181,7 +114,7 @@ func (s *LevelDBStore) writeBatchWithOptions(batch Batch, writeOpts *opt.WriteOp
 	}
 
 	// 执行批量写入操作
-	err := db.Write(ldbBatch, writeOpts)
+	err := db.Write(ldbBatch, nil)
 
 	// 处理写入结果
 	if err != nil {

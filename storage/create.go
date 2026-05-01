@@ -54,7 +54,6 @@ func (dm *DBManager) createStoreWithOpts(Path string, opts *opt.Options, encrypt
 	if err != nil {
 		return nil, err
 	}
-
 	if len(encryptConfig) > 0 && encryptConfig[0] != nil && encryptConfig[0].Enabled {
 		encryptedStore, err := NewEncryptedStoreWrapper(store, encryptConfig[0])
 		if err != nil {
@@ -63,7 +62,6 @@ func (dm *DBManager) createStoreWithOpts(Path string, opts *opt.Options, encrypt
 		}
 		store = encryptedStore // 替换为加密存储
 	}
-
 	return store, nil
 }
 

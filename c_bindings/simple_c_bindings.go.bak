@@ -1,0 +1,89 @@
+package main
+
+/*
+#include <stdint.h>
+#include <stdlib.h>
+
+// 定义 C 接口结构体
+typedef struct {
+    void* dbManager;
+} SfsDbManager;
+
+typedef struct {
+    void* table;
+} SfsTable;
+*/
+import "C"
+
+import (
+	"fmt"
+	"unsafe"
+
+	"github.com/liaoran123/sfsDb/engine"
+	"github.com/liaoran123/sfsDb/storage"
+)
+
+// 导出函数：初始化数据库管理器
+//export SfsDbInit
+func SfsDbInit(dbPath *C.char) *C.SfsDbManager {
+	dbPathStr := C.GoString(dbPath)
+	dbManager := storage.GetDBManager()
+	_, err := dbManager.OpenDB(dbPathStr)
+	if err != nil {
+		fmt.Printf("OpenDB failed: %v\n", err)
+		return nil
+	}
+
+	// 分配 C 内存来存储 SfsDbManager
+	manager := (*C.SfsDbManager)(C.malloc(C.sizeof_SfsDbManager))
+	if manager == nil {
+		fmt.Println("malloc failed")
+		return nil
+	}
+
+	// 存储 dbManager 指针
+	manager.dbManager = unsafe.Pointer(dbManager)
+
+	return manager
+}
+
+// 导出函数：关闭数据库管理器
+//export SfsDbClose
+func SfsDbClose(manager *C.SfsDbManager) {
+	if manager != nil && manager.dbManager != nil {
+		dbManager := (*storage.DBManager)(manager.dbManager)
+		dbManager.CloseDB()
+		// 释放 C 内存
+		C.free(unsafe.Pointer(manager))
+	}
+}
+
+// 导出函数：创建或打开表
+//export SfsDbCreateTable
+func SfsDbCreateTable(manager *C.SfsDbManager, tableName *C.char) *C.SfsTable {
+	if manager == nil || manager.dbManager == nil {
+		return nil
+	}
+
+	tableNameStr := C.GoString(tableName)
+	table, err := engine.TableNew(tableNameStr)
+	if err != nil {
+		fmt.Printf("TableNew failed: %v\n", err)
+		return nil
+	}
+
+	// 分配 C 内存来存储 SfsTable
+	tbl := (*C.SfsTable)(C.malloc(C.sizeof_SfsTable))
+	if tbl == nil {
+		fmt.Println("malloc failed")
+		return nil
+	}
+
+	// 存储 table 指针
+	tbl.table = unsafe.Pointer(table)
+
+	return tbl
+}
+
+// 主函数，用于编译成静态库
+func main() {}
