@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"github.com/syndtr/goleveldb/leveldb/filter"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
@@ -9,28 +8,18 @@ const (
 	DefaultWriteBuffer             = 64 * 1024 * 1024  // 默认写入缓冲区大小，64MB
 	DefaultOpenFilesCacheCapacity  = 200               // 默认打开文件缓存容量，200
 	DefaultBlockCacheCapacity      = 128 * 1024 * 1024 // 默认块缓存容量，128MB
-	DefaultMaxOpenFiles            = 200               // 默认最大打开文件数
 	EmbeddedWriteBuffer            = 2 * 1024 * 1024   // 嵌入式场景写入缓冲区大小，2MB
-	EmbeddedOpenFilesCacheCapacity = 10                // 嵌入式场景打开文件缓存容量，10
+	EmbeddedOpenFilesCacheCapacity = 5                 // 嵌入式场景打开文件缓存容量，5
 	EmbeddedBlockCacheCapacity     = 4 * 1024 * 1024   // 嵌入式场景块缓存容量，4MB
-	EmbeddedMaxOpenFiles           = 20                // 嵌入式场景最大打开文件数
 	IoTWriteBuffer                 = 4 * 1024 * 1024   // 物联网场景写入缓冲区大小，4MB
 	IoTOpenFilesCacheCapacity      = 10                // 物联网场景打开文件缓存容量，10
 	IoTBlockCacheCapacity          = 8 * 1024 * 1024   // 物联网场景块缓存容量，8MB
-	IoTMaxOpenFiles                = 30                // 物联网场景最大打开文件数
 	EdgeWriteBuffer                = 16 * 1024 * 1024  // 边缘场景写入缓冲区大小，16MB
 	EdgeOpenFilesCacheCapacity     = 50                // 边缘场景打开文件缓存容量，50
 	EdgeBlockCacheCapacity         = 32 * 1024 * 1024  // 边缘场景块缓存容量，32MB
-	EdgeMaxOpenFiles               = 100               // 边缘场景最大打开文件数
 	GameWriteBuffer                = 64 * 1024 * 1024  // 游戏场景写入缓冲区大小，64MB
 	GameOpenFilesCacheCapacity     = 200
 	GameBlockCacheCapacity         = 128 * 1024 * 1024 // 游戏场景块缓存容量，128MB
-	GameMaxOpenFiles               = 200               // 游戏场景最大打开文件数
-	// 极限生存模式（128MB 内存设备）
-	ExtremeWriteBuffer            = 2 * 1024 * 1024 // 极限模式写入缓冲区，2MB
-	ExtremeOpenFilesCacheCapacity = 5               // 极限模式打开文件缓存，5
-	ExtremeBlockCacheCapacity     = 4 * 1024 * 1024 // 极限模式块缓存，4MB
-	ExtremeMaxOpenFiles           = 20              // 极限模式最大打开文件数
 )
 
 const (
@@ -39,71 +28,48 @@ const (
 	ScenarioEdge     = "edge"     // 边缘场景
 	ScenarioGame     = "game"     // 游戏场景
 	ScenarioDefault  = "default"  // 默认场景
-	ScenarioExtreme  = "extreme"  // 极限生存模式（128MB内存设备）
 )
 
 type Config struct {
 	WriteBuffer            int             // 写入缓冲区大小，默认64MB
 	OpenFilesCacheCapacity int             // 打开文件缓存容量，默认200
 	BlockCacheCapacity     int             // 块缓存容量，默认128MB
-	MaxOpenFiles           int             // 最大打开文件数，默认200
 	Compression            opt.Compression // 压缩算法，默认Snappy压缩
-	FilterBitsPerKey       int             // 布隆过滤器每Key位数，默认10（0表示不启用）
 }
 
 var embeddedConfig = Config{
 	WriteBuffer:            EmbeddedWriteBuffer,
 	OpenFilesCacheCapacity: EmbeddedOpenFilesCacheCapacity,
 	BlockCacheCapacity:     EmbeddedBlockCacheCapacity,
-	MaxOpenFiles:           EmbeddedMaxOpenFiles,
 	Compression:            opt.DefaultCompression,
-	FilterBitsPerKey:       10, // 布隆过滤器，边缘场景必须启用
 }
 
 var iotConfig = Config{
 	WriteBuffer:            IoTWriteBuffer,
 	OpenFilesCacheCapacity: IoTOpenFilesCacheCapacity,
 	BlockCacheCapacity:     IoTBlockCacheCapacity,
-	MaxOpenFiles:           IoTMaxOpenFiles,
 	Compression:            opt.DefaultCompression,
-	FilterBitsPerKey:       10, // 布隆过滤器，IoT场景必须启用
 }
 
 var edgeConfig = Config{
 	WriteBuffer:            EdgeWriteBuffer,
 	OpenFilesCacheCapacity: EdgeOpenFilesCacheCapacity,
 	BlockCacheCapacity:     EdgeBlockCacheCapacity,
-	MaxOpenFiles:           EdgeMaxOpenFiles,
 	Compression:            opt.DefaultCompression,
-	FilterBitsPerKey:       10, // 布隆过滤器，边缘场景必须启用
 }
 
 var gameConfig = Config{
 	WriteBuffer:            GameWriteBuffer,
 	OpenFilesCacheCapacity: GameOpenFilesCacheCapacity,
 	BlockCacheCapacity:     GameBlockCacheCapacity,
-	MaxOpenFiles:           GameMaxOpenFiles,
 	Compression:            opt.NoCompression,
-	FilterBitsPerKey:       0, // 游戏场景不启用布隆过滤器
 }
 
 var defaultConfig = Config{
 	WriteBuffer:            DefaultWriteBuffer,
 	OpenFilesCacheCapacity: DefaultOpenFilesCacheCapacity,
 	BlockCacheCapacity:     DefaultBlockCacheCapacity,
-	MaxOpenFiles:           DefaultMaxOpenFiles,
 	Compression:            opt.DefaultCompression,
-	FilterBitsPerKey:       10, // 默认启用布隆过滤器
-}
-
-// 极限生存模式配置（128MB 内存设备）
-var extremeConfig = Config{
-	WriteBuffer:            ExtremeWriteBuffer,
-	OpenFilesCacheCapacity: ExtremeOpenFilesCacheCapacity,
-	BlockCacheCapacity:     ExtremeBlockCacheCapacity,
-	MaxOpenFiles:           ExtremeMaxOpenFiles,
-	Compression:            opt.DefaultCompression,
-	FilterBitsPerKey:       10, // 极限模式必须启用布隆过滤器
 }
 
 type ConfigManager struct {
@@ -131,12 +97,6 @@ func (cm *ConfigManager) SetConfig(config Config) {
 	if config.BlockCacheCapacity <= 0 {
 		config.BlockCacheCapacity = cm.config.BlockCacheCapacity
 	}
-	if config.MaxOpenFiles <= 0 {
-		config.MaxOpenFiles = cm.config.MaxOpenFiles
-	}
-	if config.FilterBitsPerKey < 0 {
-		config.FilterBitsPerKey = cm.config.FilterBitsPerKey
-	}
 	cm.config = config
 }
 
@@ -148,17 +108,12 @@ func (cm *ConfigManager) GetConfig() Config {
 // 自定义配置
 func (cm *ConfigManager) GetOptions() *opt.Options {
 	config := cm.GetConfig()
-	opts := &opt.Options{
+	return &opt.Options{
 		WriteBuffer:            config.WriteBuffer,
 		OpenFilesCacheCapacity: config.OpenFilesCacheCapacity,
 		BlockCacheCapacity:     config.BlockCacheCapacity,
 		Compression:            config.Compression,
 	}
-	// 如果启用了布隆过滤器，添加到选项中
-	if config.FilterBitsPerKey > 0 {
-		opts.Filter = filter.NewBloomFilter(config.FilterBitsPerKey)
-	}
-	return opts
 }
 
 // 获取指定场景的配置
@@ -172,8 +127,6 @@ func GetScenarioConfig(scenario string) Config {
 		return edgeConfig
 	case ScenarioGame:
 		return gameConfig
-	case ScenarioExtreme:
-		return extremeConfig
 	default:
 		return defaultConfig
 	}
@@ -182,17 +135,12 @@ func GetScenarioConfig(scenario string) Config {
 // 获取指定场景的自定义配置，根据GetScenarioConfig返回的配置创建opt.Options
 func GetScenarioOptions(scenario string) *opt.Options {
 	config := GetScenarioConfig(scenario)
-	opts := &opt.Options{
+	return &opt.Options{
 		WriteBuffer:            config.WriteBuffer,
 		OpenFilesCacheCapacity: config.OpenFilesCacheCapacity,
 		BlockCacheCapacity:     config.BlockCacheCapacity,
 		Compression:            config.Compression,
 	}
-	// 如果启用了布隆过滤器，添加到选项中
-	if config.FilterBitsPerKey > 0 {
-		opts.Filter = filter.NewBloomFilter(config.FilterBitsPerKey)
-	}
-	return opts
 }
 
 var (
