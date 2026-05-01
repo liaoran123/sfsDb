@@ -224,6 +224,10 @@ func (ms *threadSafeMockStore) GetBatch() Batch {
 	}
 }
 
+func (ms *threadSafeMockStore) WriteBatchIoT(batch Batch) error {
+	return ms.WriteBatch(batch)
+}
+
 func (ms *threadSafeMockStore) WriteBatch(batch Batch, put ...bool) error {
 	mb, ok := batch.(*threadSafeMockBatch)
 	if !ok {
