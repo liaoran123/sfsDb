@@ -499,21 +499,15 @@ func (es *EncryptedStoreWrapper) writeBatchInternal(batch Batch, isIoT bool, put
 	if isEncrypted {
 		now := time.Now().UnixNano()
 		for key, value := range encryptedBatch.decryptedValues {
+			es.evictLRU()
+
 			newEntry := &cacheEntry{
 				value:      value,
 				lastAccess: now,
 			}
 
-			// 先尝试插入/更新
 			if _, loaded := es.decryptionCache.Swap(key, newEntry); !loaded {
-				// 新插入的 key，增加计数
 				atomic.AddInt64(&es.cacheSize, 1)
-
-				// 只有新插入且缓存已满时才 evict
-				currentSize := atomic.LoadInt64(&es.cacheSize)
-				if currentSize > int64(es.maxCacheEntries) {
-					es.evictLRU()
-				}
 			}
 		}
 	}
