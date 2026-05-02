@@ -58,6 +58,12 @@ func (t *Table) BatchInsertNoInc(records []*map[string]any, batchs ...storage.Ba
 	// 执行批量插入
 	return insertImpl.BatchInsertNoInc(batchs...)
 }
+func (t *Table) BatchInsertNoIncIoT(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
+	// 使用 InsertImpl
+	insertImpl := NewBatchInsertImpl(t, records)
+	// 执行批量插入
+	return insertImpl.BatchInsertNoIncIoT(batchs...)
+}
 
 /*
 在外部实现分批逻辑非常简单，例如：

@@ -6,6 +6,7 @@ import (
 
 	"github.com/liaoran123/sfsDb/storage"
 	"github.com/liaoran123/sfsDb/util"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 // InsertImplPool 是 InsertImpl 的对象池
@@ -348,13 +349,13 @@ func (i *BatchInsertImpl) BatchInsertInc(records []*map[string]any, batchs ...st
 }
 
 // BatchCommit 批量提交事务
-func (i *BatchInsertImpl) BatchCommit() error {
+func (i *BatchInsertImpl) BatchCommit(writeOpts ...*opt.WriteOptions) error {
 	// 使用 defer 确保实例在方法结束后被放回对象池
 	defer GlobalBatchInsertImplPool.Put(i)
 
 	// 提交事务
 	if !i.userProvidedBatch {
-		if err := i.table.kvStore.WriteBatch(i.batch); err != nil {
+		if err := i.table.kvStore.WriteBatch(i.batch, writeOpts...); err != nil {
 			return err
 		}
 	}
@@ -377,6 +378,21 @@ func (i *BatchInsertImpl) BatchCommit() error {
 // 批量添加不需要自动增值的记录，并且全部记录规则相同。
 // 可用于批量插入时序数据，当表主键为时间戳时，建议使用此方法
 func (i *BatchInsertImpl) BatchInsertNoInc(batchs ...storage.Batch) ([]int, error) {
+	return i.BatchInsertNoIncWithOpts(nil, batchs...)
+}
+
+// 批量添加不需要自动增值的记录，并且全部记录规则相同。
+// 执行批量写入操作物联网边缘计算专用或金融场景专用
+func (i *BatchInsertImpl) BatchInsertNoIncIoT(batchs ...storage.Batch) ([]int, error) {
+	return i.BatchInsertNoIncWithOpts(&opt.WriteOptions{Sync: true}, batchs...)
+}
+
+// BatchInsertNoIncWithOpts 批量添加不需要自动增值的记录（支持写入选项）
+// writeOpts: 可选的写入选项，例如 &opt.WriteOptions{Sync: true} 用于 IoT 场景
+func (i *BatchInsertImpl) BatchInsertNoIncWithOpts(writeOpts *opt.WriteOptions, batchs ...storage.Batch) ([]int, error) {
+	// 使用 defer 确保实例在方法结束后被放回对象池
+	defer GlobalBatchInsertImplPool.Put(i)
+
 	// 检查参数
 	if i.table.fields == nil {
 		return nil, fmt.Errorf("表 '%s' 未设置字段和类型", i.table.name)
@@ -437,9 +453,25 @@ func (i *BatchInsertImpl) BatchInsertNoInc(batchs ...storage.Batch) ([]int, erro
 	}
 
 	// 提交批量操作
-	if err := i.BatchCommit(); err != nil {
-		return nil, err
+	if !i.userProvidedBatch {
+		if err := i.table.kvStore.WriteBatch(i.batch, writeOpts); err != nil {
+			return nil, err
+		}
 	}
+
+	// 释放资源
+	if i.fieldsBytesList != nil {
+		for _, fieldsBytes := range i.fieldsBytesList {
+			GlobalFieldsBytesPool.PutMapPointer(fieldsBytes)
+		}
+		i.fieldsBytesList = nil
+	}
+
+	// 重置字段
+	i.records = nil
+	i.recordsList = nil
+	i.ids = nil
+
 	return ids, nil
 }
 
