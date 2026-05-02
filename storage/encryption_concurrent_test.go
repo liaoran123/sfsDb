@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"sync"
 	"testing"
+
+	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 // TestConcurrentReads 测试并发读取
@@ -228,7 +230,7 @@ func (ms *threadSafeMockStore) WriteBatchIoT(batch Batch) error {
 	return ms.WriteBatch(batch)
 }
 
-func (ms *threadSafeMockStore) WriteBatch(batch Batch, put ...bool) error {
+func (ms *threadSafeMockStore) WriteBatch(batch Batch, writeOpts ...*opt.WriteOptions) error {
 	mb, ok := batch.(*threadSafeMockBatch)
 	if !ok {
 		return NewError("invalid batch type")

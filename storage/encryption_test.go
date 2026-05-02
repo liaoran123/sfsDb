@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"os"
 	"testing"
+
+	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 // TestEncryptionBasic 测试基本的加密解密功能
@@ -763,7 +765,7 @@ func (ms *mockStore) WriteBatchIoT(batch Batch) error {
 	return ms.WriteBatch(batch)
 }
 
-func (ms *mockStore) WriteBatch(batch Batch, put ...bool) error {
+func (ms *mockStore) WriteBatch(batch Batch, writeOpts ...*opt.WriteOptions) error {
 	mb, ok := batch.(*mockBatch)
 	if !ok {
 		return NewError("invalid batch type")

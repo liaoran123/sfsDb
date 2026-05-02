@@ -108,7 +108,8 @@ func (c *batchContainer) Operation(fieldsBytes *map[string][]byte, existFields .
 	}
 	// 检查是否超过最大批量操作数量
 	if c.maxBatchSize > 0 && c.batch.Len() >= c.maxBatchSize {
-		c.kvStore.WriteBatch(c.batch, false) //写入批量操作，重置batch，false，但是不put，继续使用原来的batch
+		c.kvStore.WriteBatch(c.batch) //写入批量操作
+		c.batch = c.kvStore.GetBatch() //获取新的batch继续使用
 	}
 }
 

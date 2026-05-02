@@ -5,6 +5,7 @@ import (
 
 	"github.com/liaoran123/sfsDb/monitor"
 	"github.com/liaoran123/sfsDb/storage"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 // 模拟 storage.Store 接口
@@ -26,7 +27,7 @@ func (m *mockStore) GetBatch() storage.Batch {
 	return &mockBatch{}
 }
 
-func (m *mockStore) WriteBatch(batch storage.Batch, sync bool) error {
+func (m *mockStore) WriteBatch(batch storage.Batch, writeOpts ...*opt.WriteOptions) error {
 	return nil
 }
 
