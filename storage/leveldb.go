@@ -122,13 +122,9 @@ func (s *LevelDBStore) WriteBatch(batch Batch, writeOpts ...*opt.WriteOptions) e
 	return err
 }
 
-// WriteBatchIoT 执行批量写入操作物联网边缘计算专用或金融场景专用
-// 等同于 WriteBatch(batch, &opt.WriteOptions{Sync: true})
-func (s *LevelDBStore) WriteBatchIoT(batch Batch) error {
-	return s.WriteBatch(batch, &opt.WriteOptions{Sync: true})
-}
-
 /*
+type FunIter func(start, limit []byte) Iterator
+
 // Iterator 创建迭代器
 
 	func (s *LevelDBStore) Iterator1(slice *util.Range) Iterator {

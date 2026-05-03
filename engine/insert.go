@@ -233,7 +233,9 @@ func NewBatchInsertImpl(table *Table, records []*map[string]any) *BatchInsertImp
 }
 
 // BatchInsertInc 批量插入多条记录，自动生成主键
-func (i *BatchInsertImpl) BatchInsertInc(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
+// continueOnError: 遇到单个记录错误时是否继续处理后续记录，false表示立即返回
+func (i *BatchInsertImpl) BatchInsertInc(continueOnError bool, batchs ...storage.Batch) ([]int, error) {
+	records := i.records
 	// 检查参数
 	if i.table.fields == nil {
 		return nil, fmt.Errorf("表 '%s' 未设置字段和类型", i.table.name)
@@ -244,8 +246,6 @@ func (i *BatchInsertImpl) BatchInsertInc(records []*map[string]any, batchs ...st
 	if records == nil {
 		return nil, fmt.Errorf("records cannot be nil")
 	}
-	// 保存记录
-	i.records = records
 	// 获取主键字段
 	primaryFields := i.table.GetPrimaryFields()
 	if len(primaryFields) == 0 {
@@ -262,23 +262,10 @@ func (i *BatchInsertImpl) BatchInsertInc(records []*map[string]any, batchs ...st
 	i.batch, i.userProvidedBatch = i.table.prepareBatch(batchs...)
 	// 预分配ID列表容量
 	rdlen := len(records)
-	ids := make([]int, rdlen)
-	i.ids = ids
 
 	// 计算需要自动生成的ID数量
 	autoIncCount := rdlen
-	/*
-		for _, fields := range records {
-			if fields == nil {
-				return nil, fmt.Errorf("record cannot be nil")
-			}
-			if supportDefault {
-				if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
-					autoIncCount++
-				}
-			}
-		}
-	*/
+
 	// 批量获取自动增值ID，确保并发安全
 	var autoIncStart int
 	if autoIncCount > 0 {
@@ -291,53 +278,47 @@ func (i *BatchInsertImpl) BatchInsertInc(records []*map[string]any, batchs ...st
 	BatchContainer := GetBatchContainer(i.batch, i.table.indexs, i.table.id, i.table.kvStore)
 	defer PutBatchContainer(BatchContainer)
 
-	// 预分配资源列表
-	i.fieldsBytesList = make([]*map[string][]byte, len(records))
-	i.recordsList = make([][]byte, len(records))
+	// 使用动态切片收集有效的记录
+	i.fieldsBytesList = make([]*map[string][]byte, 0, rdlen)
+	i.recordsList = make([][]byte, 0, rdlen)
+	validIDs := make([]int, 0, rdlen)
 
-	for j, fields := range records {
+	for _, fields := range records {
 		// 检查字段类型
 		if err := i.table.CheckType(fields); err != nil {
-			return nil, err
+			if !continueOnError {
+				return nil, err
+			}
+			continue
 		}
 
 		// 处理自动增值主键
 		// 使用预分配的自动增值ID
-		ids[j] = autoIncStart + autoIncIdx
-		(*fields)[pkfield] = ids[j]
+		currentID := autoIncStart + autoIncIdx
+		(*fields)[pkfield] = currentID
 		autoIncIdx++
-		/*
-			if supportDefault {
-				if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
-					// 使用预分配的自动增值ID
-					ids[j] = autoIncStart + autoIncIdx
-					(*fields)[pkfield] = ids[j]
-					autoIncIdx++
-				} else {
-					// 使用提供的主键值
-					ids[j] = util.AnyToInt((*fields)[pkfield])
-				}
-			}  else {
-				// 非默认自动增值主键，使用提供的主键值
-				ids[j] = util.AnyToInt((*fields)[pkfield])
-			}
-		*/
+
 		// 转换字段为字节数组
 		fieldsBytes := i.table.FieldsToBytes(fields)
 		// 检查fieldsBytes是否为nil
 		if fieldsBytes == nil {
-			return nil, fmt.Errorf("failed to convert fields to bytes")
+			if !continueOnError {
+				return nil, fmt.Errorf("failed to convert fields to bytes")
+			}
+			continue
 		}
-		i.fieldsBytesList[j] = fieldsBytes
+		i.fieldsBytesList = append(i.fieldsBytesList, fieldsBytes)
 
 		// 格式化记录
 		record := i.table.FormatRecord(fieldsBytes)
-		i.recordsList[j] = record
+		i.recordsList = append(i.recordsList, record)
 
 		// 批量添加记录
 		BatchContainer.SetValue(0, record)
 		BatchContainer.SetValue(1, i.table.GetPrimaryKey().GetID(fieldsBytes))
 		BatchContainer.Operation(fieldsBytes)
+
+		validIDs = append(validIDs, currentID)
 	}
 
 	// 提交批量操作
@@ -345,7 +326,7 @@ func (i *BatchInsertImpl) BatchInsertInc(records []*map[string]any, batchs ...st
 		return nil, err
 	}
 
-	return ids, nil
+	return validIDs, nil
 }
 
 // BatchCommit 批量提交事务
@@ -377,19 +358,22 @@ func (i *BatchInsertImpl) BatchCommit(writeOpts ...*opt.WriteOptions) error {
 
 // 批量添加不需要自动增值的记录，并且全部记录规则相同。
 // 可用于批量插入时序数据，当表主键为时间戳时，建议使用此方法
-func (i *BatchInsertImpl) BatchInsertNoInc(batchs ...storage.Batch) ([]int, error) {
-	return i.BatchInsertNoIncWithOpts(nil, batchs...)
+// continueOnError: 遇到单个记录错误时是否继续处理后续记录，false表示立即返回
+func (i *BatchInsertImpl) BatchInsertNoInc(continueOnError bool, batchs ...storage.Batch) ([]int, error) {
+	return i.BatchInsertNoIncWithOpts(nil, continueOnError, batchs...)
 }
 
 // 批量添加不需要自动增值的记录，并且全部记录规则相同。
 // 执行批量写入操作物联网边缘计算专用或金融场景专用
-func (i *BatchInsertImpl) BatchInsertNoIncIoT(batchs ...storage.Batch) ([]int, error) {
-	return i.BatchInsertNoIncWithOpts(&opt.WriteOptions{Sync: true}, batchs...)
+// continueOnError: 遇到单个记录错误时是否继续处理后续记录，false表示立即返回
+func (i *BatchInsertImpl) BatchInsertNoIncIoT(continueOnError bool, batchs ...storage.Batch) ([]int, error) {
+	return i.BatchInsertNoIncWithOpts(&opt.WriteOptions{Sync: true}, continueOnError, batchs...)
 }
 
 // BatchInsertNoIncWithOpts 批量添加不需要自动增值的记录（支持写入选项）
 // writeOpts: 可选的写入选项，例如 &opt.WriteOptions{Sync: true} 用于 IoT 场景
-func (i *BatchInsertImpl) BatchInsertNoIncWithOpts(writeOpts *opt.WriteOptions, batchs ...storage.Batch) ([]int, error) {
+// continueOnError: 遇到单个记录错误时是否继续处理后续记录，false表示立即返回
+func (i *BatchInsertImpl) BatchInsertNoIncWithOpts(writeOpts *opt.WriteOptions, continueOnError bool, batchs ...storage.Batch) ([]int, error) {
 	// 使用 defer 确保实例在方法结束后被放回对象池
 	defer GlobalBatchInsertImplPool.Put(i)
 
@@ -416,40 +400,52 @@ func (i *BatchInsertImpl) BatchInsertNoIncWithOpts(writeOpts *opt.WriteOptions, 
 	i.ids = ids
 
 	// 预分配资源列表
-	i.fieldsBytesList = make([]*map[string][]byte, len(i.records))
-	i.recordsList = make([][]byte, len(i.records))
+	i.fieldsBytesList = make([]*map[string][]byte, 0, len(i.records))
+	i.recordsList = make([][]byte, 0, len(i.records))
+	validIDs := make([]int, 0, len(i.records))
 
 	// 从对象池中获取一个 batchContainer
 	BatchContainer := GetBatchContainer(i.batch, i.table.indexs, i.table.id, i.table.kvStore)
 	defer PutBatchContainer(BatchContainer)
 
-	for j, fields := range i.records {
+	for _, fields := range i.records {
 		// 检查字段类型
 		if err := i.table.CheckType(fields); err != nil {
-			return nil, err
+			if !continueOnError {
+				return nil, err
+			}
+			continue
 		}
 		if _, ok := (*fields)[pkfield]; !ok || (*fields)[pkfield] == nil {
-			return nil, fmt.Errorf("primary key field '%s' not found in record", pkfield)
-		} else {
-			ids[j] = util.AnyToInt((*fields)[pkfield])
+			if !continueOnError {
+				return nil, fmt.Errorf("primary key field '%s' not found in record", pkfield)
+			}
+			continue
 		}
+
+		id := util.AnyToInt((*fields)[pkfield])
 
 		// 转换字段为字节数组
 		fieldsBytes := i.table.FieldsToBytes(fields)
 		// 检查fieldsBytes是否为nil
 		if fieldsBytes == nil {
-			return nil, fmt.Errorf("failed to convert fields to bytes")
+			if !continueOnError {
+				return nil, fmt.Errorf("failed to convert fields to bytes")
+			}
+			continue
 		}
-		i.fieldsBytesList[j] = fieldsBytes
+		i.fieldsBytesList = append(i.fieldsBytesList, fieldsBytes)
 
 		// 格式化记录
 		record := i.table.FormatRecord(fieldsBytes)
-		i.recordsList[j] = record
+		i.recordsList = append(i.recordsList, record)
 
 		// 批量添加记录
 		BatchContainer.SetValue(0, record)
 		BatchContainer.SetValue(1, i.table.GetPrimaryKey().GetID(fieldsBytes))
 		BatchContainer.Operation(fieldsBytes)
+
+		validIDs = append(validIDs, id)
 	}
 
 	// 提交批量操作
@@ -472,7 +468,7 @@ func (i *BatchInsertImpl) BatchInsertNoIncWithOpts(writeOpts *opt.WriteOptions, 
 	i.recordsList = nil
 	i.ids = nil
 
-	return ids, nil
+	return validIDs, nil
 }
 
 /*

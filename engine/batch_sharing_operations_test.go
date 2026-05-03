@@ -77,7 +77,7 @@ func TestBatchSharingOperations(t *testing.T) {
 		{"id": 3, "name": "Charlie", "age": 35, "email": "charlie@example.com", "status": "inactive"},
 	}
 
-	ids1, err := table1.BatchInsertInc(insertRecords1, batch)
+	ids1, err := table1.BatchInsertInc(insertRecords1, false, batch)
 	if err != nil {
 		t.Fatalf("Failed to batch insert records into table1: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestBatchSharingOperations(t *testing.T) {
 		{"id": 3, "product": "Desk Chair", "price": 199.99, "quantity": 15, "category": "Furniture"},
 	}
 
-	ids2, err := table2.BatchInsertInc(insertRecords2, batch)
+	ids2, err := table2.BatchInsertInc(insertRecords2, false, batch)
 	if err != nil {
 		t.Fatalf("Failed to batch insert records into table2: %v", err)
 	}

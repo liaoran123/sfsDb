@@ -761,10 +761,6 @@ func (ms *mockStore) GetBatch() Batch {
 	}
 }
 
-func (ms *mockStore) WriteBatchIoT(batch Batch) error {
-	return ms.WriteBatch(batch)
-}
-
 func (ms *mockStore) WriteBatch(batch Batch, writeOpts ...*opt.WriteOptions) error {
 	mb, ok := batch.(*mockBatch)
 	if !ok {

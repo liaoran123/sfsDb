@@ -32,7 +32,7 @@ func TestBatchInsertNoIncIoT(t *testing.T) {
 	}
 
 	// 执行BatchInsertNoIncIoT
-	ids, err := table.BatchInsertNoIncIoT(records)
+	ids, err := table.BatchInsertNoIncIoT(records, false)
 	if err != nil {
 		t.Fatalf("BatchInsertNoIncIoT failed: %v", err)
 	}

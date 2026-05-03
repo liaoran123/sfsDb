@@ -41,7 +41,7 @@ func TestBatchInsert(t *testing.T) {
 	}
 
 	// 批量插入
-	ids, err := table.BatchInsertInc(records)
+	ids, err := table.BatchInsertInc(records, false)
 	if err != nil {
 		t.Fatalf("BatchInsertInc failed: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestBatchInsertConcurrent(t *testing.T) {
 					"age":  20 + j,
 				}
 			}
-			ids, err := table.BatchInsertInc(records)
+			ids, err := table.BatchInsertInc(records, false)
 			if err != nil {
 				t.Errorf("BatchInsertInc failed: %v", err)
 				return
@@ -242,7 +242,7 @@ func TestBatchAndSingleInsertConcurrent(t *testing.T) {
 					"age":  20 + j,
 				}
 			}
-			ids, err := table.BatchInsertInc(records)
+			ids, err := table.BatchInsertInc(records, false)
 			if err != nil {
 				t.Errorf("BatchInsertInc failed: %v", err)
 				return

@@ -517,11 +517,6 @@ func (es *EncryptedStoreWrapper) WriteBatch(batch Batch, writeOpts ...*opt.Write
 	return nil
 }
 
-// WriteBatchIoT 执行批量写入操作（物联网边缘计算专用）
-func (es *EncryptedStoreWrapper) WriteBatchIoT(batch Batch) error {
-	return es.WriteBatch(batch, &opt.WriteOptions{Sync: true})
-}
-
 // Iterator 创建迭代器
 func (es *EncryptedStoreWrapper) Iterator(start, limit []byte) Iterator {
 	// 使用 atomic.Load 安全访问 encryptor

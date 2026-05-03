@@ -35,34 +35,32 @@ func (t *Table) Insert(fields *map[string]any, batchs ...storage.Batch) (current
 	4,添加更新记录
 	tableiter 查询功能则与上面添加的流程相反。一正一逆。
 */
-// BatchInsert 批量插入多条记录
+// BatchInsertInc 批量插入多条记录，自动生成主键
 // records []*map[string]any 要插入的记录列表
+// continueOnError: 遇到单个记录错误时是否继续处理后续记录，false表示立即返回
 // batchs ...storage.Batch 可选的批量操作容器
 // 返回值：插入记录的ID列表和错误信息
-func (t *Table) BatchInsertInc(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
-	// 使用 InsertImpl
+func (t *Table) BatchInsertInc(records []*map[string]any, continueOnError bool, batchs ...storage.Batch) ([]int, error) {
 	insertImpl := NewBatchInsertImpl(t, records)
-
-	// 执行批量插入
-	return insertImpl.BatchInsertInc(records, batchs...)
+	return insertImpl.BatchInsertInc(continueOnError, batchs...)
 }
 
 // BatchInsertNoInc 批量插入不需要自动增值的记录
 // records []*map[string]any 要插入的记录列表
+// continueOnError: 遇到单个记录错误时是否继续处理后续记录，false表示立即返回
 // batchs ...storage.Batch 可选的批量操作容器
 // 返回值：插入记录的ID列表和错误信息
 // 批量添加时序数据，当表主键为时间戳时，建议使用此方法
-func (t *Table) BatchInsertNoInc(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
-	// 使用 InsertImpl
+func (t *Table) BatchInsertNoInc(records []*map[string]any, continueOnError bool, batchs ...storage.Batch) ([]int, error) {
 	insertImpl := NewBatchInsertImpl(t, records)
-	// 执行批量插入
-	return insertImpl.BatchInsertNoInc(batchs...)
+	return insertImpl.BatchInsertNoInc(continueOnError, batchs...)
 }
-func (t *Table) BatchInsertNoIncIoT(records []*map[string]any, batchs ...storage.Batch) ([]int, error) {
-	// 使用 InsertImpl
+
+// BatchInsertNoIncIoT 批量插入不需要自动增值的记录，物联网/金融场景专用
+// continueOnError: 遇到单个记录错误时是否继续处理后续记录，false表示立即返回
+func (t *Table) BatchInsertNoIncIoT(records []*map[string]any, continueOnError bool, batchs ...storage.Batch) ([]int, error) {
 	insertImpl := NewBatchInsertImpl(t, records)
-	// 执行批量插入
-	return insertImpl.BatchInsertNoIncIoT(batchs...)
+	return insertImpl.BatchInsertNoIncIoT(continueOnError, batchs...)
 }
 
 /*

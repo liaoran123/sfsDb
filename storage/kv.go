@@ -41,8 +41,6 @@ type Store interface {
 
 	// WriteBatch 执行批量操作
 	WriteBatch(batch Batch, writeOpts ...*opt.WriteOptions) error
-	// WriteBatchIoT 执行批量写入操作物联网边缘计算专用或金融场景专用
-	WriteBatchIoT(batch Batch) error
 
 	// Iterator 创建迭代器
 	//Iterator(slice *util.Range) Iterator

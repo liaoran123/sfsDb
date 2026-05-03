@@ -32,7 +32,7 @@ func TestBatchInsertNoInc(t *testing.T) {
 	}
 
 	// 执行BatchInsertNoInc
-	ids, err := table.BatchInsertNoInc(records)
+	ids, err := table.BatchInsertNoInc(records, false)
 	if err != nil {
 		t.Fatalf("BatchInsertNoInc failed: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestBatchInsertNoIncSkipVersion(t *testing.T) {
 	}
 
 	// 执行BatchInsertNoInc并跳过版本号
-	ids, err := table.BatchInsertNoInc(records)
+	ids, err := table.BatchInsertNoInc(records, false)
 	if err != nil {
 		t.Fatalf("BatchInsertNoInc failed: %v", err)
 	}
