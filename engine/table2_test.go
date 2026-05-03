@@ -18,13 +18,13 @@ func TestGetSysNameId(t *testing.T) {
 	// Test with different table names
 	t.Run("DifferentTableDifferentID", func(t *testing.T) {
 		// Create table 1
-		table1, err := TableNew("test_table_1")
+		table1, err := NewTable("test_table_1")
 		if err != nil {
 			t.Fatalf("Failed to create table 1: %v", err)
 		}
 
 		// Create table 2
-		table2, err := TableNew("test_table_2")
+		table2, err := NewTable("test_table_2")
 		if err != nil {
 			t.Fatalf("Failed to create table 2: %v", err)
 		}
@@ -44,7 +44,7 @@ func TestGetSysNameId(t *testing.T) {
 	// Test with the same table name (should get same ID)
 	t.Run("SameTableSameID", func(t *testing.T) {
 		// Create table 1
-		table1, err := TableNew("test_same_id")
+		table1, err := NewTable("test_same_id")
 		if err != nil {
 			t.Fatalf("Failed to create table 1: %v", err)
 		}
@@ -53,7 +53,7 @@ func TestGetSysNameId(t *testing.T) {
 		id1 := table1.GetId()
 
 		// Create table 2 with same name
-		table2, err := TableNew("test_same_id")
+		table2, err := NewTable("test_same_id")
 		if err != nil {
 			t.Fatalf("Failed to create table 2: %v", err)
 		}
@@ -72,7 +72,7 @@ func TestGetSysNameId(t *testing.T) {
 	// Test field ID generation
 	t.Run("IDManagerGeneration", func(t *testing.T) {
 		// Create a table
-		table, err := TableNew("test_field_id_gen")
+		table, err := NewTable("test_field_id_gen")
 		if err != nil {
 			t.Fatalf("Failed to create table: %v", err)
 		}
@@ -90,7 +90,7 @@ func TestGetSysNameId(t *testing.T) {
 		}
 
 		// Create another table with same field names
-		table2, err := TableNew("test_field_id_gen_2")
+		table2, err := NewTable("test_field_id_gen_2")
 		if err != nil {
 			t.Fatalf("Failed to create table 2: %v", err)
 		}
@@ -162,7 +162,7 @@ func TestCreateIndexSameID(t *testing.T) {
 	}
 
 	// Create table 2
-	table2, err := TableNew("test_index_table_2")
+	table2, err := NewTable("test_index_table_2")
 	if err != nil {
 		t.Fatalf("Failed to create table 2: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestCreateIndexSameID(t *testing.T) {
 	t.Run("SameIndexSameID", func(t *testing.T) {
 		// This test verifies that indexes with the same name get consistent ID management
 		// Create another index with same name on different table
-		table3, err := TableNew("test_index_table_3")
+		table3, err := NewTable("test_index_table_3")
 		if err != nil {
 			t.Fatalf("Failed to create table 3: %v", err)
 		}
@@ -259,7 +259,7 @@ func TestCreateIndexSameID(t *testing.T) {
 		}
 
 		// Create same index on another table
-		table4, err := TableNew("test_index_table_4")
+		table4, err := NewTable("test_index_table_4")
 		if err != nil {
 			t.Fatalf("Failed to create table 4: %v", err)
 		}
@@ -291,7 +291,7 @@ func TestTable_MultipleFieldUpdates(t *testing.T) {
 	tableName := fmt.Sprintf("test_multiple_field_updates_%d", time.Now().UnixNano())
 
 	// 创建表
-	table, err := TableNew(tableName)
+	table, err := NewTable(tableName)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -432,7 +432,7 @@ func TestTable_FieldUpdate_DataIntegrity(t *testing.T) {
 	tableName := fmt.Sprintf("test_field_update_data_integrity_%d", time.Now().UnixNano())
 
 	// 创建表
-	table, err := TableNew(tableName)
+	table, err := NewTable(tableName)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -546,9 +546,9 @@ func TestTable_FieldUpdate_DataIntegrity(t *testing.T) {
 
 func TestCompositePrimaryKeySearch1(t *testing.T) {
 
-	table, err := TableNew("art")
+	table, err := NewTable("art")
 	if err != nil {
-		t.Fatalf("TableNew 失败: %v", err)
+		t.Fatalf("NewTable 失败: %v", err)
 	}
 	// 必须先为表预设字段和数据类型
 	fields := map[string]any{
@@ -650,7 +650,7 @@ func TestTableUpdateWithOptimisticLock(t *testing.T) {
 	tableName := fmt.Sprintf("test_update_optimistic_lock_%d", time.Now().UnixNano())
 
 	// 创建表
-	table, err := TableNew(tableName)
+	table, err := NewTable(tableName)
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}

@@ -46,7 +46,7 @@ type TableCache struct {
 }
 
 // 创建或获取一个表
-func TableNew(name string) (*Table, error) {
+func NewTable(name string) (*Table, error) {
 	// 获取 DBManager 实例
 	dbMgr := storage.GetDBManager()
 	// 检查数据库是否已初始化
@@ -77,8 +77,10 @@ func TableNew(name string) (*Table, error) {
 	tb.InitAuto() //初始化自动增值计数器。支持单一ID生成模式，要么系统自动增长，要么用户自定义ID。
 	return tb, nil
 }
-func NewTable(name string) (*Table, error) {
-	return TableNew(name)
+
+// 兼容旧测试文件
+func TableNew(name string) (*Table, error) {
+	return NewTable(name)
 }
 
 func (t *Table) GetId() uint8 {

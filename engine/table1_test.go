@@ -330,7 +330,7 @@ func TestTableSearch1(t *testing.T) {
 // 测试添加、删除、修改操作
 func TestAddDeleteUpdate(t *testing.T) {
 	// 创建表
-	table, err := TableNew("test_add_delete_update")
+	table, err := NewTable("test_add_delete_update")
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -445,7 +445,7 @@ func TestAddDeleteUpdate(t *testing.T) {
 func TestTableCRUD1(t *testing.T) {
 
 	// 创建表
-	table, err := TableNew("test_table_CRUD1")
+	table, err := NewTable("test_table_CRUD1")
 	if err != nil {
 		t.Fatalf("Failed to create table: %v", err)
 	}
@@ -560,7 +560,7 @@ func TestTableCRUD1(t *testing.T) {
 // 测试添加Table.Insert，删除Table.Delete，修改Table.Update，添加一条记录，通过主键进行修改和删除
 func TestTableCRUD2(t *testing.T) {
 	// 创建带索引的表
-	tableWithIndex, err := TableNew("test_table_CRUD2")
+	tableWithIndex, err := NewTable("test_table_CRUD2")
 	if err != nil {
 		t.Fatalf("Failed to create table with index: %v", err)
 	}
@@ -710,7 +710,7 @@ func TestTableCRUD2(t *testing.T) {
 func TestTableCRUD3(t *testing.T) {
 
 	// 创建带索引的表
-	tableWithIndex, err := TableNew("test_table_with_index3")
+	tableWithIndex, err := NewTable("test_table_with_index3")
 	if err != nil {
 		t.Fatalf("Failed to create table with index: %v", err)
 	}

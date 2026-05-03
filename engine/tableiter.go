@@ -32,7 +32,7 @@ type ExportRecord func(rd *record.Record) bool
 // 导出函数
 type Export func(k, v []byte) bool
 
-func TableIterNew(table *Table, iter storage.Iterator, index Index, selects ...string) *TableIter {
+func NewTableIter(table *Table, iter storage.Iterator, index Index, selects ...string) *TableIter {
 	if iter == nil {
 		return nil
 	}
@@ -51,8 +51,10 @@ func TableIterNew(table *Table, iter storage.Iterator, index Index, selects ...s
 		iter: iter,
 	}
 }
-func NewTableIter(table *Table, iter storage.Iterator, index Index, selects ...string) *TableIter {
-	return TableIterNew(table, iter, index, selects...)
+
+// 兼容旧测试文件
+func TableIterNew(table *Table, iter storage.Iterator, index Index, selects ...string) *TableIter {
+	return NewTableIter(table, iter, index, selects...)
 }
 
 // 分页变量

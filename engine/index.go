@@ -265,7 +265,7 @@ type DefaultPrimaryKey struct {
 	BaseIndex // 嵌入基础索引
 }
 
-func DefaultPrimaryKeyNew(name string) (*DefaultPrimaryKey, error) {
+func NewDefaultPrimaryKey(name string) (*DefaultPrimaryKey, error) {
 	dpk := &DefaultPrimaryKey{
 		BaseIndex: BaseIndex{
 			name: name,
@@ -276,8 +276,10 @@ func DefaultPrimaryKeyNew(name string) (*DefaultPrimaryKey, error) {
 	}
 	return dpk, nil
 }
-func NewDefaultPrimaryKey(name string) (*DefaultPrimaryKey, error) {
-	return DefaultPrimaryKeyNew(name)
+
+// 兼容旧测试文件
+func DefaultPrimaryKeyNew(name string) (*DefaultPrimaryKey, error) {
+	return NewDefaultPrimaryKey(name)
 }
 
 /*
@@ -354,7 +356,7 @@ type DefaultNormalIndex struct {
 	BaseIndex // 嵌入基础索引
 }
 
-func DefaultNormalIndexNew(name string) (*DefaultNormalIndex, error) {
+func NewDefaultNormalIndex(name string) (*DefaultNormalIndex, error) {
 	dni := &DefaultNormalIndex{
 		BaseIndex: BaseIndex{
 			name: name,
@@ -365,8 +367,10 @@ func DefaultNormalIndexNew(name string) (*DefaultNormalIndex, error) {
 	}
 	return dni, nil
 }
-func NewDefaultNormalIndex(name string) (*DefaultNormalIndex, error) {
-	return DefaultNormalIndexNew(name)
+
+// 兼容旧测试文件
+func DefaultNormalIndexNew(name string) (*DefaultNormalIndex, error) {
+	return NewDefaultNormalIndex(name)
 }
 
 // Tag方法返回true，表示是二级索引。
@@ -398,7 +402,7 @@ type DefaultFullTextIndex struct {
 	//ftfields  []FullTextIndexField // 全文索引字段列表
 }
 
-func DefaultFullTextIndexNew(name string) (*DefaultFullTextIndex, error) {
+func NewDefaultFullTextIndex(name string) (*DefaultFullTextIndex, error) {
 	dfi := &DefaultFullTextIndex{
 		BaseIndex: BaseIndex{
 			name: name,
@@ -409,8 +413,10 @@ func DefaultFullTextIndexNew(name string) (*DefaultFullTextIndex, error) {
 	}
 	return dfi, nil
 }
-func NewDefaultFullTextIndex(name string) (*DefaultFullTextIndex, error) {
-	return DefaultFullTextIndexNew(name)
+
+// 兼容旧测试文件
+func DefaultFullTextIndexNew(name string) (*DefaultFullTextIndex, error) {
+	return NewDefaultFullTextIndex(name)
 }
 func (dfi *DefaultFullTextIndex) Parse(primaryFields []string, pkfieldTypeLen *map[string]uint8, value []byte) (*map[string][]byte, error) {
 	//检测primaryFields在全文索引的前面还是后面
