@@ -96,7 +96,6 @@ func GetBatchContainer(batch storage.Batch, indexs *Indexs, tbid uint8, kvStore 
 	c.batch = batch
 	c.tbid = tbid
 	c.kvStore = kvStore
-	c.maxBatchSize = -1
 	c.values[0] = nil
 	c.values[1] = nil
 	c.values[2] = nil
@@ -110,7 +109,6 @@ func PutBatchContainer(c *batchContainer) {
 	c.batch = nil
 	c.tbid = 0
 	c.kvStore = nil
-	c.maxBatchSize = -1
 	// 清空 values 映射
 	for k := range c.values {
 		delete(c.values, k)

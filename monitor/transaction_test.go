@@ -84,47 +84,6 @@ func TestTransactionStatsMapSetTime(t *testing.T) {
 	t.Logf("SetTime 方法测试通过")
 }
 
-// TestTransactionStatsMapSetTimeAsync 测试 SetTimeAsync 方法是否正确记录事务统计信息
-func TestTransactionStatsMapSetTimeAsync(t *testing.T) {
-	// 创建一个新的 TransactionStatsMap 实例用于测试
-	testMap := NewTransactionStatsMap()
-
-	// 测试数据
-	txID := uint64(time.Now().UnixNano())
-	duration := 100 * time.Millisecond
-	tableName := "test_table"
-	isolationLevel := "REPEATABLE_READ"
-	isCommitted := true
-
-	// 调用 SetTimeAsync 方法
-	testMap.SetTimeAsync(txID, duration, tableName, isolationLevel, isCommitted)
-
-	// 等待一段时间，确保异步操作完成
-	time.Sleep(100 * time.Millisecond)
-
-	// 验证统计信息是否被正确记录
-	value, ok := testMap.Data.Load(txID)
-	if !ok {
-		t.Fatalf("异步记录事务统计信息失败")
-	}
-
-	// 检查统计信息是否正确
-	stats, ok := value.(*TransactionStats)
-	if !ok {
-		t.Fatalf("记录的不是 *TransactionStats 类型")
-	}
-
-	if stats.TxID != txID {
-		t.Errorf("TxID 不匹配，期望: %d, 实际: %d", txID, stats.TxID)
-	}
-
-	if stats.GetTotalCount() != 1 {
-		t.Errorf("TotalCount 不匹配，期望: 1, 实际: %d", stats.GetTotalCount())
-	}
-
-	t.Logf("SetTimeAsync 方法测试通过")
-}
-
 // TestTransactionStatsMapGetAll 测试 GetAll 方法是否正确返回所有统计信息
 func TestTransactionStatsMapGetAll(t *testing.T) {
 	// 创建一个新的 TransactionStatsMap 实例用于测试

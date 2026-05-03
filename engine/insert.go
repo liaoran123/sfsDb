@@ -17,7 +17,7 @@ type InsertImplPool struct {
 // 全局 InsertImpl 对象池
 var GlobalInsertImplPool = &InsertImplPool{
 	pool: sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return &InsertImpl{}
 		},
 	},
@@ -31,7 +31,7 @@ type BatchInsertImplPool struct {
 // 全局 BatchInsertImpl 对象池
 var GlobalBatchInsertImplPool = &BatchInsertImplPool{
 	pool: sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return &BatchInsertImpl{}
 		},
 	},

@@ -2,30 +2,16 @@ package monitor
 
 import (
 	"encoding/json"
-	"runtime"
 	"sync"
 	"sync/atomic"
 )
 
-var GlobalKeysMap *KeysMap
-
-// 全局线程池，用于处理所有异步任务
-var globalPool *Pool
-
-func init() {
-	GlobalKeysMap = NewKeysMap()
-	// 创建适合混合任务的线程池
-	// 大小设置为 CPU 核心数的 4 倍
-	globalPool = NewPoolWithSize(runtime.NumCPU() * 4)
-}
+var GlobalKeysMap = &KeysMap{}
 
 type KeysMap struct {
 	Data sync.Map // 使用 sync.Map 替代 map + 互斥锁
 }
 
-func NewKeysMap() *KeysMap {
-	return &KeysMap{}
-}
 func (m *KeysMap) Inc(key int, tbId uint8, indxName string) {
 	value, ok := m.Data.Load(key)
 	if !ok {
@@ -48,23 +34,6 @@ func (m *KeysMap) Dec(key int, tbId uint8, indxName string) {
 	k.Dec()
 }
 
-// IncAsync 异步增加计数器
-func (m *KeysMap) IncAsync(key int, tbId uint8, indxName string) {
-	// 提交任务到全局 Pool
-	globalPool.Submit(func() {
-		m.Inc(key, tbId, indxName)
-	})
-}
-
-// DecAsync 异步减少计数器
-func (m *KeysMap) DecAsync(key int, tbId uint8, indxName string) {
-	// 提交任务到全局 Pool
-	globalPool.Submit(func() {
-		m.Dec(key, tbId, indxName)
-	})
-}
-
-// GetAll 返回所有数据的普通 map 副本
 func (m *KeysMap) GetAll() map[int]*Keys {
 	result := make(map[int]*Keys)
 	m.Data.Range(func(key, value interface{}) bool {
@@ -77,10 +46,10 @@ func (m *KeysMap) GetAll() map[int]*Keys {
 type Keyfun func(key int, tbId uint8, indxName string)
 
 var KeyInc Keyfun = func(key int, tbId uint8, indxName string) {
-	GlobalKeysMap.IncAsync(key, tbId, indxName)
+	GlobalKeysMap.Inc(key, tbId, indxName)
 }
 var KeyDec Keyfun = func(key int, tbId uint8, indxName string) {
-	GlobalKeysMap.DecAsync(key, tbId, indxName)
+	GlobalKeysMap.Dec(key, tbId, indxName)
 }
 
 // Keys 索引计数器,如果WriteBatch不成功或回滚，都会进行计算，不能准确统计添加/删除次数

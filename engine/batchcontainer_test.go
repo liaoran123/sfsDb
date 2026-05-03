@@ -115,28 +115,6 @@ func TestBatchContainerGetValue(t *testing.T) {
 	}
 }
 
-func TestBatchContainerSetMaxBatchSize(t *testing.T) {
-	// 创建一个简单的 batchContainer
-	container := &batchContainer{
-		values: map[uint8][]byte{
-			0: nil, // 主键值
-			1: nil, // 普通索引值
-			2: nil, // 全文索引值
-		},
-	}
-
-	// 测试 SetMaxBatchSize 方法
-	maxBatchSize := 5
-	container.SetMaxBatchSize(maxBatchSize)
-
-	// 验证 maxBatchSize 是否正确设置
-	// 注意：由于 maxBatchSize 是私有字段，我们无法直接访问
-	// 这里我们通过间接测试来验证
-	if container.maxBatchSize != maxBatchSize {
-		t.Errorf("Expected maxBatchSize %d, got %d", maxBatchSize, container.maxBatchSize)
-	}
-}
-
 /*
 	// - 添加一条记录后删除，PutCount和DeleteCount所有对应的键值相等。
 
@@ -149,9 +127,6 @@ func TestBatchContainerSetMaxBatchSize(t *testing.T) {
 
 // TestBatchContainerKeyOperations 测试 batchContainer 对 GlobalKeysMap 的操作是否符合预期
 func TestBatchContainerKeyOperations(t *testing.T) {
-	// 重置 GlobalKeysMap，确保测试环境干净
-	monitor.GlobalKeysMap = monitor.NewKeysMap()
-
 	tbid := uint8(1)
 	primaryKeyId := uint8(1)
 	normalIndexId := uint8(2)
@@ -219,9 +194,6 @@ func TestBatchContainerKeyOperations(t *testing.T) {
 
 	// 测试4：验证添加一条记录后删除，KeyInc和KeyDec函数能够正常执行
 	t.Log("\n--- Test 4: Add and Delete One Record ---")
-
-	// 重置 GlobalKeysMap，确保测试环境干净
-	monitor.GlobalKeysMap = monitor.NewKeysMap()
 
 	// 模拟添加一条记录
 	monitor.KeyInc(primaryKeyMapKey, tbid, "primary_key")

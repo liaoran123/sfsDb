@@ -40,14 +40,6 @@ func (t *TransactionStatsMap) SetTime(txID uint64, duration time.Duration, table
 	stats.AddDuration(duration)
 }
 
-// SetTimeAsync 异步记录事务耗时
-func (t *TransactionStatsMap) SetTimeAsync(txID uint64, duration time.Duration, tableName string, isolationLevel string, isCommitted bool) {
-	// 提交任务到全局 Pool
-	globalPool.Submit(func() {
-		t.SetTime(txID, duration, tableName, isolationLevel, isCommitted)
-	})
-}
-
 // SetCount 记录事务操作计数和冲突计数
 func (t *TransactionStatsMap) SetCount(txID uint64, operationCount, conflictCount int, tableName string, isolationLevel string, isCommitted bool) {
 	value, ok := t.Data.Load(txID)
@@ -66,14 +58,6 @@ func (t *TransactionStatsMap) SetCount(txID uint64, operationCount, conflictCoun
 
 	// 更新统计信息
 	stats.TotalCount.Add(int64(operationCount))
-}
-
-// SetCountAsync 异步记录事务操作计数和冲突计数
-func (t *TransactionStatsMap) SetCountAsync(txID uint64, operationCount, conflictCount int, tableName string, isolationLevel string, isCommitted bool) {
-	// 提交任务到全局 Pool
-	globalPool.Submit(func() {
-		t.SetCount(txID, operationCount, conflictCount, tableName, isolationLevel, isCommitted)
-	})
 }
 
 // GetAll 返回所有数据的普通 map 副本
@@ -96,7 +80,7 @@ type TransactionStats struct {
 	// 是否提交
 	IsCommitted bool `json:"isCommitted"` //不是提交则是回滚
 	// 事务总数
-	TotalCount atomic.Int64 `json:"totalCount"`
+	TotalCount atomic.Int64 `json:"totalcount"`
 	// 事务耗时总和（纳秒）
 	Duration atomic.Int64 `json:"duration"` // 事务耗时总和，提交事务耗时
 	// 事务耗时平均值

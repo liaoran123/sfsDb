@@ -41,14 +41,6 @@ func (i *IndexStatsMap) Settime(indexKey int, duration time.Duration, tblName st
 	stats.RecordTime(duration)
 }
 
-// SettimeAsync 异步记录索引耗时
-func (i *IndexStatsMap) SettimeAsync(indexKey int, duration time.Duration, tblName string, indxName string, searchType string) {
-	// 提交任务到全局 Pool
-	globalPool.Submit(func() {
-		i.Settime(indexKey, duration, tblName, indxName, searchType)
-	})
-}
-
 // GetAll 返回所有数据的普通 map 副本
 func (i *IndexStatsMap) GetAll() map[int]*IndexStats {
 	result := make(map[int]*IndexStats)
