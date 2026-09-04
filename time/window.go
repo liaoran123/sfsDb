@@ -1,6 +1,7 @@
 package time
 
 import (
+	"math"
 	"time"
 )
 
@@ -42,7 +43,9 @@ func NewSlidingWindow(startTime, endTime time.Time, windowSize, stepSize time.Du
 
 // Next 移动到下一个窗口，返回是否还有下一个窗口
 func (w *SlidingWindow) Next() bool {
-	if w.currentStart.Add(w.windowSize).After(w.endTime) {
+	// 当前窗口结束时间 >= endTime 时停止:
+	// 若恰等于,下一窗起点即为 endTime,窗口退化为 [endTime, endTime],必然无数据
+	if !w.currentStart.Add(w.windowSize).Before(w.endTime) {
 		return false
 	}
 	w.currentStart = w.currentStart.Add(w.stepSize)
@@ -91,7 +94,9 @@ func NewTumblingWindow(startTime, endTime time.Time, windowSize time.Duration) *
 
 // Next 移动到下一个窗口，返回是否还有下一个窗口
 func (w *TumblingWindow) Next() bool {
-	if w.currentStart.Add(w.windowSize).After(w.endTime) {
+	// 当前窗口结束时间 >= endTime 时停止:
+	// 若恰等于,下一窗起点即为 endTime,窗口退化为 [endTime, endTime],必然无数据
+	if !w.currentStart.Add(w.windowSize).Before(w.endTime) {
 		return false
 	}
 	w.currentStart = w.currentStart.Add(w.windowSize)
@@ -119,9 +124,9 @@ func (w *TumblingWindow) Reset() {
 
 // WindowAggregation 窗口聚合结果
 type WindowAggregation struct {
-	WindowStart time.Time  `json:"window_start"`
-	WindowEnd   time.Time  `json:"window_end"`
-	Value       float64    `json:"value"`
+	WindowStart time.Time `json:"window_start"`
+	WindowEnd   time.Time `json:"window_end"`
+	Value       float64   `json:"value"`
 }
 
 // AggregateByWindow 按时间窗口聚合数据
@@ -131,8 +136,9 @@ func AggregateByWindow(records []map[string]any, timeField string, valueField st
 	// 重置窗口
 	window.Reset()
 
-	// 对每个窗口进行聚合
-	for window.Next() {
+	// 对每个窗口进行聚合:先处理当前窗口,再尝试移动到下一个窗口
+	// 保证首个窗口和末尾不完整窗口都被处理
+	for {
 		windowStart := window.Start()
 		windowEnd := window.End()
 
@@ -154,58 +160,60 @@ func AggregateByWindow(records []map[string]any, timeField string, valueField st
 			}
 		}
 
-		// 如果窗口内没有记录，跳过
-		if len(windowRecords) == 0 {
-			continue
+		// 窗口内没有记录时跳过聚合,但仍需调用 Next() 前进
+		if len(windowRecords) > 0 {
+			// 计算聚合值
+			var aggregatedValue float64
+			switch aggregationType {
+			case "sum":
+				for _, record := range windowRecords {
+					if val, ok := record[valueField].(float64); ok {
+						aggregatedValue += val
+					}
+				}
+			case "avg":
+				var sum float64
+				var count int
+				for _, record := range windowRecords {
+					if val, ok := record[valueField].(float64); ok {
+						sum += val
+						count++
+					}
+				}
+				if count > 0 {
+					aggregatedValue = sum / float64(count)
+				}
+			case "max":
+				aggregatedValue = math.Inf(-1)
+				for _, record := range windowRecords {
+					if val, ok := record[valueField].(float64); ok && val > aggregatedValue {
+						aggregatedValue = val
+					}
+				}
+			case "min":
+				aggregatedValue = math.Inf(1)
+				for _, record := range windowRecords {
+					if val, ok := record[valueField].(float64); ok && val < aggregatedValue {
+						aggregatedValue = val
+					}
+				}
+			case "count":
+				aggregatedValue = float64(len(windowRecords))
+			default:
+				aggregatedValue = 0
+			}
+
+			// 添加聚合结果
+			results = append(results, WindowAggregation{
+				WindowStart: windowStart,
+				WindowEnd:   windowEnd,
+				Value:       aggregatedValue,
+			})
 		}
 
-		// 计算聚合值
-		var aggregatedValue float64
-		switch aggregationType {
-		case "sum":
-			for _, record := range windowRecords {
-				if val, ok := record[valueField].(float64); ok {
-					aggregatedValue += val
-				}
-			}
-		case "avg":
-			var sum float64
-			var count int
-			for _, record := range windowRecords {
-				if val, ok := record[valueField].(float64); ok {
-					sum += val
-					count++
-				}
-			}
-			if count > 0 {
-				aggregatedValue = sum / float64(count)
-			}
-		case "max":
-			aggregatedValue = -1
-			for _, record := range windowRecords {
-				if val, ok := record[valueField].(float64); ok && val > aggregatedValue {
-					aggregatedValue = val
-				}
-			}
-		case "min":
-			aggregatedValue = 1<<63 - 1
-			for _, record := range windowRecords {
-				if val, ok := record[valueField].(float64); ok && val < aggregatedValue {
-					aggregatedValue = val
-				}
-			}
-		case "count":
-			aggregatedValue = float64(len(windowRecords))
-		default:
-			aggregatedValue = 0
+		if !window.Next() {
+			break
 		}
-
-		// 添加聚合结果
-		results = append(results, WindowAggregation{
-			WindowStart: windowStart,
-			WindowEnd:   windowEnd,
-			Value:       aggregatedValue,
-		})
 	}
 
 	return results, nil
