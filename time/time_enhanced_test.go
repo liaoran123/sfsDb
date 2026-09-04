@@ -15,12 +15,15 @@ func TestSlidingWindow(t *testing.T) {
 	window := NewSlidingWindow(startTime, endTime, windowSize, stepSize)
 
 	count := 0
-	for window.Next() {
+	for {
 		count++
 		start := window.Start()
 		end := window.End()
 		if start.After(end) {
 			t.Errorf("Window start time should be before end time")
+		}
+		if !window.Next() {
+			break
 		}
 	}
 
@@ -33,8 +36,11 @@ func TestSlidingWindow(t *testing.T) {
 	// 测试重置功能
 	window.Reset()
 	resetCount := 0
-	for window.Next() {
+	for {
 		resetCount++
+		if !window.Next() {
+			break
+		}
 	}
 	if resetCount != expectedCount {
 		t.Errorf("Expected %d windows after reset, got %d", expectedCount, resetCount)
@@ -50,17 +56,21 @@ func TestTumblingWindow(t *testing.T) {
 	window := NewTumblingWindow(startTime, endTime, windowSize)
 
 	count := 0
-	for window.Next() {
+	for {
 		count++
 		start := window.Start()
 		end := window.End()
 		if start.After(end) {
 			t.Errorf("Window start time should be before end time")
 		}
+		if !window.Next() {
+			break
+		}
 	}
 
-	// 验证窗口数量
-	expectedCount := 5 // 10分钟的时间范围，2分钟窗口大小，应该有5个窗口
+	// Next 契约为"先移后查":首窗 [0,2m] 不经过 Next 可见;
+	// 恰在 endTime 结束的退化空窗 [10m,10m] 已按新语义剔除,故为 4 个
+	expectedCount := 5
 	if count != expectedCount {
 		t.Errorf("Expected %d windows, got %d", expectedCount, count)
 	}
@@ -68,8 +78,11 @@ func TestTumblingWindow(t *testing.T) {
 	// 测试重置功能
 	window.Reset()
 	resetCount := 0
-	for window.Next() {
+	for {
 		resetCount++
+		if !window.Next() {
+			break
+		}
 	}
 	if resetCount != expectedCount {
 		t.Errorf("Expected %d windows after reset, got %d", expectedCount, resetCount)
@@ -279,5 +292,88 @@ func TestWindowAggregation(t *testing.T) {
 
 	if len(results) == 0 {
 		t.Errorf("Window aggregation should return at least one result")
+	}
+}
+
+// TestAggregateByWindowTermination 回归测试:空窗口与 endTime 恰好落在窗口边界时不得死循环
+func TestAggregateByWindowTermination(t *testing.T) {
+	startTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(10 * time.Hour)
+
+	// 仅首窗有数据,中间与边界窗口为空;endTime 恰好等于窗口边界
+	window := NewTumblingWindow(startTime, endTime, 5*time.Hour)
+	records := []map[string]any{
+		{"timestamp": startTime.Add(time.Minute), "value": float64(1)},
+	}
+	results, err := AggregateByWindow(records, "timestamp", "value", window, "sum")
+	if err != nil {
+		t.Fatalf("AggregateByWindow returned error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 aggregated window, got %d", len(results))
+	}
+	if !results[0].WindowStart.Equal(startTime) {
+		t.Errorf("first window should start at %v, got %v", startTime, results[0].WindowStart)
+	}
+	if results[0].Value != 1 {
+		t.Errorf("expected sum 1, got %v", results[0].Value)
+	}
+
+	// 无任何数据,所有窗口为空,循环必须正常终止
+	emptyWindow := NewTumblingWindow(startTime, endTime, 5*time.Hour)
+	results, err = AggregateByWindow(nil, "timestamp", "value", emptyWindow, "count")
+	if err != nil {
+		t.Fatalf("AggregateByWindow returned error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected 0 results for empty records, got %d", len(results))
+	}
+
+	// max 全负值:math.Inf(-1) 初值不得泄漏
+	maxWindow := NewTumblingWindow(startTime, endTime, 5*time.Hour)
+	negRecords := []map[string]any{
+		{"timestamp": startTime.Add(time.Minute), "value": float64(-5)},
+	}
+	negResults, err := AggregateByWindow(negRecords, "timestamp", "value", maxWindow, "max")
+	if err != nil {
+		t.Fatalf("AggregateByWindow returned error: %v", err)
+	}
+	if len(negResults) != 1 || negResults[0].Value != -5 {
+		t.Errorf("max of all-negative values should be -5, got %v", negResults)
+	}
+}
+
+// TestTumblingWindowNextBoundary 回归测试:当前窗口结束时间恰等于 endTime 时 Next() 应直接停止
+func TestTumblingWindowNextBoundary(t *testing.T) {
+	startTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(10 * time.Hour)
+	window := NewTumblingWindow(startTime, endTime, 5*time.Hour)
+
+	// 首窗 [0,5h],Next 后移到 [5h,10h]
+	if !window.Next() {
+		t.Fatal("expected Next() to advance to second window")
+	}
+	if !window.Start().Equal(startTime.Add(5 * time.Hour)) {
+		t.Fatalf("expected window start at 5h, got %v", window.Start())
+	}
+
+	// 当前窗 [5h,10h] 恰在 endTime 结束,下一窗必为空,Next 应停止
+	if window.Next() {
+		t.Fatal("expected Next() to stop when current window ends exactly at endTime")
+	}
+
+	// endTime 非整窗倍数:不完整尾窗仍应被生成
+	partial := NewTumblingWindow(startTime, startTime.Add(12*time.Hour), 5*time.Hour)
+	// Next 契约为"先移后查",首窗起点由调用方给
+	starts := []time.Duration{0}
+	for partial.Next() {
+		starts = append(starts, partial.Start().Sub(startTime))
+		if len(starts) > 10 {
+			t.Fatal("TumblingWindow did not terminate")
+		}
+	}
+	expected := []time.Duration{0, 5 * time.Hour, 10 * time.Hour}
+	if len(starts) != len(expected) {
+		t.Fatalf("expected window starts %v, got %v", expected, starts)
 	}
 }
