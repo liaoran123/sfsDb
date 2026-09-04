@@ -146,7 +146,7 @@ func (b Bytes) Time() time.Time {
 
 	// 尝试使用各种格式解析
 	for _, format := range formats {
-		if t, err := time.Parse(format, str); err == nil {
+		if t, err := time.ParseInLocation(format, str, time.Local); err == nil {
 			return t
 		}
 	}
